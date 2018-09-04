@@ -9,7 +9,7 @@ If you use NeuSomatic in your work, please cite the following preprint:
 
 Sayed Mohammad Ebrahim Sahraeian, Ruolin Liu, Bayo Lau, Marghoob Mohiyuddin, Hugo Y. K. Lam, <br/> 
 [Deep convolutional neural networks for accurate somatic variant calling. bioRxiv (2018): 393801. <br/> 
-doi: https://doi.org/10.1101/393801](https://www.biorxiv.org/content/early/2018/08/17/393801)
+doi: https://doi.org/10.1101/393801](https://doi.org/10.1101/393801)
 
 ## Example Input Matrix
 ![Example input](toy_example.png)
