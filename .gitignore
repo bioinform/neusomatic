@@ -1,0 +1,6 @@
+third_party/*
+!third_party/*.cmake
+neusomatic/build/
+neusomatic/bin/*
+example/
+neusomatic/python/*.pyc
