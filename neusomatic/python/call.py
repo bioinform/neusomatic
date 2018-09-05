@@ -137,7 +137,7 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes))
         type_pred = vartype_classes[amx_prob]
         if type_pred == "NONE":
             break
-        center_pred = pred[1][0]
+        center_pred = min(max(0, pred[1][0]), Iw - 1)
         if abs(center_pred - center) < center_dist_roundback:
             center_ = center
         else:
@@ -219,17 +219,12 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes))
                     if i_ in nzref_pos:
                         pos_ = col_2_pos[i_]
                         break
-                # try:
-                #     assert(pos_ != -1)
-                # except:
-                #     # print "PPP-1",path,pred
-                #     return vcf_record
-                # try:
-                #     assert(sum(I[1:, i_, 1]) != 0)
-                # except:
-                #     # print
-                #     # path,pred,i_,nzref_pos,col_2_pos,I[1:,i_,1],true_path[path]
-                #     return vcf_record
+                if pos_ == -1
+                # print "PPP-1",path,pred
+                    return vcf_record
+                if (sum(I[1:, i_, 1]) == 0):
+                    # path,pred,i_,nzref_pos,col_2_pos,I[1:,i_,1],true_path[path]
+                    return vcf_record
                 ref_ = ACGT[np.argmax(I[1:, i_, 0])]
                 alt_ = ref_
                 if len_pred == 3:
@@ -258,13 +253,12 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes))
             if (len(ref_) - len(alt_)) < len_pred:
                 pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
         chrom_ = chroms[int(chrom)]
-        # try:
-        #     assert(fasta_file.fetch(chrom_, pos_ - 1, pos_ +
-        #                             len(ref_) - 1).upper() == ref_.upper())
-        #     assert(ref_ != alt_)
-        # except:
-        #     # print "AAAA"
-        #     return vcf_record
+        if fasta_file.fetch(chrom_, pos_ - 1, pos_ +
+                            len(ref_) - 1).upper() != ref_.upper():
+            # print "AAAA"
+            return vcf_record
+        if ref_ == alt_:
+            return vcf_record
 
         pred = list(pred_all)
         if type_pred == "SNP":

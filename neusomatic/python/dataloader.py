@@ -136,7 +136,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         new_batch = []
         for i_b, L in enumerate(self.Ls):
             new_batch.append([i_b, L])
-            if sum(map(lambda x: x[1], new_batch)) > 1000000 or i_b == len(self.Ls) - 1:
+            if sum(map(lambda x: x[1], new_batch)) > 100000 or i_b == len(self.Ls) - 1:
                 batches.append(new_batch)
                 new_batch = []
 
