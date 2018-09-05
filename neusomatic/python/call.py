@@ -219,8 +219,8 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes))
                     if i_ in nzref_pos:
                         pos_ = col_2_pos[i_]
                         break
-                if pos_ == -1
-                # print "PPP-1",path,pred
+                if pos_ == -1:
+                    # print "PPP-1",path,pred
                     return vcf_record
                 if (sum(I[1:, i_, 1]) == 0):
                     # path,pred,i_,nzref_pos,col_2_pos,I[1:,i_,1],true_path[path]
