@@ -103,7 +103,8 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
     return final_preds, none_preds, true_path
 
 
-def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes)):
+def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, ref_file)):
+    fasta_file = pysam.FastaFile(ref_file)
     ACGT = "ACGT"
     I = imread(true_path_) / 255.0
     vcf_record = None
@@ -278,11 +279,10 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes))
 
 
 def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, num_threads):
-    # fasta_file = pysam.FastaFile(ref_file)
     map_args = []
     for path in final_preds.keys():
         map_args.append([path, true_path[path], final_preds[path],
-                         chroms, vartype_classes])
+                         chroms, vartype_classes, ref_file])
 
     pool = multiprocessing.Pool(num_threads)
     try:
