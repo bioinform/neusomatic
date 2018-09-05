@@ -136,35 +136,41 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         new_batch = []
         for i_b, L in enumerate(self.Ls):
             new_batch.append([i_b, L])
-            if sum(map(lambda x: x[1], new_batch)) > 100000 or i_b == len(self.Ls) - 1:
+            if sum(map(lambda x: x[1], new_batch)) > 200000 or i_b == len(self.Ls) - 1 \
+                    or len(new_batch) > num_threads:
                 batches.append(new_batch)
                 new_batch = []
 
-        records_done = []
-        for batch in batches:
+        records_done = [[] for i in range(len(batches))]
+        for i, batch in enumerate(batches):
             map_args = []
+            Ls_ = []
             for i_b, _ in batch:
                 tsv = self.tsvs[i_b]
                 max_load_ = self.Ls[i_b] * max_load_candidates / \
                     total_L if total_L > 0 else 0
                 map_args.append([i_b, tsv, self.idxs[i_b], self.Ls[i_b],
                                  max_load_, nclasses_t, nclasses_l])
+                Ls_.append(self.Ls[i_b])
+            logger.info(Ls_)
             pool = multiprocessing.Pool(num_threads)
-            records_done.extend(pool.map_async(
-                extract_info_tsv, map_args).get())
+            records_ = pool.map_async(
+                extract_info_tsv, map_args).get()
             pool.close()
+            records_done[i] = records_
 
         j = 0
-        for matrices, data, none_ids, var_ids, count_class_t, count_class_l in records_done:
-            self.matrices += matrices
-            self.data += data
-            self.none_ids += map(lambda x: x + j, none_ids)
-            self.var_ids += map(lambda x: x + j, var_ids)
-            for k in range(nclasses_t):
-                self.count_class_t[k] += count_class_t[k]
-            for k in range(nclasses_l):
-                self.count_class_l[k] += count_class_l[k]
-            j += len(matrices)
+        for records_ in records_done:
+            for matrices, data, none_ids, var_ids, count_class_t, count_class_l in records_:
+                self.matrices += matrices
+                self.data += data
+                self.none_ids += map(lambda x: x + j, none_ids)
+                self.var_ids += map(lambda x: x + j, var_ids)
+                for k in range(nclasses_t):
+                    self.count_class_t[k] += count_class_t[k]
+                for k in range(nclasses_l):
+                    self.count_class_l[k] += count_class_l[k]
+                j += len(matrices)
 
         self.roots = roots
         self.transform = transform

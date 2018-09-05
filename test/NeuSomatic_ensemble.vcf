@@ -1,0 +1,15 @@
+##fileformat=VCFv4.2
+##NeuSomatic Version=0.1.0
+##FORMAT=<ID=SCORE,Number=1,Type=Float,Description="Prediction probability score">
+##FILTER=<ID=PASS,Description="Accept as a higher confidence somatic mutation calls with probability score value at least 0.7">
+##FILTER=<ID=LowQual,Description="Less confident somatic mutation calls with probability score value at least 0.4">
+##FILTER=<ID=REJECT,Description="Rejected as a confident somatic mutation with probability score value below 0.4">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE
+22	21330787	.	C	T	27.2132	PASS	SCORE=0.9981	GT	0/1
+22	21332122	.	G	A	40.0000	PASS	SCORE=0.9999	GT	0/1
+22	21334924	.	G	C	22.2248	PASS	SCORE=0.9940	GT	0/1
+22	21335259	.	C	A	29.2086	PASS	SCORE=0.9988	GT	0/1
+22	21384516	.	C	T	33.0106	PASS	SCORE=0.9995	GT	0/1
+22	21982892	.	C	T	25.6891	PASS	SCORE=0.9973	GT	0/1
+22	21983260	.	A	G	26.5777	PASS	SCORE=0.9978	GT	0/1
+22	21989959	.	AAG	A	36.9899	PASS	SCORE=0.9998	GT	0/1
