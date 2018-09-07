@@ -181,7 +181,7 @@ cat Ensemble.s*.tsv |sed "s/nan/0/g" > enemble_ann.tsv
 ```
 and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
 
-The requirements for this wrapper script can be found [here](https://github.com/bioinform/somaticseq). The docker image with those requirment installed can be found [here](https://hub.docker.com/r/lethalfang/somaticseq/). 
+The requirements for this wrapper script can be found [here](https://github.com/bioinform/somaticseq). The docker image with those requirement installed can be found [here](https://hub.docker.com/r/lethalfang/somaticseq/). 
 
 To run the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), you can follow dockerized pipeline indicated [here](https://github.com/bioinform/somaticseq/tree/master/utilities/dockered_pipelines).
 
