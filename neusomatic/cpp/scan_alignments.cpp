@@ -71,11 +71,32 @@ int main(int argc, char **argv) {
   ref_seqs.LoadIndex(ref_in);
 
   neusomatic::bio::VCFWriter vcf_writer(vcf_out, ref_in, "VarCal");
+  const unsigned contig_counts = seqan::length(seqan::contigNames(vcf_writer.vcf_context()));
+  std::map<std::string, unsigned> chr_name_to_idx;
+  for (unsigned i = 0; i < contig_counts; ++i) {
+    chr_name_to_idx[seqan::toCString(seqan::contigNames(vcf_writer.vcf_context())[i])] = i; 
+  }
   std::ofstream count_out_writer;
   count_out_writer.open(count_out);
 
   neusomatic::CaptureLayout<GInvInt, SeqLib::BamRecord, SeqLib::BamReader> capture_layout(bam_path, bed_regions, opts);
   SeqLib::BamHeader bam_header = capture_layout.Reader().Header(); 
+  
+  try {
+    for (auto it = chr_name_to_idx.cbegin(); it != chr_name_to_idx.cend(); ++it) {
+      if (bam_header.Name2ID(it->first) != it->second) {
+        std::cerr << " the bam file and the reference do not match.\n exit..\n please check the bam header and the reference file.\n";
+        exit(1);
+      }
+    }
+  } catch (const std::out_of_range& oor) {
+        std::cerr << " the reference contains chromosome/contig name(s) that is/are not in the bam file.\n exit..\n please check the bam header and the reference file.\n";
+    exit(1);
+  } catch (const std::invalid_argument& ia) {
+        std::cerr << " the reference contains chromosome/contig name(s) that is/are not in the bam file.\n exit..\n please check the bam header and the reference file.\n";
+    exit(1);
+  }
+
   int cnt_region=0;
   while (capture_layout.NextRegion(opts.fully_contained())) {
     // a map from genomic interval -> a vector of alignReadIds

@@ -16,6 +16,7 @@ doi: https://doi.org/10.1101/393801](https://doi.org/10.1101/393801)
 
 ## Table of Contents
 **[Availability](#availability)**<br>
+**[Quick Test](#quick-test)**<br>
 **[Example Usage](#example-usage)**<br>
 **[Ensemble mode](#ensemble-mode)**<br>
 **[Creating Training Data](#creating-training-data)**<br>
@@ -26,7 +27,7 @@ doi: https://doi.org/10.1101/393801](https://doi.org/10.1101/393801)
 
 ## Availability
 
-NeuSomatic is written in Python and C++ and requires a Unix-like environment to run. Its deep learning framework is implemented using PyTorch 0.3.1 to enable GPU acceleration for training/testing.
+NeuSomatic is written in Python and C++ and requires a Unix-like environment to run. It has been sucessfully tested on CentOS 7. Its deep learning framework is implemented using PyTorch 0.3.1 to enable GPU acceleration for training/testing.
 
 NeuSomatic first scans the genome to identify candidate variants and extract alignment information. 
 The binary for this step can be obtained at `neusomatic/bin` folder by running `./build.sh` (which requires cmake 3.12.1 and g++ 5.4.0).
@@ -50,9 +51,10 @@ It also depends on the following packages:
 
 You can install these packages using [anaconda](https://www.anaconda.com/download):
 ```
+conda install zlib=1.2.11 numpy=1.14.3 scipy=1.1.0 
 conda install pytorch=0.3.1 torchvision=0.2.0 cuda80=1.0 -c pytorch
-conda install pysam=0.14.1 pybedtools=0.7.10 pytabix=0.0.2 zlib=1.2.11 numpy=1.14.3 scipy=1.1.0 \
-              tabix=0.2.5 bedtools=2.27.1 samtools=1.7 cmake=3.12.1 biopython=1.68
+conda install cmake=3.12.1 -c conda-forge
+conda install pysam=0.14.1 pybedtools=0.7.10 pytabix=0.0.2 samtools=1.7 tabix=0.2.5 bedtools=2.27.1 biopython=1.68 -c bioconda
 ```
 g++ 5.4.0 can also be obained as `sudo apt-get install gcc-5 g++-5`.
 
@@ -76,6 +78,15 @@ Reads in input .bam file should be sorted, indexed and have MD tags. If you are 
 samtools calmd -@ num_threads -b alignment.bam reference.fasta  > alignment.md.bam 
 samtools index alignment.md.bam
 ```
+
+## Quick Test
+Testing the preprocessing, calling, and postprocessing steps:
+```
+cd test
+./run_test.py
+```
+The outputs at `example/work_standalone/NeuSomatic_standalone.vcf` and `example/work_ensemble/NeuSomatic_ensemble.vcf` for stand-alone and ensemble modes should look like `test/NeuSomatic_standalone.vcf` and `test/NeuSomatic_ensemble.vcf`, respectively.
+
 
 ## Example Usage
 
@@ -138,6 +149,7 @@ python postprocess.py \
 	--output_vcf work_call/NeuSomatic.vcf \
 	--work work_call 
 ```
+Here, the final NeuSomatic prediction is reported at `work_call/NeuSomatic.vcf`.
 
 NeuSomatic will use GPUs in train/call steps if they are avilable. To use specific GPUs for train/call steps, you can set the environment variable `CUDA_VISIBLE_DEVICES` as:
 
@@ -181,7 +193,7 @@ cat Ensemble.s*.tsv |sed "s/nan/0/g" > enemble_ann.tsv
 ```
 and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
 
-The requirements for this wrapper script can be found [here](https://github.com/bioinform/somaticseq). The docker image with those requirment installed can be found [here](https://hub.docker.com/r/lethalfang/somaticseq/). 
+The requirements for this wrapper script can be found [here](https://github.com/bioinform/somaticseq). The docker image with those requirement installed can be found [here](https://hub.docker.com/r/lethalfang/somaticseq/). 
 
 To run the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), you can follow dockerized pipeline indicated [here](https://github.com/bioinform/somaticseq/tree/master/utilities/dockered_pipelines).
 

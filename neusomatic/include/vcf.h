@@ -20,6 +20,10 @@ public:
     writeRecord(vcf_, record);
   }
 
+  decltype(auto) vcf_context() {
+    return context(vcf_);
+  }
+
 private:
   seqan::VcfFileOut vcf_;
   void WriteHeader(const std::string& ref_file, const std::string& program_name) {

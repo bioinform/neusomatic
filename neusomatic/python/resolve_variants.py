@@ -180,11 +180,8 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
 
     pool = multiprocessing.Pool(num_threads)
     try:
-        # out_variants_list = pool.map_async(
-        #     find_resolved_variants, map_args).get()
-        out_variants_list=[]
-        for w in map_args:
-            out_variants_list.append(find_resolved_variants(w))
+        out_variants_list = pool.map_async(
+            find_resolved_variants, map_args).get()
         pool.close()
     except Exception as inst:
         logger.error(inst)
