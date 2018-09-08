@@ -85,7 +85,7 @@ Testing the preprocessing, calling, and postprocessing steps:
 cd test
 ./run_test.py
 ```
-The outputs at `example/work_standalone/NeuSomatic_standalone.vcf` and `example/work_ensemble/NeuSomatic_ensemble.vcf` for stand-alone and ensemble modes should look like `test/NeuSomatic_standalone.vcf` and `test/NeuSomatic_ensemble.vcf`, respectively.
+The outputs at `test/example/work_standalone/NeuSomatic_standalone.vcf` and `test/example/work_ensemble/NeuSomatic_ensemble.vcf` for stand-alone and ensemble modes should look like `test/NeuSomatic_standalone.vcf` and `test/NeuSomatic_ensemble.vcf`, respectively.
 
 
 ## Example Usage

@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-set -ex
+set -e
 
 mkdir -p example
 cd example
@@ -88,3 +88,17 @@ python ../../neusomatic/python/postprocess.py \
 		--output_vcf work_ensemble/NeuSomatic_ensemble.vcf \
 		--work work_ensemble 
 
+
+
+file1=work_standalone/NeuSomatic_standalone.vcf
+file2=../NeuSomatic_standalone.vcf
+
+cmp --silent $file1 $file2 && echo '### SUCCESS: NeuSomatic stand-alone! ###' \
+|| echo '### WARNING: Files test/NeuSomatic_standalone.vcf and test/example/work_standalone/NeuSomatic_standalone.vcf Are Different! ###'
+
+
+file1=work_ensemble/NeuSomatic_ensemble.vcf
+file2=../NeuSomatic_ensemble.vcf
+
+cmp --silent $file1 $file2 && echo '### SUCCESS: NeuSomatic ensemble! ###' \
+|| echo '### WARNING: Files test/NeuSomatic_ensemble.vcf and test/example/work_ensemble/NeuSomatic_ensemble.vcf Are Different! ###'
