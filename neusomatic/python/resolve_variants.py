@@ -178,16 +178,21 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
         id_ = int(id_)
         map_args.append([chrom, start, end, variants[id_], input_bam, ref])
 
-    pool = multiprocessing.Pool(num_threads)
-    try:
-        out_variants_list = pool.map_async(
-            find_resolved_variants, map_args).get()
-        pool.close()
-    except Exception as inst:
-        logger.error(inst)
-        pool.close()
-        traceback.print_exc()
-        raise Exception
+    out_variants_list=[]
+    for w in map_args:
+        out_variants_list.append(find_resolved_variants(w))
+
+
+    # pool = multiprocessing.Pool(num_threads)
+    # try:
+    #     out_variants_list = pool.map_async(
+    #         find_resolved_variants, map_args).get()
+    #     pool.close()
+    # except Exception as inst:
+    #     logger.error(inst)
+    #     pool.close()
+    #     traceback.print_exc()
+    #     raise Exception
     out_variants = [x for xs in out_variants_list for x in xs]
     chroms_order = get_chromosomes_order(bam=input_bam)
 
