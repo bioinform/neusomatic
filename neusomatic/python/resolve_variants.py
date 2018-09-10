@@ -228,8 +228,9 @@ if __name__ == '__main__':
         resolve_variants(args.input_bam, args.resolved_vcf,
                          args.reference, args.target_vcf,
                          args.target_bed, args.num_threads)
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception(
+        logger.error(
             "resolve_variants.py failure on arguments: {}".format(args))
+        raise e

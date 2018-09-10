@@ -98,8 +98,9 @@ if __name__ == '__main__':
     try:
         resolve_scores(args.input_bam, args.ra_vcf,
                        args.target_vcf, args.output_vcf)
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception(
+        logger.error(
             "resolve_scores.py failure on arguments: {}".format(args))
+        raise e

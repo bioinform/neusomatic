@@ -158,7 +158,9 @@ if __name__ == '__main__':
                                  args.lr_gap_ext_penalty, args.pass_threshold, args.lowqual_threshold,
                                  args.msa_binary, args.samtools_binary, args.num_threads)
 
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception("postprocess.py failure on arguments: {}".format(args))
+        logger.error(
+            "postprocess.py failure on arguments: {}".format(args))
+        raise e

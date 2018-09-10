@@ -79,8 +79,9 @@ if __name__ == '__main__':
     try:
         merge_post_vcfs(args.ref, args.resolved_vcf,
                         args.no_resolve_vcf, args.target_vcf, args.out_vcf)
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception(
+        logger.error(
             "merge_post_vcfs.py failure on arguments: {}".format(args))
+        raise e

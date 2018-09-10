@@ -94,8 +94,9 @@ if __name__ == '__main__':
     try:
         extract_postprocess_targets(
             args.input_vcf, args.min_len, args.max_dist, args.pad)
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception(
+        logger.error(
             "extract_postprocess_targets.py failure on arguments: {}".format(args))
+        raise e

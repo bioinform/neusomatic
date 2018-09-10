@@ -499,7 +499,8 @@ if __name__ == '__main__':
                                      args.num_threads, args.batch_size, args.max_load_candidates,
                                      args.pass_threshold, args.lowqual_threshold,
                                      use_cuda)
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception("call.py failure on arguments: {}".format(args))
+        logger.error("call.py failure on arguments: {}".format(args))
+        raise e

@@ -420,7 +420,9 @@ if __name__ == '__main__':
                                       args.lr, args.lr_drop_epochs, args.lr_drop_ratio, args.momentum,
                                       args.boost_none, args.none_count_scale,
                                       args.max_load_candidates, args.coverage_thr, args.save_freq, use_cuda)
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception("train.py failure on arguments: {}".format(args))
+        logger.error(
+            "traina.py failure on arguments: {}".format(args))
+        raise e

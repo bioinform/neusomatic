@@ -108,7 +108,9 @@ if __name__ == '__main__':
     try:
         split_region_files = split_region(
             work, args.region_bed, args.num_splits, args.max_region, args.min_region)
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception("split_bed.py failure on arguments: {}".format(args))
+        logger.error(
+            "split_bed.py failure on arguments: {}".format(args))
+        raise e

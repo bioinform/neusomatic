@@ -329,8 +329,9 @@ if __name__ == '__main__':
                                     args.snp_min_af, args.snp_min_bq, args.snp_min_ao,
                                     args.ins_min_af, args.del_min_af,
                                     args.del_merge_min_af, args.ins_merge_min_af, args.merge_r))
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception(
+        logger.error(
             "filter_candidates.py failure on arguments: {}".format(args))
+        raise e

@@ -1555,8 +1555,9 @@ if __name__ == '__main__':
         generate_dataset(work, truth_vcf_file, mode, tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                          matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
                          ensemble_bed, tsv_batch_size)
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception(
+        logger.error(
             "generate_dataset.py failure on arguments: {}".format(args))
+        raise e

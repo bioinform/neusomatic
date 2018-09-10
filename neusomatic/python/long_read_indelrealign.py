@@ -1301,8 +1301,9 @@ if __name__ == '__main__':
                                            args.ins_min_af, args.match_score,
                                            args.mismatch_penalty, args.gap_open_penalty,
                                            args.gap_ext_penalty, args.msa_binary, args.samtools)
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception(
+        logger.error(
             "long_read_indelrealign.py failure on arguments: {}".format(args))
+        raise e

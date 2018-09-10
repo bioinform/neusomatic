@@ -161,8 +161,9 @@ if __name__ == '__main__':
                                   args.regions_bed_file, args.reference,
                                   args.num_threads, args.window_size, args.maf,
                                   args.min_mapq)
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception(
+        logger.error(
             "scan_alignments.py failure on arguments: {}".format(args))
+        raise e

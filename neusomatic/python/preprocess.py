@@ -357,7 +357,9 @@ if __name__ == '__main__':
                    args.truth_vcf, args.tsv_batch_size, args.matrix_width, args.matrix_base_pad, args.min_ev_frac_per_col,
                    args.ensemble_tsv, args.long_read, args.restart, args.skip_without_qual, args.num_threads,
                    args.scan_alignments_binary)
-    except:
+    except Exception as e:
         traceback.print_exc()
         logger.error("Aborting!")
-        raise Exception("preprocess.py failure on arguments: {}".format(args))
+        logger.error(
+            "preprocess.py failure on arguments: {}".format(args))
+        raise e
