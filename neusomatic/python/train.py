@@ -213,7 +213,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         model_dict = net.state_dict()
         # 1. filter out unnecessary keys
         # pretrained_state_dict = {
-        #     k: v for k, v in pretrained_state_dict.items() if k in model_dict}
+        # k: v for k, v in pretrained_state_dict.items() if k in model_dict}
         if "module." in pretrained_state_dict.keys()[0] and "module." not in model_dict.keys()[0]:
             pretrained_state_dict = {k.split("module.")[1]: v for k, v in pretrained_state_dict.items(
             ) if k.split("module.")[1] in model_dict}
@@ -420,3 +420,5 @@ if __name__ == '__main__':
                                       args.max_load_candidates, args.coverage_thr, use_cuda)
     except:
         traceback.print_exc()
+        logger.error("Aborting!")
+        raise Exception("train.py failure on arguments: {}".format(args))

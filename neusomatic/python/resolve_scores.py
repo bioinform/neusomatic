@@ -5,6 +5,7 @@
 
 import argparse
 import logging
+import traceback
 
 import pybedtools
 import numpy as np
@@ -94,5 +95,11 @@ if __name__ == '__main__':
                         help='output_vcf', required=True)
     args = parser.parse_args()
 
-    resolve_scores(args.input_bam, args.ra_vcf,
-                   args.target_vcf, args.output_vcf)
+    try:
+        resolve_scores(args.input_bam, args.ra_vcf,
+                       args.target_vcf, args.output_vcf)
+    except:
+        traceback.print_exc()
+        logger.error("Aborting!")
+        raise Exception(
+            "resolve_scores.py failure on arguments: {}".format(args))

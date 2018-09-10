@@ -216,6 +216,7 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, 
                 pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
             else:
                 pos_ = -1
+                i_ = center_ - 1
                 for i_ in range(center_ - 1, 0, -1):
                     if i_ in nzref_pos:
                         pos_ = col_2_pos[i_]
@@ -500,3 +501,5 @@ if __name__ == '__main__':
                                      use_cuda)
     except:
         traceback.print_exc()
+        logger.error("Aborting!")
+        raise Exception("call.py failure on arguments: {}".format(args))

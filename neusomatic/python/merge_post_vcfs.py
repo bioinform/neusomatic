@@ -42,7 +42,8 @@ def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, target_vcf, out_vcf,
     with open(out_vcf, "w") as o_f:
         o_f.write("##fileformat=VCFv4.2\n")
         o_f.write("##NeuSomatic Version={}\n".format(__version__))
-        o_f.write("##FORMAT=<ID=SCORE,Number=1,Type=Float,Description=\"Prediction probability score\">\n")
+        o_f.write(
+            "##FORMAT=<ID=SCORE,Number=1,Type=Float,Description=\"Prediction probability score\">\n")
         o_f.write("##FILTER=<ID=PASS,Description=\"Accept as a higher confidence somatic mutation calls with probability score value at least {}\">\n".format(
             pass_threshold))
         o_f.write("##FILTER=<ID=LowQual,Description=\"Less confident somatic mutation calls with probability score value at least {}\">\n".format(
@@ -59,7 +60,8 @@ def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, target_vcf, out_vcf,
             elif prob >= lowqual_threshold:
                 filter_ = "LowQual"
             o_f.write("\t".join([chrom, pos, ".", ref, alt,
-                                 "{:.4f}".format(float(score)), filter_, "SCORE={:.4f}".format(prob),
+                                 "{:.4f}".format(
+                                     float(score)), filter_, "SCORE={:.4f}".format(prob),
                                  "GT", "0/1"]) + "\n")
 
 if __name__ == '__main__':
@@ -79,3 +81,6 @@ if __name__ == '__main__':
                         args.no_resolve_vcf, args.target_vcf, args.out_vcf)
     except:
         traceback.print_exc()
+        logger.error("Aborting!")
+        raise Exception(
+            "merge_post_vcfs.py failure on arguments: {}".format(args))

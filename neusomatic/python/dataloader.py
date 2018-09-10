@@ -152,7 +152,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                 map_args.append([i_b, tsv, self.idxs[i_b], self.Ls[i_b],
                                  max_load_, nclasses_t, nclasses_l])
                 Ls_.append(self.Ls[i_b])
-            logger.info(Ls_)
+            logger.info("Len's of tsv files in this batch: {}".format(Ls_))
             pool = multiprocessing.Pool(num_threads)
             records_ = pool.map_async(
                 extract_info_tsv, map_args).get()

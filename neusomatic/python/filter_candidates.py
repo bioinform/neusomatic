@@ -21,6 +21,7 @@ consoleHandler.setFormatter(logFormatter)
 logger.addHandler(consoleHandler)
 logging.getLogger().setLevel(logging.INFO)
 
+
 def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp, min_dp, good_ao,
                        min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af,
                        del_merge_min_af, ins_merge_min_af, merge_r)):
@@ -330,3 +331,6 @@ if __name__ == '__main__':
                                     args.del_merge_min_af, args.ins_merge_min_af, args.merge_r))
     except:
         traceback.print_exc()
+        logger.error("Aborting!")
+        raise Exception(
+            "filter_candidates.py failure on arguments: {}".format(args))

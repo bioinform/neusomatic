@@ -4,6 +4,7 @@
 #-------------------------------------------------------------------------
 import os
 import argparse
+import traceback
 from random import shuffle
 import logging
 
@@ -17,6 +18,7 @@ consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 logger.addHandler(consoleHandler)
 logging.getLogger().setLevel(logging.INFO)
+
 
 def split_region(work, region_bed_file, num_splits, max_region=1000000, min_region=20, shuffle_intervals=False):
 
@@ -85,7 +87,8 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Split bedfile to multiple beds')
-    parser.add_argument('--region_bed', type=str, help='region bed', required=True)
+    parser.add_argument('--region_bed', type=str,
+                        help='region bed', required=True)
     parser.add_argument('--num_splits', type=int,
                         help='number of splits', required=True)
     parser.add_argument('--output', type=str,
@@ -102,5 +105,10 @@ if __name__ == '__main__':
     if not os.path.exists(work):
         os.mkdir(work)
 
-    split_region_files = split_region(
-        work, args.region_bed, args.num_splits, args.max_region, args.min_region)
+    try:
+        split_region_files = split_region(
+            work, args.region_bed, args.num_splits, args.max_region, args.min_region)
+    except:
+        traceback.print_exc()
+        logger.error("Aborting!")
+        raise Exception("split_bed.py failure on arguments: {}".format(args))

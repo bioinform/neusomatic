@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 set -e
 
 mkdir -p example
@@ -17,7 +17,7 @@ then
 fi
 rm -rf work_standalone
 #Stand-alone NeuSomatic test 
-python ../../neusomatic/python/preprocess.py \
+python -u ../../neusomatic/python/preprocess.py \
 	--mode call \
 	--reference Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
 	--region_bed ../region.bed \
@@ -42,7 +42,7 @@ CUDA_VISIBLE_DEVICES= python ../../neusomatic/python/call.py \
 		--num_threads 1 \
 		--batch_size 100
 
-python ../../neusomatic/python/postprocess.py \
+python -u ../../neusomatic/python/postprocess.py \
 		--reference Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
 		--tumor_bam ../tumor.bam \
 		--pred_vcf work_standalone/pred.vcf \
@@ -53,7 +53,7 @@ python ../../neusomatic/python/postprocess.py \
 
 rm -rf work_ensemble
 #Ensemble NeuSomatic test 
-python ../../neusomatic/python/preprocess.py \
+python -u ../../neusomatic/python/preprocess.py \
 	--mode call \
 	--reference Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
 	--region_bed ../region.bed \
@@ -80,7 +80,7 @@ CUDA_VISIBLE_DEVICES= python ../../neusomatic/python/call.py \
 		--ensemble \
 		--batch_size 100
 
-python ../../neusomatic/python/postprocess.py \
+python -u ../../neusomatic/python/postprocess.py \
 		--reference Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
 		--tumor_bam ../tumor.bam \
 		--pred_vcf work_ensemble/pred.vcf \
@@ -93,7 +93,7 @@ python ../../neusomatic/python/postprocess.py \
 file1=work_standalone/NeuSomatic_standalone.vcf
 file2=../NeuSomatic_standalone.vcf
 
-cmp --silent $file1 $file2 && echo '### NeuSomatic stand-alone: SUCCESS!  ###' \
+cmp --silent $file1 $file2 && echo '### NeuSomatic stand-alone: SUCCESS! ###' \
 || echo '### NeuSomatic stand-alone FAILED: Files test/NeuSomatic_standalone.vcf and test/example/work_standalone/NeuSomatic_standalone.vcf Are Different! ###'
 
 

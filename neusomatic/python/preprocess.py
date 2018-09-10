@@ -359,3 +359,5 @@ if __name__ == '__main__':
                    args.scan_alignments_binary)
     except:
         traceback.print_exc()
+        logger.error("Aborting!")
+        raise Exception("preprocess.py failure on arguments: {}".format(args))

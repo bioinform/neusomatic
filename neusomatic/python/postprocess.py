@@ -160,3 +160,5 @@ if __name__ == '__main__':
 
     except:
         traceback.print_exc()
+        logger.error("Aborting!")
+        raise Exception("postprocess.py failure on arguments: {}".format(args))

@@ -42,8 +42,13 @@ def run_scan_alignments((work, reference, scan_alignments_binary, split_region_f
             work, work, window_size, maf, min_mapq, num_threads)
         if calc_qual:
             cmd += " --calculate_qual_stat"
-        run_shell_command(cmd, stdout=os.path.join(work, "scan.out"),
-                          stderr=os.path.join(work, "scan.err"))
+        ret_code = run_shell_command(cmd, stdout=os.path.join(work, "scan.out"),
+                                     stderr=os.path.join(work, "scan.err"))
+        if ret_code != 0:
+            logger.error("scan_alignments failed")
+            logger.error("Aborting!")
+            raise Exception(
+                "scan_alignments failure on command: {}".format(cmd))
     else:
         pybedtools.BedTool([]).saveas(os.path.join(work, "candidates.vcf"))
         pybedtools.BedTool([]).saveas(os.path.join(work, "count.bed"))
@@ -57,7 +62,6 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
                     regions_bed_file, reference,
                     num_threads, window_size, maf, min_mapq, restart=True,
                     split_region_files=[], calc_qual=True):
-
 
     logger.info("-----------------------------------------------------------")
     logger.info("Scan Alignment BAM")
@@ -159,3 +163,6 @@ if __name__ == '__main__':
                                   args.min_mapq)
     except:
         traceback.print_exc()
+        logger.error("Aborting!")
+        raise Exception(
+            "scan_alignments.py failure on arguments: {}".format(args))

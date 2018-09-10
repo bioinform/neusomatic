@@ -276,16 +276,12 @@ def align_tumor_normal_matrices(record, tumor_matrix_, bq_tumor_matrix_, mq_tumo
     new_normal_col_pos_map = {k: map_N[v]
                               for k, v in normal_col_pos_map.iteritems()}
 
-    try:
-        assert(sum(new_normal_ref_array - new_tumor_ref_array) == 0)
-    except Exception as inst:
+    if sum(new_normal_ref_array - new_tumor_ref_array) != 0:
         logger.error("record: {}".format(record))
         logger.error("new_normal_ref_array, new_tumor_ref_array: {}, {}".format(
             new_normal_ref_array, new_tumor_ref_array))
         logger.error("new_normal_ref_array - new_tumor_ref_array: {}".format(
             new_normal_ref_array - new_tumor_ref_array))
-        logger.error(inst)
-        traceback.print_exc()
         raise Exception
 
     for k in new_tumor_col_pos_map:
@@ -1346,7 +1342,6 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     logger.info("Generate Dataset")
     logger.info("-----------------------------------------------------------")
 
-
     if not os.path.exists(work):
         os.mkdir(work)
 
@@ -1562,3 +1557,6 @@ if __name__ == '__main__':
                          ensemble_bed, tsv_batch_size)
     except:
         traceback.print_exc()
+        logger.error("Aborting!")
+        raise Exception(
+            "generate_dataset.py failure on arguments: {}".format(args))

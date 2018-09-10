@@ -176,8 +176,8 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
     for tb in target_bed:
         chrom, start, end, id_ = tb[0:4]
         id_ = int(id_)
-        map_args.append([chrom, start, end, variants[id_], input_bam, reference])
-
+        map_args.append([chrom, start, end, variants[id_],
+                         input_bam, reference])
 
     pool = multiprocessing.Pool(num_threads)
     try:
@@ -224,6 +224,12 @@ if __name__ == '__main__':
                         help='number of threads', default=1)
     args = parser.parse_args()
 
-    resolve_variants(args.input_bam, args.resolved_vcf,
-                     args.reference, args.target_vcf,
-                     args.target_bed, args.num_threads)
+    try:
+        resolve_variants(args.input_bam, args.resolved_vcf,
+                         args.reference, args.target_vcf,
+                         args.target_bed, args.num_threads)
+    except:
+        traceback.print_exc()
+        logger.error("Aborting!")
+        raise Exception(
+            "resolve_variants.py failure on arguments: {}".format(args))

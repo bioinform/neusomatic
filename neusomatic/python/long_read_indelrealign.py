@@ -356,7 +356,8 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
                             NM_INDEL = cigar_stat[
                                 CIGAR_DEL] + cigar_stat[CIGAR_INS] + del_start + del_end
                             in_fasta.write(">%s\n" % cnt)
-                            in_fasta.write("%s\n" % record.seq[start_idx:end_idx + 1].upper())
+                            in_fasta.write(
+                                "%s\n" % record.seq[start_idx:end_idx + 1].upper())
                             info_txt.write("\t".join(map(str, [cnt, record.query_name, record.pos,
                                                                record.cigarstring, start_idx,
                                                                end_idx,
@@ -420,18 +421,32 @@ def split_bam_to_chuncks(work, region, input_bam, samtools_binary, chunck_size=2
             split_input_bam = os.path.join(
                 work, region.__str__() + "_split_{}.bam".format(i))
             with pysam.AlignmentFile(input_bam, "rb") as samfile:
-                with pysam.AlignmentFile(split_input_bam, "wb", template=samfile
-                                         ) as out_samfile:
+                with pysam.AlignmentFile(split_input_bam, "wb",
+                                         template=samfile) as out_samfile:
                     for record in records[i_start:i_end]:
                         out_samfile.write(record)
             cmd = "{} sort {} -o {}.sorted.bam".format(
                 samtools_binary, split_input_bam, split_input_bam)
-            run_shell_command(cmd)
+            ret_code = run_shell_command(cmd)
+            if ret_code != 0:
+                logger.error("Aborting!")
+                raise Exception(
+                    "long_read_indelrealign.py failure on command: {}".format(cmd))
+
             cmd = "mv {}.sorted.bam {}".format(
                 split_input_bam, split_input_bam)
-            run_shell_command(cmd)
+            ret_code = run_shell_command(cmd)
+            if ret_code != 0:
+                logger.error("Aborting!")
+                raise Exception(
+                    "long_read_indelrealign.py failure on command: {}".format(cmd))
+
             cmd = "{} index {}".format(samtools_binary, split_input_bam)
-            run_shell_command(cmd)
+            ret_code = run_shell_command(cmd)
+            if ret_code != 0:
+                logger.error("Aborting!")
+                raise Exception(
+                    "long_read_indelrealign.py failure on command: {}".format(cmd))
 
             bams.append(split_input_bam)
             lens.append(i_end - i_start + 1)
@@ -469,9 +484,7 @@ def extract_new_cigars(region, info_file, out_fasta_file):
     if len(records) <= 1:
         return {}, {}, {}
 
-    try:
-        assert(not set(map(int, records.keys())) ^ set(range(len(records))))
-    except:
+    if set(map(int, records.keys())) ^ set(range(len(records))):
         logger.error("sequences are missing in the alignment {}".format(
             set(map(int, records.keys())) ^ set(range(len(records)))))
         raise Exception
@@ -550,9 +563,7 @@ def get_final_msa(region, msa_0, consensus, out_fasta_file_1, out_fasta_file_fin
     records = SeqIO.to_dict(SeqIO.parse(out_fasta_file_1, "fasta"))
     if len(records) <= 1:
         return False
-    try:
-        assert(not set(map(int, records.keys())) ^ set(range(2)))
-    except:
+    if set(map(int, records.keys())) ^ set(range(2)):
         logger.error("sequences are missing in the alignment {}".format(
             set(map(int, records.keys())) ^ set(range(1, len(records) + 1))))
         raise Exception
@@ -589,9 +600,7 @@ def get_entries(region, info_file, new_cigars, excess_start, excess_end):
     info = read_info(info_file)
     N = len(new_cigars)
 
-    try:
-        assert(len(info) == N)
-    except:
+    if len(info) != N:
         logger.error(
             "number of items in info is different from length of new cigars: {} vs {}".format(
                 len(info), N))
@@ -626,9 +635,8 @@ def find_realign_dict(realign_bed_file, chrom):
     chrom_regions = set([])
     for interval in realign_bed:
         chrom, start, end, query_name = interval[0:4]
-        pos, start_idx, end_idx, cigarstring, del_start, del_end, pos_start, pos_end, new_cigar,
-        excess_start, excess_end = interval[
-            6:]
+        pos, start_idx, end_idx, cigarstring, del_start, del_end, pos_start, pos_end, new_cigar, \
+            excess_start, excess_end = interval[6:]
         q_key = "{}_{}_{}".format(query_name, pos, cigarstring)
         if q_key not in realign_dict:
             realign_dict[q_key] = Realign_Read(
@@ -716,7 +724,11 @@ def correct_bam_all(work, input_bam, output_bam, ref_fasta_file, realign_bed_fil
                     in_active_region = True
     if os.path.exists(output_bam):
         cmd = "{} index {}".format(samtools_binary, output_bam)
-        run_shell_command(cmd)
+        ret_code = run_shell_command(cmd)
+        if ret_code != 0:
+            logger.error("Aborting!")
+            raise Exception(
+                "long_read_indelrealign.py failure on command: {}".format(cmd))
 
 
 def concatenate_sam_files(files, output, bam_header):
@@ -744,7 +756,11 @@ def parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file, realign_be
 
         cmd = "{} view -H {} > {}".format(samtools_binary,
                                           input_bam, bam_header)
-        run_shell_command(cmd)
+        ret_code = run_shell_command(cmd)
+        if ret_code != 0:
+            logger.error("Aborting!")
+            raise Exception(
+                "long_read_indelrealign.py failure on command: {}".format(cmd))
 
         map_args = []
         with pysam.AlignmentFile(input_bam, "rb") as samfile:
@@ -758,10 +774,19 @@ def parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file, realign_be
         if os.path.exists(output_sam):
             cmd = "{} view -bS {} > {} && {} index {}".format(
                 samtools_binary, output_sam, output_bam, samtools_binary, output_bam)
-            run_shell_command(cmd)
+            ret_code = run_shell_command(cmd)
+            if ret_code != 0:
+                logger.error("Aborting!")
+                raise Exception(
+                    "long_read_indelrealign.py failure on command: {}".format(cmd))
+
             for sam in [bam_header] + sams:
                 cmd = "rm {}".format(sam)
-                run_shell_command(cmd)
+                ret_code = run_shell_command(cmd)
+                if ret_code != 0:
+                    logger.error("Aborting!")
+                    raise Exception(
+                        "long_read_indelrealign.py failure on command: {}".format(cmd))
         pool.close()
     else:
         correct_bam_all(work, input_bam, output_bam,
@@ -775,7 +800,11 @@ def run_msa(in_fasta_file, match_score, mismatch_penalty, gap_open_penalty, gap_
                                                           gap_open_penalty, gap_ext_penalty,
                                                           in_fasta_file, out_fasta_file)
     if not os.path.exists(out_fasta_file):
-        run_shell_command(cmd)
+        ret_code = run_shell_command(cmd)
+        if ret_code != 0:
+            logger.error("Aborting!")
+            raise Exception(
+                "long_read_indelrealign.py failure on command: {}".format(cmd))
     return out_fasta_file
 
 
@@ -790,18 +819,17 @@ def do_realign(region, info_file, thr_realign=0.0135, max_N=1000):
             sum_nm_indel += int(x[-1])
             c += 1
     eps = 0.0001
-    if (c < max_N) and \
-            ((sum_nm_snp +
-                sum_nm_indel) / float(c + eps) / float(region.span() + eps) > thr_realign):
+    if (c < max_N) and (
+            (sum_nm_snp + sum_nm_indel
+             ) / float(c + eps) / float(region.span() + eps)
+            > thr_realign):
         return True
     return False
 
 
 def find_var(out_fasta_file, snp_min_af, del_min_af, ins_min_af, scale_maf):
     records = SeqIO.to_dict(SeqIO.parse(out_fasta_file, "fasta"))
-    try:
-        assert(not set(map(int, records.keys())) ^ set(range(len(records))))
-    except:
+    if set(map(int, records.keys())) ^ set(range(len(records))):
         logger.error("sequences are missing in the alignment {}".format(
             set(map(int, records.keys())) ^ set(range(len(records)))))
         raise Exception
@@ -933,8 +961,9 @@ def run_realignment((work, ref_fasta_file, target_region, pad, chunck_size, chun
         if ref_seq != alt_seq:
             ref, alt, pos = TrimREFALT(ref_seq, alt_seq, int(region.start) + 1)
             a = int(np.ceil(np.max(afs) * len(afss)))
-            af = sum(sorted(map(lambda x: np.max(x) if x.shape[
-                     0] > 0 else 0, afss))[-a:]) / float(len(afss))
+            af = sum(sorted(map(lambda x:
+                                np.max(x) if x.shape[0] > 0 else 0,
+                                afss))[-a:]) / float(len(afss))
             dp = sum(lens_splits)
             ao = int(af * dp)
             ro = dp - ao
@@ -1123,7 +1152,6 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                            match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
                            msa_binary, samtools_binary):
 
-
     logger.info("-----------------------------------------------------------")
     logger.info("Resolve variants for INDELS (long-read)")
     logger.info("-----------------------------------------------------------")
@@ -1182,16 +1210,15 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
         with open(output_vcf, "w") as o_f:
             o_f.write("#" + "\t".join(["CHROM", "POS", "ID", "REF",
                                        "ALT", "QUAL", "FILTER", "INFO", "FORMAT"]) + "\n")
-            realign_variants = sorted(realign_variants, key=lambda x: [
-                                      chroms_order[x[0]], x[1]])
+            realign_variants = sorted(realign_variants, key=lambda x:
+                                      [chroms_order[x[0]], x[1]])
             for variant in realign_variants:
                 if variant:
                     chrom, pos, ref, alt, dp, ro, ao = variant
                     line = "\t".join([chrom, str(pos), ".", ref, alt, "100", ".",
                                       "DP={};RO={};AO={}".format(dp, ro, ao),
                                       "GT:DP:RO:AO", "0/1:{}:{}:{}".format(
-                                          dp, ro, ao),
-                                      ])
+                                          dp, ro, ao), ])
                     o_f.write(line + "\n")
 
     original_tempdir = pybedtools.get_tempdir()
@@ -1276,3 +1303,6 @@ if __name__ == '__main__':
                                            args.gap_ext_penalty, args.msa_binary, args.samtools)
     except:
         traceback.print_exc()
+        logger.error("Aborting!")
+        raise Exception(
+            "long_read_indelrealign.py failure on arguments: {}".format(args))
