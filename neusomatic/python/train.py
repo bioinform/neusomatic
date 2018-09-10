@@ -174,7 +174,7 @@ class SubsetNoneSampler(torch.utils.data.sampler.Sampler):
 def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpoint,
                      num_threads, batch_size, max_epochs, learning_rate, lr_drop_epochs,
                      lr_drop_ratio, momentum, boost_none, none_count_scale,
-                     max_load_candidates, coverage_thr, use_cuda):
+                     max_load_candidates, coverage_thr, save_freq, use_cuda):
 
     logger.info("-----------------------------------------------------------")
     logger.info("Train NeuSomatic Network")
@@ -292,7 +292,6 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     len_train_set = none_count + len(var_indices)
     logger.info("Number of candidater per epoch: {}".format(len_train_set))
     print_freq = max(1, int(len_train_set / float(batch_size) / 4.0))
-    save_freq = 50  # save model every 50 epochs
     curr_epoch = int(round(len(loss_s) / float(len_train_set)
                            * batch_size)) + prev_epochs
     torch.save({"state_dict": net.state_dict(),
@@ -398,6 +397,8 @@ if __name__ == '__main__':
                         default=2)
     parser.add_argument('--max_load_candidates', type=int,
                         help='maximum candidates to load in memory', default=1000000)
+    parser.add_argument('--save_freq', type=int,
+                        help='the frequency of saving checkpoints in terms of # epochs', default=50)
     parser.add_argument('--coverage_thr', type=int,
                         help='maximum coverage threshold to be used for network input \
                               normalization. \
@@ -417,7 +418,7 @@ if __name__ == '__main__':
                                       args.max_epochs,
                                       args.lr, args.lr_drop_epochs, args.lr_drop_ratio, args.momentum,
                                       args.boost_none, args.none_count_scale,
-                                      args.max_load_candidates, args.coverage_thr, use_cuda)
+                                      args.max_load_candidates, args.coverage_thr, args.save_freq, use_cuda)
     except:
         traceback.print_exc()
         logger.error("Aborting!")
