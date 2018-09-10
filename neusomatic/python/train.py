@@ -299,7 +299,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "epoch": curr_epoch,
                 "coverage_thr": coverage_thr},
                '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
-    for epoch in range(max_epochs):  # loop over the dataset multiple times
+    # loop over the dataset multiple times
+    for epoch in range(max_epochs - prev_epochs):
         running_loss = 0.0
         for i, data in enumerate(train_loader, 0):
             # get the inputs
