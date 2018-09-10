@@ -77,7 +77,8 @@ def extract_ins(record):
     return inss
 
 
-def find_resolved_variants((chrom, start, end, variant, input_bam, ref)):
+def find_resolved_variants((chrom, start, end, variant, input_bam, reference)):
+    ref = pysam.FastaFile(reference)
     out_variants = []
     start, end = map(int, [start, end])
     region = [chrom, start, end]
@@ -154,7 +155,6 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
     logger.info("Resolve variants (e.g. exact INDEL sequences)")
     logger.info("-----------------------------------------------------------")
 
-    ref = pysam.FastaFile(reference)
     variants = {}
     with open(target_vcf_file) as tv_f:
         for line in tv_f:
@@ -176,23 +176,19 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
     for tb in target_bed:
         chrom, start, end, id_ = tb[0:4]
         id_ = int(id_)
-        map_args.append([chrom, start, end, variants[id_], input_bam, ref])
-
-    out_variants_list=[]
-    for w in map_args:
-        out_variants_list.append(find_resolved_variants(w))
+        map_args.append([chrom, start, end, variants[id_], input_bam, reference])
 
 
-    # pool = multiprocessing.Pool(num_threads)
-    # try:
-    #     out_variants_list = pool.map_async(
-    #         find_resolved_variants, map_args).get()
-    #     pool.close()
-    # except Exception as inst:
-    #     logger.error(inst)
-    #     pool.close()
-    #     traceback.print_exc()
-    #     raise Exception
+    pool = multiprocessing.Pool(num_threads)
+    try:
+        out_variants_list = pool.map_async(
+            find_resolved_variants, map_args).get()
+        pool.close()
+    except Exception as inst:
+        logger.error(inst)
+        pool.close()
+        traceback.print_exc()
+        raise Exception
     out_variants = [x for xs in out_variants_list for x in xs]
     chroms_order = get_chromosomes_order(bam=input_bam)
 
