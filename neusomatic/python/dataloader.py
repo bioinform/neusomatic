@@ -13,6 +13,7 @@ import traceback
 from numpy import random
 import numpy as np
 import torch
+import time
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
 logging.basicConfig(level=logging.INFO, format=FORMAT)
@@ -27,6 +28,7 @@ def extract_zlib(zlib_compressed_im):
 
 def candidate_loader_tsv(tsv, idx, i):
     i_f = open(tsv, "r")
+    # i_f=tsv
     i_f.seek(idx[i])
     fields = i_f.read(idx[i + 1] - idx[i]).strip().split()
     tag = fields[2]
@@ -132,7 +134,6 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                 self.idxs.append(idx)
                 self.Ls.append(len(idx) - 1)
         self.data = []
-
         total_L = sum(self.Ls)
         batches = []
         new_batch = []

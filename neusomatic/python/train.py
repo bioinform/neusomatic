@@ -8,6 +8,7 @@ import traceback
 import argparse
 import datetime
 import logging
+import time
 
 import numpy as np
 import torch
@@ -298,7 +299,9 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     # loop over the dataset multiple times
     for epoch in range(max_epochs - prev_epochs):
         running_loss = 0.0
+        t1=time.time()
         for i, data in enumerate(train_loader, 0):
+            logger.info("T2 {}".format(time.time()-t1))
             # get the inputs
             (inputs, labels, var_pos_s, var_len_s, _), _ = data
             # wrap them in Variable
@@ -331,6 +334,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                             epoch + 1 + prev_epochs, i + 1,
                             learning_rate, running_loss / print_freq))
                 running_loss = 0.0
+            t1=time.time()
         curr_epoch = int(
             round(len(loss_s) / float(len_train_set) * batch_size)) + prev_epochs
         if curr_epoch % save_freq == 0:
