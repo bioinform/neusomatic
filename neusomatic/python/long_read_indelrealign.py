@@ -363,7 +363,7 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
     return in_fasta_file, info_file
 
 
-def split_bam_to_chuncks(work, region, input_bam, samtools_binary, chunck_size=200,
+def split_bam_to_chuncks(work, region, input_bam, chunck_size=200,
                          chunck_scale=1.5):
     records = []
     with pysam.Samfile(input_bam, "rb") as samfile:
@@ -421,16 +421,9 @@ def split_bam_to_chuncks(work, region, input_bam, samtools_binary, chunck_size=2
                                          template=samfile) as out_samfile:
                     for record in records[i_start:i_end]:
                         out_samfile.write(record)
-            cmd = "{} sort {} -o {}.sorted.bam".format(
-                samtools_binary, split_input_bam, split_input_bam)
-            run_shell_command(cmd, run_logger=logger)
-
-            cmd = "mv {}.sorted.bam {}".format(
-                split_input_bam, split_input_bam)
-            run_shell_command(cmd, run_logger=logger)
-
-            cmd = "{} index {}".format(samtools_binary, split_input_bam)
-            run_shell_command(cmd, run_logger=logger)
+            pysam.sort("-o", "{}.sorted.bam".format(split_input_bam), split_input_bam)
+            shutil.move("{}.sorted.bam".format(split_input_bam), split_input_bam)
+            pysam.index(split_input_bam)
 
             bams.append(split_input_bam)
             lens.append(i_end - i_start + 1)
@@ -679,7 +672,7 @@ def correct_bam_chrom((work, input_bam, realign_bed_file, ref_fasta_file, chrom)
         return None
 
 
-def correct_bam_all(work, input_bam, output_bam, ref_fasta_file, realign_bed_file, samtools_binary):
+def correct_bam_all(work, input_bam, output_bam, ref_fasta_file, realign_bed_file):
     with pysam.AlignmentFile(input_bam, "rb") as samfile:
         with pysam.AlignmentFile(output_bam, "wb", template=samfile) as out_samfile:
             fasta_file = pysam.Fastafile(ref_fasta_file)
@@ -715,8 +708,7 @@ def correct_bam_all(work, input_bam, output_bam, ref_fasta_file, realign_bed_fil
                     out_samfile.write(fixed_record)
                     in_active_region = True
     if os.path.exists(output_bam):
-        cmd = "{} index {}".format(samtools_binary, output_bam)
-        run_shell_command(cmd, run_logger=logger)
+        pysam.index(output_bam)
 
 
 def concatenate_sam_files(files, output, bam_header):
@@ -737,14 +729,13 @@ def concatenate_sam_files(files, output, bam_header):
 
 
 def parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file, realign_bed_file,
-                         num_threads, samtools_binary):
+                         num_threads):
     if num_threads > 1:
         pool = multiprocessing.Pool(num_threads)
         bam_header = output_bam[:-4] + ".header"
+        with open(bam_header,"w") as h_f:
+            h_f.write(pysam.view("-H", input_bam,))
 
-        cmd = "{} view -H {} > {}".format(samtools_binary,
-                                          input_bam, bam_header)
-        run_shell_command(cmd, run_logger=logger)
 
         map_args = []
         with pysam.AlignmentFile(input_bam, "rb") as samfile:
@@ -768,16 +759,18 @@ def parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file, realign_be
         output_sam = output_bam[:-4] + ".sam"
         concatenate_sam_files(sams, output_sam, bam_header)
         if os.path.exists(output_sam):
-            cmd = "{} view -bS {} > {} && {} index {}".format(
-                samtools_binary, output_sam, output_bam, samtools_binary, output_bam)
-            run_shell_command(cmd, run_logger=logger)
+            with pysam.AlignmentFile(output_sam, "r") as samfile:
+                with pysam.AlignmentFile(output_bam, "wb",
+                                         template=samfile) as out_samfile:
+                    for record in samfile.fetch():
+                        out_samfile.write(record)
+            pysam.index(output_bam)
 
             for sam in [bam_header] + sams:
-                cmd = "rm {}".format(sam)
-                run_shell_command(cmd, run_logger=logger)
+                shutil.rmtree(sam)
     else:
         correct_bam_all(work, input_bam, output_bam,
-                        ref_fasta_file, realign_bed_file, samtools_binary)
+                        ref_fasta_file, realign_bed_file)
 
 
 def run_msa(in_fasta_file, match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
@@ -790,11 +783,7 @@ def run_msa(in_fasta_file, match_score, mismatch_penalty, gap_open_penalty, gap_
                                                           gap_open_penalty, gap_ext_penalty,
                                                           in_fasta_file, out_fasta_file)
     if not os.path.exists(out_fasta_file):
-        ret_code = run_shell_command(cmd, run_logger=logger)
-        if ret_code != 0:
-            logger.error("Aborting!")
-            raise Exception(
-                "long_read_indelrealign.py failure on command: {}".format(cmd))
+        run_shell_command(cmd, run_logger=logger)
     return out_fasta_file
 
 
@@ -891,7 +880,7 @@ def TrimREFALT(ref, alt, pos):
 def run_realignment((work, ref_fasta_file, target_region, pad, chunck_size, chunck_scale,
                      snp_min_af, del_min_af, ins_min_af, len_chr, input_bam,
                      match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
-                     msa_binary, samtools_binary, get_var)):
+                     msa_binary, get_var)):
 
     thread_logger = logging.getLogger(
         "{} ({})".format(run_realignment.__name__, multiprocessing.current_process().name))
@@ -907,7 +896,7 @@ def run_realignment((work, ref_fasta_file, target_region, pad, chunck_size, chun
         variant = []
         all_entries = []
         input_bam_splits, lens_splits = split_bam_to_chuncks(
-            work, region, input_bam, samtools_binary, chunck_size, chunck_scale)
+            work, region, input_bam, chunck_size, chunck_scale)
         new_seqs = []
         new_ref_seq = ""
         skipped = 0
@@ -1150,7 +1139,7 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                            ref_fasta_file, num_threads, pad,
                            chunck_size, chunck_scale, snp_min_af, del_min_af, ins_min_af,
                            match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
-                           msa_binary, samtools_binary):
+                           msa_binary):
 
     logger.info("-----------------------------------------------------------")
     logger.info("Resolve variants for INDELS (long-read)")
@@ -1198,7 +1187,7 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                          chunck_scale, snp_min_af, del_min_af, ins_min_af,
                          chrom_lengths[target_region[0]], input_bam,
                          match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
-                         msa_binary, samtools_binary, get_var))
+                         msa_binary, get_var))
 
     shuffle(map_args)
     try:
@@ -1254,7 +1243,7 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
 
     if output_bam:
         parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file,
-                             realign_bed_file, num_threads, samtools_binary)
+                             realign_bed_file, num_threads)
 
     shutil.rmtree(pybedtmp)
     pybedtools.set_tempdir(original_tempdir)
@@ -1300,8 +1289,6 @@ if __name__ == '__main__':
                         help='penalty for extending a gap', default=6)
     parser.add_argument('--msa_binary', type=str,
                         help='MSA binary', default="../bin/msa")
-    parser.add_argument('--samtools_binary', type=str,
-                        help='samtools binary', default="samtools")
     args = parser.parse_args()
     logger.info(args)
 
@@ -1312,7 +1299,7 @@ if __name__ == '__main__':
                                            args.chunck_scale, args.snp_min_af, args.del_min_af,
                                            args.ins_min_af, args.match_score,
                                            args.mismatch_penalty, args.gap_open_penalty,
-                                           args.gap_ext_penalty, args.msa_binary, args.samtools)
+                                           args.gap_ext_penalty, args.msa_binary)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")

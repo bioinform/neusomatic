@@ -35,7 +35,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumo
                 lr_snp_min_af, lr_ins_min_af, lr_del_min_af, lr_match_score, lr_mismatch_penalty,
                 lr_gap_open_penalty, lr_gap_ext_penalty,
                 pass_threshold, lowqual_threshold,
-                msa_binary, samtools_binary, num_threads):
+                msa_binary, num_threads):
 
     logger.info("-----------------------------------------------------------")
     logger.info("Postprocessing")
@@ -73,7 +73,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumo
                                lr_chunck_size, lr_chunck_scale, lr_snp_min_af,
                                lr_del_min_af, lr_ins_min_af,
                                lr_match_score, lr_mismatch_penalty, lr_gap_open_penalty,
-                               lr_gap_ext_penalty, msa_binary, samtools_binary)
+                               lr_gap_ext_penalty, msa_binary)
         resolve_scores(tumor_bam, ra_resolved_vcf, target_vcf, resolved_vcf)
 
     all_no_resolve = concatenate_files(
@@ -134,8 +134,6 @@ if __name__ == '__main__':
                         default=0.4)
     parser.add_argument('--msa_binary', type=str,
                         help='MSA binary', default="../bin/msa")
-    parser.add_argument('--samtools_binary', type=str,
-                        help='samtools binary', default="samtools")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     parser.add_argument('--work', type=str,
@@ -152,7 +150,7 @@ if __name__ == '__main__':
                                  args.lr_match_score, args.lr_mismatch_penalty,
                                  args.lr_gap_open_penalty,
                                  args.lr_gap_ext_penalty, args.pass_threshold, args.lowqual_threshold,
-                                 args.msa_binary, args.samtools_binary, args.num_threads)
+                                 args.msa_binary, args.num_threads)
 
     except Exception as e:
         logger.error(traceback.format_exc())
