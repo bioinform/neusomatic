@@ -25,12 +25,8 @@ from dataloader import NeuSomaticDataset
 from utils import get_chromosomes_order, prob2phred
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
 
 def get_type(ref, alt):
@@ -104,179 +100,186 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
 
 
 def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, ref_file)):
-    fasta_file = pysam.FastaFile(ref_file)
-    ACGT = "ACGT"
-    I = imread(true_path_) / 255.0
-    vcf_record = None
-    Ih, Iw, _ = I.shape
-    zref_pos = np.where((np.argmax(I[:, :, 0], 0) == 0) & (
-        sum(I[:, :, 0], 0) > 0))[0]
-    nzref_pos = np.where(
-        (np.argmax(I[:, :, 0], 0) > 0) & (sum(I[:, :, 0], 0) > 0))[0]
-    # zref_pos_0 = np.where((I[0, :, 0] > 0) & (sum(I[:, :, 0], 0) > 0))[0]
-    # nzref_pos_0 = np.where((I[0, :, 0] == 0) & (sum(I[:, :, 0], 0) > 0))[0]
-    # assert(len(set(zref_pos_0)^set(zref_pos))==0)
-    # assert(len(set(nzref_pos_0)^set(nzref_pos))==0)
+    thread_logger = logging.getLogger(
+        "{} ({})".format(pred_vcf_records_path.__name__, multiprocessing.current_process().name))
+    try:
+        fasta_file = pysam.FastaFile(ref_file)
+        ACGT = "ACGT"
+        I = imread(true_path_) / 255.0
+        vcf_record = None
+        Ih, Iw, _ = I.shape
+        zref_pos = np.where((np.argmax(I[:, :, 0], 0) == 0) & (
+            sum(I[:, :, 0], 0) > 0))[0]
+        nzref_pos = np.where(
+            (np.argmax(I[:, :, 0], 0) > 0) & (sum(I[:, :, 0], 0) > 0))[0]
+        # zref_pos_0 = np.where((I[0, :, 0] > 0) & (sum(I[:, :, 0], 0) > 0))[0]
+        # nzref_pos_0 = np.where((I[0, :, 0] == 0) & (sum(I[:, :, 0], 0) > 0))[0]
+        # assert(len(set(zref_pos_0)^set(zref_pos))==0)
+        # assert(len(set(nzref_pos_0)^set(nzref_pos))==0)
 
-    chrom, pos, ref, alt, _, center, _, _, _ = path.split(
-        ".")
-    center = int(center)
-    pos = int(pos)
+        chrom, pos, ref, alt, _, center, _, _, _ = path.split(
+            ".")
+        center = int(center)
+        pos = int(pos)
 
-    ins_no_zref_pos = False
-    infered_type_pred = "NONE"
-    pred = list(pred_all)
-    min_acceptable_probmax = 0.05
-    center_dist_roundback = 0.8
-    too_far_center = 3
-    neigh_bases = 7
-    while True:
-        pred_probs = pred[3]
-        if sum(pred_probs) < min_acceptable_probmax:
-            break
-        amx_prob = np.argmax(pred_probs)
-        type_pred = vartype_classes[amx_prob]
-        if type_pred == "NONE":
-            break
-        center_pred = min(max(0, pred[1][0]), Iw - 1)
-        if abs(center_pred - center) < center_dist_roundback:
-            center_ = center
-        else:
-            center_ = int(round(center_pred))
-        if type_pred != "INS" and center_ in zref_pos:
-            if center in nzref_pos:
+        ins_no_zref_pos = False
+        infered_type_pred = "NONE"
+        pred = list(pred_all)
+        min_acceptable_probmax = 0.05
+        center_dist_roundback = 0.8
+        too_far_center = 3
+        neigh_bases = 7
+        while True:
+            pred_probs = pred[3]
+            if sum(pred_probs) < min_acceptable_probmax:
+                break
+            amx_prob = np.argmax(pred_probs)
+            type_pred = vartype_classes[amx_prob]
+            if type_pred == "NONE":
+                break
+            center_pred = min(max(0, pred[1][0]), Iw - 1)
+            if abs(center_pred - center) < center_dist_roundback:
                 center_ = center
             else:
-                center_ = nzref_pos[
-                    np.argmin(abs(nzref_pos - center_pred))]
-        elif type_pred == "INS" and center_ in nzref_pos:
-            if len(zref_pos) == 0:
-                if len(alt) < len(ref) + neigh_bases:
-                    break
-                center_ = center
-                ins_no_zref_pos = True
-            else:
-                if center in zref_pos:
+                center_ = int(round(center_pred))
+            if type_pred != "INS" and center_ in zref_pos:
+                if center in nzref_pos:
                     center_ = center
                 else:
-                    center_ = zref_pos[
-                        np.argmin(abs(zref_pos - center_pred))]
-        if abs(center_ - center) > too_far_center:
-            pred[3][amx_prob] = 0
-            # logger.warning("Too far center: path:{}, pred:{}".format(path, pred))
-        else:
-            pred[0] = type_pred
-            infered_type_pred = type_pred
-            break
-    if infered_type_pred == "NONE":
-        return vcf_record
-    type_pred = infered_type_pred
-    len_pred = pred[2]
-    vartype_candidate = get_type(ref, alt)
-    col_2_pos = {}
-    if vartype_candidate == "DEL":
-        ancor = [pos + 1, center]
-    elif vartype_candidate == "INS":
-        ancor = [pos, center - 1]
-    elif vartype_candidate == "SNP":
-        ancor = [pos, center]
-    cnt = 0
-    for i in nzref_pos:
-        col_2_pos[i] = cnt
-        cnt += 1
-    if ancor[1] not in col_2_pos:
-        # print "NNN",path,pred
-        return vcf_record
-
-    b = (ancor[0] - col_2_pos[ancor[1]])
-    for i in nzref_pos:
-        col_2_pos[i] += b
-    pos_2_col = {v: k for k, v in col_2_pos.iteritems()}
-
-    if abs(center_pred - center) < too_far_center:
-        if type_pred == "SNP":
-            pos_ = col_2_pos[center_]
-            ref_ = ""
-            alt_ = ""
-            for i in range(len_pred):
-                nzp = nzref_pos[nzref_pos >= (center_ + i)]
-                center__ = nzp[np.argmin(abs(nzp - (center_ + i)))]
-                rb = np.argmax(I[1:, center__, 0])
-                ref_ += ACGT[rb]
-                II = I.copy()
-                II[rb + 1, center__, 1] = 0
-                alt_ += ACGT[np.argmax(II[1:, center__, 1])]
-                if sum(I[1:, center__, 1]) == 0:
-                    break
-            if not ref_:
-                # print "SSS",path,pred
-                return vcf_record
-        elif type_pred == "INS":
-            if ins_no_zref_pos:
-                pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
-            else:
-                pos_ = -1
-                i_ = center_ - 1
-                for i_ in range(center_ - 1, 0, -1):
-                    if i_ in nzref_pos:
-                        pos_ = col_2_pos[i_]
+                    center_ = nzref_pos[
+                        np.argmin(abs(nzref_pos - center_pred))]
+            elif type_pred == "INS" and center_ in nzref_pos:
+                if len(zref_pos) == 0:
+                    if len(alt) < len(ref) + neigh_bases:
                         break
-                if pos_ == -1:
-                    # print "PPP-1",path,pred
+                    center_ = center
+                    ins_no_zref_pos = True
+                else:
+                    if center in zref_pos:
+                        center_ = center
+                    else:
+                        center_ = zref_pos[
+                            np.argmin(abs(zref_pos - center_pred))]
+            if abs(center_ - center) > too_far_center:
+                pred[3][amx_prob] = 0
+                # thread_logger.warning("Too far center: path:{}, pred:{}".format(path, pred))
+            else:
+                pred[0] = type_pred
+                infered_type_pred = type_pred
+                break
+        if infered_type_pred == "NONE":
+            return vcf_record
+        type_pred = infered_type_pred
+        len_pred = pred[2]
+        vartype_candidate = get_type(ref, alt)
+        col_2_pos = {}
+        if vartype_candidate == "DEL":
+            ancor = [pos + 1, center]
+        elif vartype_candidate == "INS":
+            ancor = [pos, center - 1]
+        elif vartype_candidate == "SNP":
+            ancor = [pos, center]
+        cnt = 0
+        for i in nzref_pos:
+            col_2_pos[i] = cnt
+            cnt += 1
+        if ancor[1] not in col_2_pos:
+            # print "NNN",path,pred
+            return vcf_record
+
+        b = (ancor[0] - col_2_pos[ancor[1]])
+        for i in nzref_pos:
+            col_2_pos[i] += b
+        pos_2_col = {v: k for k, v in col_2_pos.iteritems()}
+
+        if abs(center_pred - center) < too_far_center:
+            if type_pred == "SNP":
+                pos_ = col_2_pos[center_]
+                ref_ = ""
+                alt_ = ""
+                for i in range(len_pred):
+                    nzp = nzref_pos[nzref_pos >= (center_ + i)]
+                    center__ = nzp[np.argmin(abs(nzp - (center_ + i)))]
+                    rb = np.argmax(I[1:, center__, 0])
+                    ref_ += ACGT[rb]
+                    II = I.copy()
+                    II[rb + 1, center__, 1] = 0
+                    alt_ += ACGT[np.argmax(II[1:, center__, 1])]
+                    if sum(I[1:, center__, 1]) == 0:
+                        break
+                if not ref_:
+                    # print "SSS",path,pred
                     return vcf_record
-                if (sum(I[1:, i_, 1]) == 0):
-                    # path,pred,i_,nzref_pos,col_2_pos,I[1:,i_,1],true_path[path]
+            elif type_pred == "INS":
+                if ins_no_zref_pos:
+                    pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
+                else:
+                    pos_ = -1
+                    i_ = center_ - 1
+                    for i_ in range(center_ - 1, 0, -1):
+                        if i_ in nzref_pos:
+                            pos_ = col_2_pos[i_]
+                            break
+                    if pos_ == -1:
+                        # print "PPP-1",path,pred
+                        return vcf_record
+                    if (sum(I[1:, i_, 1]) == 0):
+                        # path,pred,i_,nzref_pos,col_2_pos,I[1:,i_,1],true_path[path]
+                        return vcf_record
+                    ref_ = ACGT[np.argmax(I[1:, i_, 0])]
+                    alt_ = ref_
+                    if len_pred == 3:
+                        len_pred = max(len(alt) - len(ref), len_pred)
+                    for i in range(i_ + 1, Iw):
+                        if i in zref_pos:
+                            alt_ += ACGT[np.argmax(I[1:, i, 1])]
+                        else:
+                            break
+                        if (len(alt_) - len(ref_)) >= len_pred:
+                            break
+            elif type_pred == "DEL":
+                pos_ = col_2_pos[center_] - 1
+                if pos_ not in pos_2_col:
+                    # print "DDDDD2",path,pred,pos_2_col,pos_
                     return vcf_record
-                ref_ = ACGT[np.argmax(I[1:, i_, 0])]
+                ref_ = ACGT[np.argmax(I[1:, pos_2_col[pos_], 0])]
                 alt_ = ref_
                 if len_pred == 3:
-                    len_pred = max(len(alt) - len(ref), len_pred)
-                for i in range(i_ + 1, Iw):
-                    if i in zref_pos:
-                        alt_ += ACGT[np.argmax(I[1:, i, 1])]
-                    else:
+                    len_pred = max(len(ref) - len(alt), len_pred)
+                for i in range(center_, Iw):
+                    if i in nzref_pos:
+                        ref_ += ACGT[np.argmax(I[1:, i, 0])]
+                    if (len(ref_) - len(alt_)) >= len_pred:
                         break
-                    if (len(alt_) - len(ref_)) >= len_pred:
-                        break
-        elif type_pred == "DEL":
-            pos_ = col_2_pos[center_] - 1
-            if pos_ not in pos_2_col:
-                # print "DDDDD2",path,pred,pos_2_col,pos_
+                if (len(ref_) - len(alt_)) < len_pred:
+                    pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
+            chrom_ = chroms[int(chrom)]
+            if fasta_file.fetch(chrom_, pos_ - 1, pos_ +
+                                len(ref_) - 1).upper() != ref_.upper():
+                # print "AAAA"
                 return vcf_record
-            ref_ = ACGT[np.argmax(I[1:, pos_2_col[pos_], 0])]
-            alt_ = ref_
-            if len_pred == 3:
-                len_pred = max(len(ref) - len(alt), len_pred)
-            for i in range(center_, Iw):
-                if i in nzref_pos:
-                    ref_ += ACGT[np.argmax(I[1:, i, 0])]
-                if (len(ref_) - len(alt_)) >= len_pred:
-                    break
-            if (len(ref_) - len(alt_)) < len_pred:
-                pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
-        chrom_ = chroms[int(chrom)]
-        if fasta_file.fetch(chrom_, pos_ - 1, pos_ +
-                            len(ref_) - 1).upper() != ref_.upper():
-            # print "AAAA"
-            return vcf_record
-        if ref_ == alt_:
-            return vcf_record
+            if ref_ == alt_:
+                return vcf_record
 
-        pred = list(pred_all)
-        if type_pred == "SNP":
-            prob = pred[3][3] * (pred[4][1])
-        elif type_pred == "INS":
-            if not ins_no_zref_pos:
-                prob = pred[3][1] * (1 - pred[4][0])
+            pred = list(pred_all)
+            if type_pred == "SNP":
+                prob = pred[3][3] * (pred[4][1])
+            elif type_pred == "INS":
+                if not ins_no_zref_pos:
+                    prob = pred[3][1] * (1 - pred[4][0])
+                else:
+                    prob = pred[3][1]
             else:
-                prob = pred[3][1]
+                prob = pred[3][0] * (1 - pred[4][0])
+            vcf_record = [path, [chrom_, pos_,
+                                 ref_, alt_, prob, [path, pred]]]
         else:
-            prob = pred[3][0] * (1 - pred[4][0])
-        vcf_record = [path, [chrom_, pos_,
-                             ref_, alt_, prob, [path, pred]]]
-    else:
+            return vcf_record
         return vcf_record
-    return vcf_record
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, num_threads):
@@ -288,13 +291,19 @@ def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, 
     pool = multiprocessing.Pool(num_threads)
     try:
         all_vcf_records = pool.map_async(pred_vcf_records_path, map_args).get()
-        all_vcf_records = filter(lambda x: x, all_vcf_records)
         pool.close()
     except Exception as inst:
         logger.error(inst)
         pool.close()
         traceback.print_exc()
         raise Exception
+
+    for o in all_vcf_records:
+        if o is None:
+            raise Exception("pred_vcf_records_path failed!")
+
+    all_vcf_records = filter(lambda x: x, all_vcf_records)
+
     return all_vcf_records
 
 
@@ -500,7 +509,7 @@ if __name__ == '__main__':
                                      args.pass_threshold, args.lowqual_threshold,
                                      use_cuda)
     except Exception as e:
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error("call.py failure on arguments: {}".format(args))
         raise e

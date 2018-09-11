@@ -14,12 +14,8 @@ from utils import get_chromosomes_order
 from _version import __version__
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
 
 def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, target_vcf, out_vcf,
@@ -80,7 +76,7 @@ if __name__ == '__main__':
         merge_post_vcfs(args.ref, args.resolved_vcf,
                         args.no_resolve_vcf, args.target_vcf, args.out_vcf)
     except Exception as e:
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error(
             "merge_post_vcfs.py failure on arguments: {}".format(args))

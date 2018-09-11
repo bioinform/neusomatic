@@ -22,12 +22,8 @@ from utils import concatenate_vcfs, get_chromosomes_order
 
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
 NUC_to_NUM_hp = {"A": 1, "C": 2, "G": 3, "T": 4, "N": 5}
 NUC_to_NUM = {"a": 1, "c": 2, "g": 3, "t": 4, "-": 5, " ": 0, "A": 1, "C": 2, "G": 3, "T": 4, "N": 5,
@@ -565,6 +561,8 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
 
 def prep_data_single_tabix((ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order,
                             matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann)):
+    thread_logger = logging.getLogger(
+        "{} ({})".format(prep_data_single_tabix.__name__, multiprocessing.current_process().name))
     try:
         chrom, pos, ref, alt = record[:4]
         pos = int(pos)
@@ -580,7 +578,7 @@ def prep_data_single_tabix((ref_file, tumor_count_bed, normal_count_bed, record,
                 tag_tumor_count_matrices, normal_count_matrix, bq_normal_count_matrix, mq_normal_count_matrix, st_normal_count_matrix, \
                 lsc_normal_count_matrix, rsc_normal_count_matrix, tag_normal_count_matrices, center, rlen, col_pos_map = matrices_info
         else:
-            return None
+            return []
 
         candidate_mat = np.zeros((tumor_count_matrix.shape[0], tumor_count_matrix.shape[
                                  1], 13 + (len(tag_tumor_count_matrices) * 2)))
@@ -640,13 +638,12 @@ def prep_data_single_tabix((ref_file, tumor_count_bed, normal_count_bed, record,
             candidate_mat, 255)).astype(np.uint8)
         tag = "{}.{}.{}.{}.{}.{}.{}.{}.{}".format(ch_order, pos, ref[0:55], alt[
                                                   0:55], vartype, center, rlen, tumor_cov, normal_cov)
-
-    except:
-        traceback.print_exc()
-        raise Exception
-
-    candidate_mat = base64.b64encode(zlib.compress(candidate_mat))
-    return tag, candidate_mat, record[0:4], ann
+        candidate_mat = base64.b64encode(zlib.compress(candidate_mat))
+        return tag, candidate_mat, record[0:4], ann
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 def push_lr(fasta_file, record, left_right_both):
@@ -810,133 +807,52 @@ def find_len(ref, alt):
 
 
 def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, work_index)):
-    logger.info("Start find_records for worker {}".format(work_index))
+    thread_logger = logging.getLogger(
+        "{} ({})".format(find_records.__name__, multiprocessing.current_process().name))
+    try:
+        thread_logger.info(
+            "Start find_records for worker {}".format(work_index))
 
-    split_bed = pybedtools.BedTool(
-        split_region_file).slop(g=ref_file + ".fai", b=5)
-    split_truth_vcf_file = os.path.join(
-        work, "truth_{}.vcf".format(work_index))
-    split_pred_vcf_file = os.path.join(work, "pred_{}.vcf".format(work_index))
-    split_ensemble_bed_file = os.path.join(
-        work, "ensemble_{}.bed".format(work_index))
-    split_missed_ensemble_bed_file = os.path.join(
-        work, "missed_ensemble_{}.bed".format(work_index))
-    split_pred_with_missed_file = os.path.join(
-        work, "pred_with_missed_{}.bed".format(work_index))
-    split_in_ensemble_bed = os.path.join(
-        work, "in_ensemble_{}.bed".format(work_index))
-    pybedtools.BedTool(truth_vcf_file).intersect(
-        split_bed, u=True).saveas(split_truth_vcf_file)
-    pybedtools.BedTool(pred_vcf_file).intersect(
-        split_bed, u=True).saveas(split_pred_vcf_file)
-    if ensemble_bed:
-        pybedtools.BedTool(ensemble_bed).intersect(
-            split_bed, u=True).saveas(split_ensemble_bed_file)
-        pybedtools.BedTool(split_ensemble_bed_file).window(split_pred_vcf_file, w=5, v=True).each(
-            lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[1]) + 1, x[3], x[4], ".", otherfields=[".", ".", ".", "."])).saveas(split_missed_ensemble_bed_file)
-        concatenate_vcfs(
-            [split_pred_vcf_file, split_missed_ensemble_bed_file], split_pred_with_missed_file)
-        pred_with_missed = pybedtools.BedTool(split_pred_with_missed_file).each(
-            lambda x: pybedtools.create_interval_from_list(
-                [x[0], str(x[1]), ".", x[3], x[4], ".", ".", ".", ".", "."])).sort().saveas(
-            split_pred_with_missed_file)
-        not_in_ensemble_bed = pybedtools.BedTool(
-            pred_with_missed).window(split_ensemble_bed_file, w=1, v=True)
-        in_ensemble_bed = pybedtools.BedTool(pred_with_missed).window(
-            split_ensemble_bed_file, w=1).saveas(split_in_ensemble_bed)
+        split_bed = pybedtools.BedTool(
+            split_region_file).slop(g=ref_file + ".fai", b=5)
+        split_truth_vcf_file = os.path.join(
+            work, "truth_{}.vcf".format(work_index))
+        split_pred_vcf_file = os.path.join(
+            work, "pred_{}.vcf".format(work_index))
+        split_ensemble_bed_file = os.path.join(
+            work, "ensemble_{}.bed".format(work_index))
+        split_missed_ensemble_bed_file = os.path.join(
+            work, "missed_ensemble_{}.bed".format(work_index))
+        split_pred_with_missed_file = os.path.join(
+            work, "pred_with_missed_{}.bed".format(work_index))
+        split_in_ensemble_bed = os.path.join(
+            work, "in_ensemble_{}.bed".format(work_index))
+        pybedtools.BedTool(truth_vcf_file).intersect(
+            split_bed, u=True).saveas(split_truth_vcf_file)
+        pybedtools.BedTool(pred_vcf_file).intersect(
+            split_bed, u=True).saveas(split_pred_vcf_file)
+        if ensemble_bed:
+            pybedtools.BedTool(ensemble_bed).intersect(
+                split_bed, u=True).saveas(split_ensemble_bed_file)
+            pybedtools.BedTool(split_ensemble_bed_file).window(split_pred_vcf_file, w=5, v=True).each(
+                lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[1]) + 1, x[3], x[4], ".", otherfields=[".", ".", ".", "."])).saveas(split_missed_ensemble_bed_file)
+            concatenate_vcfs(
+                [split_pred_vcf_file, split_missed_ensemble_bed_file], split_pred_with_missed_file)
+            pred_with_missed = pybedtools.BedTool(split_pred_with_missed_file).each(
+                lambda x: pybedtools.create_interval_from_list(
+                    [x[0], str(x[1]), ".", x[3], x[4], ".", ".", ".", ".", "."])).sort().saveas(
+                split_pred_with_missed_file)
+            not_in_ensemble_bed = pybedtools.BedTool(
+                pred_with_missed).window(split_ensemble_bed_file, w=1, v=True)
+            in_ensemble_bed = pybedtools.BedTool(pred_with_missed).window(
+                split_ensemble_bed_file, w=1).saveas(split_in_ensemble_bed)
 
-    records = []
-    i = 0
-    anns = {}
-    if ensemble_bed:
-        for record in not_in_ensemble_bed:
-            chrom, pos, ref, alt = [str(record[0]), int(
-                record[1]), record[3], record[4]]
-            r_ = []
-            if len(ref) == len(alt) and len(ref) > 1:
-                for ii in range(len(ref)):
-                    ref_ = ref[ii]
-                    alt_ = alt[ii]
-                    if ref_ != alt_:
-                        r_.append([chrom, pos + ii, ref_, alt_])
-            else:
-                r_ = [[chrom, pos, ref, alt]]
-            for rr in r_:
-                records.append(rr + [str(i)])
-                anns[i] = [0] * 93
-                i += 1
-
-        curren_pos_records = []
-        emit_flag = False
-        len_in_ensemble_bed = len(in_ensemble_bed)
-        for j in range(len_in_ensemble_bed + 1):
-
-            if j == (len_in_ensemble_bed):
-                emit_flag = True
-            else:
-                record = in_ensemble_bed[j]
-                if curren_pos_records:
-                    if record[0] == curren_pos_records[0][0] and record[1] == curren_pos_records[0][1]  \
-                            and record[3] == curren_pos_records[0][3] and record[4] == curren_pos_records[0][4]:
-                        curren_pos_records.append(record)
-                    else:
-                        emit_flag = True
-                else:
-                    curren_pos_records.append(record)
-
-            if emit_flag:
-                if curren_pos_records:
-                    rrs = []
-                    for record_ in curren_pos_records:
-                        chrom, pos, ref, alt = [str(record_[0]), int(
-                            record_[1]), record_[3], record_[4]]
-                        r_ = []
-                        if len(ref) == len(alt) and len(ref) > 1:
-                            for ii in range(len(ref)):
-                                ref_ = ref[ii]
-                                alt_ = alt[ii]
-                                if ref_ != alt_:
-                                    r_.append([chrom, pos + ii, ref_, alt_])
-                        else:
-                            r_ = [[chrom, pos, ref, alt]]
-
-                        ann = [0] * 93
-                        if record_[1] == record_[11]:
-                            if record_[3] == record_[13] and record_[4] == record_[14]:
-                                ann = record_[15:]
-                            elif len(record_[3]) > len(record_[4]) and len(record_[13]) > len(record_[14]) and \
-                                    (record_[4]) == (record_[14]):
-                                if (len(record_[3]) > len(record_[13]) and record_[3][0:len(record_[13])] == record_[13]) or (
-                                        len(record_[13]) > len(record_[3]) and record_[13][0:len(record_[3])] == record_[3]):
-                                    ann = record_[15:]
-                            elif len(record_[3]) < len(record_[4]) and len(record_[13]) < len(record_[14]) and \
-                                    (record_[3]) == (record_[13]):
-                                if (len(record_[4]) > len(record_[14]) and record_[4][0:len(record_[14])] == record_[14]) or (
-                                        len(record_[14]) > len(record_[4]) and record_[14][0:len(record_[4])] == record_[4]):
-                                    ann = record_[15:]
-                        if ann:
-                            ann = map(float, ann)
-                        rrs.append([r_, ann])
-                    max_ann = max(map(lambda x: sum(x[1]), rrs))
-                    if max_ann > 0:
-                        rrs = filter(lambda x: sum(x[1]) > 0, rrs)
-                    elif max_ann == 0:
-                        rrs = rrs[0:1]
-                    for r_, ann in rrs:
-                        for rr in r_:
-                            records.append(rr + [str(i)])
-                            anns[i] = ann
-                            i += 1
-                emit_flag = False
-                if j < len_in_ensemble_bed:
-                    curren_pos_records = [record]
-    else:
-        with open(split_pred_vcf_file, 'r') as vcf_reader:
-            for line in vcf_reader:
-                if line[0] == "#":
-                    continue
-                record = line.strip().split()
-                chrom, pos, ref, alt = [record[0], int(
+        records = []
+        i = 0
+        anns = {}
+        if ensemble_bed:
+            for record in not_in_ensemble_bed:
+                chrom, pos, ref, alt = [str(record[0]), int(
                     record[1]), record[3], record[4]]
                 r_ = []
                 if len(ref) == len(alt) and len(ref) > 1:
@@ -947,278 +863,369 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
                             r_.append([chrom, pos + ii, ref_, alt_])
                 else:
                     r_ = [[chrom, pos, ref, alt]]
-
                 for rr in r_:
                     records.append(rr + [str(i)])
+                    anns[i] = [0] * 93
                     i += 1
-    records_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
-        x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), records))
 
-    truth_records = []
-    i = 0
-    with open(split_truth_vcf_file, 'r') as vcf_reader:
-        for line in vcf_reader:
-            if line[0] == "#":
-                continue
-            record = line.strip().split()
-            truth_records.append(
-                [record[0], int(record[1]), record[3], record[4], str(i)])
-            i += 1
+            curren_pos_records = []
+            emit_flag = False
+            len_in_ensemble_bed = len(in_ensemble_bed)
+            for j in range(len_in_ensemble_bed + 1):
 
-    truth_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
-        x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), truth_records))
-    none_records_0 = records_bed.window(truth_bed, w=5, v=True)
-    none_records_ids = map(lambda x: int(x[5]), none_records_0)
-    other_records = records_bed.window(truth_bed, w=5)
-    map_pred_2_truth = {}
-    map_truth_2_pred = {}
-    for record in other_records:
-        id_pred = int(record[5])
-        id_truth = int(record[11])
-        if id_pred not in map_pred_2_truth:
-            map_pred_2_truth[id_pred] = []
-        map_pred_2_truth[id_pred].append(id_truth)
-        if id_truth not in map_truth_2_pred:
-            map_truth_2_pred[id_truth] = []
-        map_truth_2_pred[id_truth].append(id_pred)
+                if j == (len_in_ensemble_bed):
+                    emit_flag = True
+                else:
+                    record = in_ensemble_bed[j]
+                    if curren_pos_records:
+                        if record[0] == curren_pos_records[0][0] and record[1] == curren_pos_records[0][1]  \
+                                and record[3] == curren_pos_records[0][3] and record[4] == curren_pos_records[0][4]:
+                            curren_pos_records.append(record)
+                        else:
+                            emit_flag = True
+                    else:
+                        curren_pos_records.append(record)
 
-    record_center = {}
+                if emit_flag:
+                    if curren_pos_records:
+                        rrs = []
+                        for record_ in curren_pos_records:
+                            chrom, pos, ref, alt = [str(record_[0]), int(
+                                record_[1]), record_[3], record_[4]]
+                            r_ = []
+                            if len(ref) == len(alt) and len(ref) > 1:
+                                for ii in range(len(ref)):
+                                    ref_ = ref[ii]
+                                    alt_ = alt[ii]
+                                    if ref_ != alt_:
+                                        r_.append(
+                                            [chrom, pos + ii, ref_, alt_])
+                            else:
+                                r_ = [[chrom, pos, ref, alt]]
 
-    chroms_order = get_chromosomes_order(reference=ref_file)
-    fasta_file = pysam.Fastafile(ref_file)
+                            ann = [0] * 93
+                            if record_[1] == record_[11]:
+                                if record_[3] == record_[13] and record_[4] == record_[14]:
+                                    ann = record_[15:]
+                                elif len(record_[3]) > len(record_[4]) and len(record_[13]) > len(record_[14]) and \
+                                        (record_[4]) == (record_[14]):
+                                    if (len(record_[3]) > len(record_[13]) and record_[3][0:len(record_[13])] == record_[13]) or (
+                                            len(record_[13]) > len(record_[3]) and record_[13][0:len(record_[3])] == record_[3]):
+                                        ann = record_[15:]
+                                elif len(record_[3]) < len(record_[4]) and len(record_[13]) < len(record_[14]) and \
+                                        (record_[3]) == (record_[13]):
+                                    if (len(record_[4]) > len(record_[14]) and record_[4][0:len(record_[14])] == record_[14]) or (
+                                            len(record_[14]) > len(record_[4]) and record_[14][0:len(record_[4])] == record_[4]):
+                                        ann = record_[15:]
+                            if ann:
+                                ann = map(float, ann)
+                            rrs.append([r_, ann])
+                        max_ann = max(map(lambda x: sum(x[1]), rrs))
+                        if max_ann > 0:
+                            rrs = filter(lambda x: sum(x[1]) > 0, rrs)
+                        elif max_ann == 0:
+                            rrs = rrs[0:1]
+                        for r_, ann in rrs:
+                            for rr in r_:
+                                records.append(rr + [str(i)])
+                                anns[i] = ann
+                                i += 1
+                    emit_flag = False
+                    if j < len_in_ensemble_bed:
+                        curren_pos_records = [record]
+        else:
+            with open(split_pred_vcf_file, 'r') as vcf_reader:
+                for line in vcf_reader:
+                    if line[0] == "#":
+                        continue
+                    record = line.strip().split()
+                    chrom, pos, ref, alt = [record[0], int(
+                        record[1]), record[3], record[4]]
+                    r_ = []
+                    if len(ref) == len(alt) and len(ref) > 1:
+                        for ii in range(len(ref)):
+                            ref_ = ref[ii]
+                            alt_ = alt[ii]
+                            if ref_ != alt_:
+                                r_.append([chrom, pos + ii, ref_, alt_])
+                    else:
+                        r_ = [[chrom, pos, ref, alt]]
 
-    good_records = {"INS": [], "DEL": [], "SNP": []}
-    vtype = {}
-    record_len = {}
-    for i, js in map_truth_2_pred.iteritems():
-        truth_record = truth_records[i]
-        for j in js:
-            record = records[j]
-            if record[0] == truth_record[0] and record[1] == truth_record[1] and record[2] == truth_record[2] and record[3] == truth_record[3]:
-                assert int(record[4]) == j
-                vartype = get_type(record[2], record[3])
-                if j not in good_records[vartype]:
-                    ref, alt = truth_record[2:4]
-                    record_center[j] = find_i_center(ref, alt)
-                    record_len[j] = find_len(ref, alt)
-                    good_records[vartype].append(j)
-                    vtype[j] = vartype
+                    for rr in r_:
+                        records.append(rr + [str(i)])
+                        i += 1
+        records_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
+            x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), records))
 
-    good_records_idx = [i for w in good_records.values() for i in w]
-    remained_idx = sorted(set(range(len(records))) -
-                          (set(good_records_idx) | set(none_records_ids)))
-    done_js = list(good_records_idx)
-    for i, js in map_truth_2_pred.iteritems():
-        truth_record = truth_records[i]
-        if set(js) & set(good_records_idx) or set(js) & set(done_js):
-            continue
-        i_s = sorted(set([ii for j in js for ii in map_pred_2_truth[j]]))
-        done_is_ = []
-        done_js_ = []
-        done = False
-        for idx_ii, ii in enumerate(i_s):
-            if done:
-                break
-            for n_merge_i in range(0, len(i_s) - idx_ii):
-                if done:
-                    break
-                t_i = i_s[idx_ii:idx_ii + n_merge_i + 1]
-                t_ = [truth_records[iii] for iii in t_i]
-                mt = merge_records(fasta_file, t_)
-                if mt:
-                    mt2, eqs2 = push_lr(fasta_file, mt, 2)
-                    eqs2 = map(lambda x: "_".join(map(str, x[0:4])), eqs2)
-                    for idx_jj, jj in enumerate(js):
-                        for n_merge_j in range(0, len(js) - idx_jj):
-                            r_j = js[idx_jj:idx_jj + n_merge_j + 1]
-                            if set(r_j) & set(done_js_):
-                                continue
-                            r_ = [records[jjj] for jjj in r_j]
-                            mr = merge_records(fasta_file, r_)
-                            if mr:
-                                mr2, eqs_r2 = push_lr(fasta_file, mr, 2)
-                                record_str = "_".join(map(str, mr2[0:4]))
-                                if record_str in eqs2:
-                                    for j in r_j:
-                                        record = records[j]
-                                        vartype = get_type(
-                                            record[2], record[3])
-                                        pos, ref, alt = record[1:4]
-                                        record_center[
-                                            j] = find_i_center(ref, alt)
-                                        record_len[j] = find_len(ref, alt)
-                                        good_records[vartype].append(j)
-                                        vtype[j] = vartype
-                                        done_js.append(j)
-                                        done_js_.append(j)
-                                    done_is_.extend(t_i)
-                                    if not set(js) - set(done_js_):
-                                        done = True
+        truth_records = []
+        i = 0
+        with open(split_truth_vcf_file, 'r') as vcf_reader:
+            for line in vcf_reader:
+                if line[0] == "#":
+                    continue
+                record = line.strip().split()
+                truth_records.append(
+                    [record[0], int(record[1]), record[3], record[4], str(i)])
+                i += 1
 
-    perfect_idx = [i for w in good_records.values() for i in w]
-    good_records_idx = [i for w in good_records.values() for i in w]
-    remained_idx = sorted(set(range(len(records))) -
-                          (set(good_records_idx) | set(none_records_ids)))
-    for j in remained_idx:
-        record = records[j]
-        pos, ref, alt = record[1:4]
-        i_s = map_pred_2_truth[j]
-        done = False
-        for i in i_s:
+        truth_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
+            x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), truth_records))
+        none_records_0 = records_bed.window(truth_bed, w=5, v=True)
+        none_records_ids = map(lambda x: int(x[5]), none_records_0)
+        other_records = records_bed.window(truth_bed, w=5)
+        map_pred_2_truth = {}
+        map_truth_2_pred = {}
+        for record in other_records:
+            id_pred = int(record[5])
+            id_truth = int(record[11])
+            if id_pred not in map_pred_2_truth:
+                map_pred_2_truth[id_pred] = []
+            map_pred_2_truth[id_pred].append(id_truth)
+            if id_truth not in map_truth_2_pred:
+                map_truth_2_pred[id_truth] = []
+            map_truth_2_pred[id_truth].append(id_pred)
+
+        record_center = {}
+
+        chroms_order = get_chromosomes_order(reference=ref_file)
+        fasta_file = pysam.Fastafile(ref_file)
+
+        good_records = {"INS": [], "DEL": [], "SNP": []}
+        vtype = {}
+        record_len = {}
+        for i, js in map_truth_2_pred.iteritems():
             truth_record = truth_records[i]
-            tr, eqs = push_lr(fasta_file, truth_record, 2)
-            for eq in eqs:
-                if is_part_of(eq, record):
-                    ref_t, alt_t = truth_record[2:4]
-                    vartype_t = get_type(ref_t, alt_t)
-                    record_center[j] = find_i_center(ref, alt)
-                    record_len[j] = find_len(ref_t, alt_t)
-                    good_records[vartype_t].append(j)
-                    vtype[j] = vartype_t
-                    done = True
-                    break
-            if done:
-                break
-        if not done:
-            p_s = set([jj for i in i_s for jj in map_truth_2_pred[i]]) & set(
-                perfect_idx)
-            for p in p_s:
-                ref_p, alt_p = records[p][2:4]
-                tr, eqs = push_lr(fasta_file, records[p], 2)
-                for eq in eqs:
-                    if is_part_of(eq, record):
-                        vartype = vtype[p]
+            for j in js:
+                record = records[j]
+                if record[0] == truth_record[0] and record[1] == truth_record[1] and record[2] == truth_record[2] and record[3] == truth_record[3]:
+                    assert int(record[4]) == j
+                    vartype = get_type(record[2], record[3])
+                    if j not in good_records[vartype]:
+                        ref, alt = truth_record[2:4]
                         record_center[j] = find_i_center(ref, alt)
-                        record_len[j] = find_len(ref_p, alt_p)
+                        record_len[j] = find_len(ref, alt)
                         good_records[vartype].append(j)
                         vtype[j] = vartype
+
+        good_records_idx = [i for w in good_records.values() for i in w]
+        remained_idx = sorted(set(range(len(records))) -
+                              (set(good_records_idx) | set(none_records_ids)))
+        done_js = list(good_records_idx)
+        for i, js in map_truth_2_pred.iteritems():
+            truth_record = truth_records[i]
+            if set(js) & set(good_records_idx) or set(js) & set(done_js):
+                continue
+            i_s = sorted(set([ii for j in js for ii in map_pred_2_truth[j]]))
+            done_is_ = []
+            done_js_ = []
+            done = False
+            for idx_ii, ii in enumerate(i_s):
+                if done:
+                    break
+                for n_merge_i in range(0, len(i_s) - idx_ii):
+                    if done:
+                        break
+                    t_i = i_s[idx_ii:idx_ii + n_merge_i + 1]
+                    t_ = [truth_records[iii] for iii in t_i]
+                    mt = merge_records(fasta_file, t_)
+                    if mt:
+                        mt2, eqs2 = push_lr(fasta_file, mt, 2)
+                        eqs2 = map(lambda x: "_".join(map(str, x[0:4])), eqs2)
+                        for idx_jj, jj in enumerate(js):
+                            for n_merge_j in range(0, len(js) - idx_jj):
+                                r_j = js[idx_jj:idx_jj + n_merge_j + 1]
+                                if set(r_j) & set(done_js_):
+                                    continue
+                                r_ = [records[jjj] for jjj in r_j]
+                                mr = merge_records(fasta_file, r_)
+                                if mr:
+                                    mr2, eqs_r2 = push_lr(fasta_file, mr, 2)
+                                    record_str = "_".join(map(str, mr2[0:4]))
+                                    if record_str in eqs2:
+                                        for j in r_j:
+                                            record = records[j]
+                                            vartype = get_type(
+                                                record[2], record[3])
+                                            pos, ref, alt = record[1:4]
+                                            record_center[
+                                                j] = find_i_center(ref, alt)
+                                            record_len[j] = find_len(ref, alt)
+                                            good_records[vartype].append(j)
+                                            vtype[j] = vartype
+                                            done_js.append(j)
+                                            done_js_.append(j)
+                                        done_is_.extend(t_i)
+                                        if not set(js) - set(done_js_):
+                                            done = True
+
+        perfect_idx = [i for w in good_records.values() for i in w]
+        good_records_idx = [i for w in good_records.values() for i in w]
+        remained_idx = sorted(set(range(len(records))) -
+                              (set(good_records_idx) | set(none_records_ids)))
+        for j in remained_idx:
+            record = records[j]
+            pos, ref, alt = record[1:4]
+            i_s = map_pred_2_truth[j]
+            done = False
+            for i in i_s:
+                truth_record = truth_records[i]
+                tr, eqs = push_lr(fasta_file, truth_record, 2)
+                for eq in eqs:
+                    if is_part_of(eq, record):
+                        ref_t, alt_t = truth_record[2:4]
+                        vartype_t = get_type(ref_t, alt_t)
+                        record_center[j] = find_i_center(ref, alt)
+                        record_len[j] = find_len(ref_t, alt_t)
+                        good_records[vartype_t].append(j)
+                        vtype[j] = vartype_t
                         done = True
                         break
                 if done:
                     break
+            if not done:
+                p_s = set([jj for i in i_s for jj in map_truth_2_pred[i]]) & set(
+                    perfect_idx)
+                for p in p_s:
+                    ref_p, alt_p = records[p][2:4]
+                    tr, eqs = push_lr(fasta_file, records[p], 2)
+                    for eq in eqs:
+                        if is_part_of(eq, record):
+                            vartype = vtype[p]
+                            record_center[j] = find_i_center(ref, alt)
+                            record_len[j] = find_len(ref_p, alt_p)
+                            good_records[vartype].append(j)
+                            vtype[j] = vartype
+                            done = True
+                            break
+                    if done:
+                        break
 
-    good_records_idx = [i for w in good_records.values() for i in w]
-    remained_idx = sorted(set(range(len(records))) -
-                          (set(good_records_idx) | set(none_records_ids)))
-    for i, js in map_truth_2_pred.iteritems():
-        truth_record = truth_records[i]
-        if set(js) & set(good_records_idx):
-            continue
-        pos_t, ref_t, alt_t = truth_record[1:4]
-        vartype_t = get_type(ref_t, alt_t)
-        rct = find_i_center(ref_t, alt_t)
-        if len(js) == 2 and vartype_t == "SNP":
-            vartype0 = get_type(records[js[0]][2], records[js[0]][3])
-            vartype1 = get_type(records[js[1]][2], records[js[1]][3])
-            if (vartype0 == "DEL" and vartype1 == "INS") or (vartype1 == "DEL" and vartype0 == "INS"):
-                for j in js:
-                    record = records[j]
-                    pos, ref, alt = record[1:4]
-                    vartype = get_type(ref, alt)
-                    record_center[j] = find_i_center(ref, alt)
-                    record_len[j] = find_len(ref, alt)
-                    good_records[vartype].append(j)
-                    vtype[j] = vartype
-
-    good_records_idx = [i for w in good_records.values() for i in w]
-    remained_idx = sorted(set(range(len(records))) -
-                          (set(good_records_idx) | set(none_records_ids)))
-    for i, js in map_truth_2_pred.iteritems():
-        truth_record = truth_records[i]
-        if set(js) & set(good_records_idx):
-            continue
-        pos_t, ref_t, alt_t = truth_record[1:4]
-        vartype_t = get_type(ref_t, alt_t)
-        rct = find_i_center(ref_t, alt_t)
-        for j in js:
-            record = records[j]
-            vartype = get_type(record[2], record[3])
-            pos, ref, alt = record[1:4]
-            rc = find_i_center(ref, alt)
-            if vartype_t == vartype and pos_t == pos:
-                good_records[vartype_t].append(j)
-                vtype[j] = vartype_t
-                record_len[j] = find_len(ref_t, alt_t)
-                record_center[j] = rc
-
-    good_records_idx = [i for w in good_records.values() for i in w]
-    remained_idx = sorted(set(range(len(records))) -
-                          (set(good_records_idx) | set(none_records_ids)))
-    for i, js in map_truth_2_pred.iteritems():
-        truth_record = truth_records[i]
-
-        if set(js) & set(good_records_idx):
-            continue
-        pos_t, ref_t, alt_t = truth_record[1:4]
-        vartype_t = get_type(ref_t, alt_t)
-        rct = find_i_center(ref_t, alt_t)
-        for j in js:
-            if j not in remained_idx:
+        good_records_idx = [i for w in good_records.values() for i in w]
+        remained_idx = sorted(set(range(len(records))) -
+                              (set(good_records_idx) | set(none_records_ids)))
+        for i, js in map_truth_2_pred.iteritems():
+            truth_record = truth_records[i]
+            if set(js) & set(good_records_idx):
                 continue
-            record = records[j]
-            vartype = get_type(record[2], record[3])
-            pos, ref, alt = record[1:4]
-            rc = find_i_center(ref, alt)
-            if pos_t + rct[0] + rct[1] == pos + rc[0] + rc[1]:
-                if (vartype_t == "INS" and vartype == "SNP") or (vartype == "INS" and vartype_t == "SNP"):
+            pos_t, ref_t, alt_t = truth_record[1:4]
+            vartype_t = get_type(ref_t, alt_t)
+            rct = find_i_center(ref_t, alt_t)
+            if len(js) == 2 and vartype_t == "SNP":
+                vartype0 = get_type(records[js[0]][2], records[js[0]][3])
+                vartype1 = get_type(records[js[1]][2], records[js[1]][3])
+                if (vartype0 == "DEL" and vartype1 == "INS") or (vartype1 == "DEL" and vartype0 == "INS"):
+                    for j in js:
+                        record = records[j]
+                        pos, ref, alt = record[1:4]
+                        vartype = get_type(ref, alt)
+                        record_center[j] = find_i_center(ref, alt)
+                        record_len[j] = find_len(ref, alt)
+                        good_records[vartype].append(j)
+                        vtype[j] = vartype
+
+        good_records_idx = [i for w in good_records.values() for i in w]
+        remained_idx = sorted(set(range(len(records))) -
+                              (set(good_records_idx) | set(none_records_ids)))
+        for i, js in map_truth_2_pred.iteritems():
+            truth_record = truth_records[i]
+            if set(js) & set(good_records_idx):
+                continue
+            pos_t, ref_t, alt_t = truth_record[1:4]
+            vartype_t = get_type(ref_t, alt_t)
+            rct = find_i_center(ref_t, alt_t)
+            for j in js:
+                record = records[j]
+                vartype = get_type(record[2], record[3])
+                pos, ref, alt = record[1:4]
+                rc = find_i_center(ref, alt)
+                if vartype_t == vartype and pos_t == pos:
                     good_records[vartype_t].append(j)
                     vtype[j] = vartype_t
                     record_len[j] = find_len(ref_t, alt_t)
                     record_center[j] = rc
 
-    good_records_idx = [i for w in good_records.values() for i in w]
-    remained_idx = sorted(set(range(len(records))) -
-                          (set(good_records_idx) | set(none_records_ids)))
-    for i, js in map_truth_2_pred.iteritems():
-        truth_record = truth_records[i]
-        if set(js) & set(good_records_idx):
-            continue
-        pos_t, ref_t, alt_t = truth_record[1:4]
-        vartype_t = get_type(ref_t, alt_t)
-        for j in js:
+        good_records_idx = [i for w in good_records.values() for i in w]
+        remained_idx = sorted(set(range(len(records))) -
+                              (set(good_records_idx) | set(none_records_ids)))
+        for i, js in map_truth_2_pred.iteritems():
+            truth_record = truth_records[i]
+
+            if set(js) & set(good_records_idx):
+                continue
+            pos_t, ref_t, alt_t = truth_record[1:4]
+            vartype_t = get_type(ref_t, alt_t)
+            rct = find_i_center(ref_t, alt_t)
+            for j in js:
+                if j not in remained_idx:
+                    continue
+                record = records[j]
+                vartype = get_type(record[2], record[3])
+                pos, ref, alt = record[1:4]
+                rc = find_i_center(ref, alt)
+                if pos_t + rct[0] + rct[1] == pos + rc[0] + rc[1]:
+                    if (vartype_t == "INS" and vartype == "SNP") or (vartype == "INS" and vartype_t == "SNP"):
+                        good_records[vartype_t].append(j)
+                        vtype[j] = vartype_t
+                        record_len[j] = find_len(ref_t, alt_t)
+                        record_center[j] = rc
+
+        good_records_idx = [i for w in good_records.values() for i in w]
+        remained_idx = sorted(set(range(len(records))) -
+                              (set(good_records_idx) | set(none_records_ids)))
+        for i, js in map_truth_2_pred.iteritems():
+            truth_record = truth_records[i]
+            if set(js) & set(good_records_idx):
+                continue
+            pos_t, ref_t, alt_t = truth_record[1:4]
+            vartype_t = get_type(ref_t, alt_t)
+            for j in js:
+                record = records[j]
+                pos, ref, alt = record[1:4]
+                vartype = get_type(record[2], record[3])
+                if (vartype == vartype_t) and vartype_t != "SNP" and abs(pos - pos_t) < 2:
+                    good_records[vartype_t].append(j)
+                    vtype[j] = vartype_t
+                    record_center[j] = find_i_center(ref, alt)
+                    record_len[j] = find_len(ref_t, alt_t)
+
+        good_records_idx = [i for w in good_records.values() for i in w]
+        remained_idx = sorted(set(range(len(records))) -
+                              (set(good_records_idx) | set(none_records_ids)))
+        for i, js in map_truth_2_pred.iteritems():
+            truth_record = truth_records[i]
+
+            if set(js) & set(good_records_idx):
+                continue
+
+        good_records_idx = [i for w in good_records.values() for i in w]
+        remained_idx = sorted(set(range(len(records))) -
+                              (set(good_records_idx) | set(none_records_ids)))
+        for j in remained_idx:
+            none_records_ids.append(j)
+
+        for j in none_records_ids:
             record = records[j]
             pos, ref, alt = record[1:4]
-            vartype = get_type(record[2], record[3])
-            if (vartype == vartype_t) and vartype_t != "SNP" and abs(pos - pos_t) < 2:
-                good_records[vartype_t].append(j)
-                vtype[j] = vartype_t
-                record_center[j] = find_i_center(ref, alt)
-                record_len[j] = find_len(ref_t, alt_t)
+            record_center[j] = find_i_center(ref, alt)
+            vtype[j] = "NONE"
+            record_len[j] = 0
 
-    good_records_idx = [i for w in good_records.values() for i in w]
-    remained_idx = sorted(set(range(len(records))) -
-                          (set(good_records_idx) | set(none_records_ids)))
-    for i, js in map_truth_2_pred.iteritems():
-        truth_record = truth_records[i]
+        good_records_idx = [i for w in good_records.values() for i in w]
 
-        if set(js) & set(good_records_idx):
-            continue
+        records_r = [records[x] for k, w in good_records.items() for x in w]
+        records_r_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
+            x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), records_r))
 
-    good_records_idx = [i for w in good_records.values() for i in w]
-    remained_idx = sorted(set(range(len(records))) -
-                          (set(good_records_idx) | set(none_records_ids)))
-    for j in remained_idx:
-        none_records_ids.append(j)
+        N_none = len(none_records_ids)
+        thread_logger.info("N_none: {} ".format(N_none))
+        none_records = map(lambda x: records[x], none_records_ids)
+        none_records = sorted(none_records, key=lambda x: [x[0], int(x[1])])
 
-    for j in none_records_ids:
-        record = records[j]
-        pos, ref, alt = record[1:4]
-        record_center[j] = find_i_center(ref, alt)
-        vtype[j] = "NONE"
-        record_len[j] = 0
-
-    good_records_idx = [i for w in good_records.values() for i in w]
-
-    records_r = [records[x] for k, w in good_records.items() for x in w]
-    records_r_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
-        x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), records_r))
-
-    N_none = len(none_records_ids)
-    logger.info("N_none: {} ".format(N_none))
-    none_records = map(lambda x: records[x], none_records_ids)
-    none_records = sorted(none_records, key=lambda x: [x[0], int(x[1])])
-
-    return records_r, none_records, vtype, record_len, record_center, chroms_order, anns
+        return records_r, none_records, vtype, record_len, record_center, chroms_order, anns
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 def extract_ensemble(work, ensemble_tsv):
@@ -1370,12 +1377,11 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
         work, region_bed_file, num_splits, shuffle_intervals=True)
 
     pool = multiprocessing.Pool(num_threads)
+    map_args = []
+    for i, split_region_file in enumerate(split_region_files):
+        map_args.append((work, split_region_file, truth_vcf_file,
+                         tumor_pred_vcf_file, ref_file, ensemble_bed, i))
     try:
-        map_args = []
-        for i, split_region_file in enumerate(split_region_files):
-            map_args.append((work, split_region_file, truth_vcf_file,
-                             tumor_pred_vcf_file, ref_file, ensemble_bed, i))
-
         records_data = pool.map_async(find_records, map_args).get()
         pool.close()
     except Exception as inst:
@@ -1383,6 +1389,10 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
         pool.close()
         traceback.print_exc()
         raise Exception
+
+    for o in records_data:
+        if o is None:
+            raise Exception("find_records failed!")
 
     none_vcf = "{}/none.vcf".format(work)
     var_vcf = "{}/var.vcf".format(work)
@@ -1410,85 +1420,101 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                 is_ + 1, candidates_split, candidates_tsv_file, is_current,
                 is_end, total_ims))
             pool = multiprocessing.Pool(num_threads)
-            try:
-                map_args_records = []
-                map_args_nones = []
-                for records_r, none_records, vtype, record_len, record_center, chroms_order, anns in records_data:
-                    if len(records_r) + cnt < is_current:
-                        cnt += len(records_r)
-                    else:
-                        for record in records_r:
-                            cnt += 1
-                            if is_current <= cnt < is_end:
-                                vartype = vtype[int(record[-1])]
-                                rlen = record_len[int(record[-1])]
-                                rcenter = record_center[int(record[-1])]
-                                ch_order = chroms_order[record[0]]
-                                ann = anns[
-                                    int(record[-1])] if ensemble_bed else []
-                                map_args_records.append((ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order,
-                                                         matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann))
-                            if cnt >= is_end:
-                                break
+            map_args_records = []
+            map_args_nones = []
+            for records_r, none_records, vtype, record_len, record_center, chroms_order, anns in records_data:
+                if len(records_r) + cnt < is_current:
+                    cnt += len(records_r)
+                else:
+                    for record in records_r:
+                        cnt += 1
+                        if is_current <= cnt < is_end:
+                            vartype = vtype[int(record[-1])]
+                            rlen = record_len[int(record[-1])]
+                            rcenter = record_center[int(record[-1])]
+                            ch_order = chroms_order[record[0]]
+                            ann = anns[
+                                int(record[-1])] if ensemble_bed else []
+                            map_args_records.append((ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order,
+                                                     matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann))
                         if cnt >= is_end:
                             break
                     if cnt >= is_end:
                         break
+                if cnt >= is_end:
+                    break
 
-                    if len(none_records) + cnt < is_current:
-                        cnt += len(none_records)
-                    else:
-                        for record in none_records:
-                            cnt += 1
-                            if is_current <= cnt < is_end:
-                                rcenter = record_center[int(record[-1])]
-                                ch_order = chroms_order[record[0]]
-                                ann = anns[
-                                    int(record[-1])] if ensemble_bed else []
-                                map_args_nones.append((ref_file, tumor_count_bed, normal_count_bed, record, "NONE",
-                                                       0, rcenter, ch_order,
-                                                       matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann))
-                            if cnt >= is_end:
-                                break
+                if len(none_records) + cnt < is_current:
+                    cnt += len(none_records)
+                else:
+                    for record in none_records:
+                        cnt += 1
+                        if is_current <= cnt < is_end:
+                            rcenter = record_center[int(record[-1])]
+                            ch_order = chroms_order[record[0]]
+                            ann = anns[
+                                int(record[-1])] if ensemble_bed else []
+                            map_args_nones.append((ref_file, tumor_count_bed, normal_count_bed, record, "NONE",
+                                                   0, rcenter, ch_order,
+                                                   matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann))
                         if cnt >= is_end:
                             break
                     if cnt >= is_end:
                         break
+                if cnt >= is_end:
+                    break
+            try:
                 records_done = pool.map_async(
                     prep_data_single_tabix, map_args_records).get()
                 pool.close()
-                pool = multiprocessing.Pool(num_threads)
-                none_records_done = pool.map_async(
-                    prep_data_single_tabix, map_args_nones).get()
-                pool.close()
-                cnt_ims = 0
-                tsv_idx = []
-                with open(candidates_tsv_file, "w") as b_o:
-                    for x in records_done:
-                        if x:
-                            tag, compressed_candidate_mat, record, ann = x
-                            vv.write("\t".join([record[0], str(record[1]), ".", record[2], record[
-                                     3], ".", ".", "TAG={};".format(tag), ".", "."]) + "\n")
-                            tsv_idx.append(b_o.tell())
-                            b_o.write("\t".join([str(cnt_ims), "1", tag, compressed_candidate_mat] + map(
-                                lambda x: str(np.round(x, 4)), ann)) + "\n")
-                            cnt_ims += 1
-                    for x in none_records_done:
-                        if x:
-                            tag, compressed_candidate_mat, record, ann = x
-                            nv.write("\t".join([record[0], str(record[1]), ".", record[2], record[
-                                     3], ".", ".", "TAG={};".format(tag), ".", "."]) + "\n")
-                            tsv_idx.append(b_o.tell())
-                            b_o.write("\t".join([str(cnt_ims), "1", tag, compressed_candidate_mat] + map(
-                                lambda x: str(np.round(x, 4)), ann)) + "\n")
-                            cnt_ims += 1
-                    tsv_idx.append(b_o.tell())
-                pickle.dump(tsv_idx, open(candidates_tsv_file + ".idx", "w"))
             except Exception as inst:
                 logger.error(inst)
                 pool.close()
                 traceback.print_exc()
                 raise Exception
+
+            for o in records_done:
+                if o is None:
+                    raise Exception("prep_data_single_tabix failed!")
+
+            pool = multiprocessing.Pool(num_threads)
+            try:
+                none_records_done = pool.map_async(
+                    prep_data_single_tabix, map_args_nones).get()
+                pool.close()
+            except Exception as inst:
+                logger.error(inst)
+                pool.close()
+                traceback.print_exc()
+                raise Exception
+
+            for o in none_records_done:
+                if o is None:
+                    raise Exception("prep_data_single_tabix failed!")
+
+            cnt_ims = 0
+            tsv_idx = []
+            with open(candidates_tsv_file, "w") as b_o:
+                for x in records_done:
+                    if x:
+                        tag, compressed_candidate_mat, record, ann = x
+                        vv.write("\t".join([record[0], str(record[1]), ".", record[2], record[
+                                 3], ".", ".", "TAG={};".format(tag), ".", "."]) + "\n")
+                        tsv_idx.append(b_o.tell())
+                        b_o.write("\t".join([str(cnt_ims), "1", tag, compressed_candidate_mat] + map(
+                            lambda x: str(np.round(x, 4)), ann)) + "\n")
+                        cnt_ims += 1
+                for x in none_records_done:
+                    if x:
+                        tag, compressed_candidate_mat, record, ann = x
+                        nv.write("\t".join([record[0], str(record[1]), ".", record[2], record[
+                                 3], ".", ".", "TAG={};".format(tag), ".", "."]) + "\n")
+                        tsv_idx.append(b_o.tell())
+                        b_o.write("\t".join([str(cnt_ims), "1", tag, compressed_candidate_mat] + map(
+                            lambda x: str(np.round(x, 4)), ann)) + "\n")
+                        cnt_ims += 1
+                tsv_idx.append(b_o.tell())
+            pickle.dump(tsv_idx, open(candidates_tsv_file + ".idx", "w"))
             is_current = is_end
             if is_current >= total_ims:
                 break
@@ -1556,7 +1582,7 @@ if __name__ == '__main__':
                          matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
                          ensemble_bed, tsv_batch_size)
     except Exception as e:
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error(
             "generate_dataset.py failure on arguments: {}".format(args))

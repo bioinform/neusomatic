@@ -21,12 +21,8 @@ from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
 type_class_dict = {"DEL": 0, "INS": 1, "NONE": 2, "SNP": 3}
 vartype_classes = ['DEL', 'INS', 'NONE', 'SNP']
@@ -421,7 +417,7 @@ if __name__ == '__main__':
                                       args.boost_none, args.none_count_scale,
                                       args.max_load_candidates, args.coverage_thr, args.save_freq, use_cuda)
     except Exception as e:
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error(
             "traina.py failure on arguments: {}".format(args))

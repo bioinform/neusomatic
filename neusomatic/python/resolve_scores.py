@@ -13,13 +13,7 @@ import numpy as np
 from utils import get_chromosomes_order
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
-logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
-
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
 
 
@@ -99,7 +93,7 @@ if __name__ == '__main__':
         resolve_scores(args.input_bam, args.ra_vcf,
                        args.target_vcf, args.output_vcf)
     except Exception as e:
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error(
             "resolve_scores.py failure on arguments: {}".format(args))

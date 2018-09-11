@@ -9,12 +9,8 @@ import logging
 
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
 
 def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
@@ -95,7 +91,7 @@ if __name__ == '__main__':
         extract_postprocess_targets(
             args.input_vcf, args.min_len, args.max_dist, args.pad)
     except Exception as e:
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error(
             "extract_postprocess_targets.py failure on arguments: {}".format(args))

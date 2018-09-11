@@ -25,12 +25,8 @@ from resolve_scores import resolve_scores
 
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
 
 def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumor_bam, min_len,
@@ -159,7 +155,7 @@ if __name__ == '__main__':
                                  args.msa_binary, args.samtools_binary, args.num_threads)
 
     except Exception as e:
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error(
             "postprocess.py failure on arguments: {}".format(args))

@@ -317,7 +317,6 @@ public:
       if (r.Position()<ref_gaps_.left()){
         if (r.PositionEnd()<ref_gaps_.right()) {
           auto const& rev_cigar = r.GetReverseCigar();  
-          // std::cerr<< "rev_cigar " << rev_cigar << std::endl;
           int e=0;
           int p=r.PositionEnd();
           for (auto c = rev_cigar.begin(); c != rev_cigar.end(); ++c) {
@@ -401,7 +400,6 @@ public:
       uint8_t* p1 = bam_aux_get(r.shared_pointer().get(), "NM");
       if (p1){
         nm = bam_aux2i(p1);
-        // std::cerr<<"G "<<r.Qname()<<'\t'<<nm<<std::endl;
       }
       int32_t as=length;
       uint8_t* p2 = bam_aux_get(r.shared_pointer().get(), "AS");

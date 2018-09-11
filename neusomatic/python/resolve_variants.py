@@ -17,14 +17,9 @@ import numpy as np
 from utils import get_chromosomes_order
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
-logger = logging.getLogger(__name__)
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -78,74 +73,81 @@ def extract_ins(record):
 
 
 def find_resolved_variants((chrom, start, end, variant, input_bam, reference)):
-    ref = pysam.FastaFile(reference)
-    out_variants = []
-    start, end = map(int, [start, end])
-    region = [chrom, start, end]
-    vartypes = map(lambda x: x[-1], variant)
-    scores = map(lambda x: x[5], variant)
-    if len(set(vartypes)) > 1:
-        out_variants.extend(
-            map(lambda x: [x[0], int(x[1]), x[3], x[4], x[10], x[5]], variant))
-    else:
-        vartype = vartypes[0]
-        score = scores[0]
-        if vartype == "DEL":
-            intervals = []
-            dels = []
-            with pysam.AlignmentFile(input_bam) as samfile:
-                for record in samfile.fetch(chrom, start, end):
-                    if record.cigarstring and "D" in record.cigarstring:
-                        dels.extend(extract_del(record))
-            dels = filter(lambda x: (
-                start <= x[1] <= end) or start <= x[2] <= end, dels)
-            if dels:
-                intervals = map(lambda x: pybedtools.Interval(
-                    x[0], x[1], x[2]), dels)
-                bed = pybedtools.BedTool(intervals)
-                del_strs = map(lambda x: "---".join(x[0:3]), bed)
-                uniq_dels = list(set(del_strs))
-                uniq_dels_count = {}
-                for del_ in uniq_dels:
-                    uniq_dels_count[del_] = del_strs.count(del_)
-                max_count = max(uniq_dels_count.values())
-                for del_ in uniq_dels:
-                    if uniq_dels_count[del_] <= max_count * 0.5:
-                        del uniq_dels_count[del_]
-                new_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[2])),
-                                                 map(lambda x: x.split("---"), uniq_dels_count.keys())))
-                new_bed = new_bed.sort().merge(c=[1], o="count")
-                out_variants.extend(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
-                    x[1]) - 1, int(x[2])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])), "0/1", score], new_bed))
-        elif vartype == "INS":
-            intervals = []
-            inss = []
-            with pysam.AlignmentFile(input_bam) as samfile:
-                for record in samfile.fetch(chrom, start, end):
-                    if record.cigarstring and "I" in record.cigarstring:
-                        inss.extend(extract_ins(record))
-            inss = filter(lambda x: (
-                start <= x[1] <= end) or start <= x[2] <= end, inss)
-            if inss:
-                intervals = map(lambda x: pybedtools.Interval(
-                    x[0], x[1], x[2], x[3]), inss)
-                bed = pybedtools.BedTool(intervals)
-                ins_strs = map(lambda x: "---".join(x[0:4]), bed)
-                uniq_inss = list(set(ins_strs))
-                uniq_inss_count = {}
-                for ins_ in uniq_inss:
-                    uniq_inss_count[ins_] = ins_strs.count(ins_)
-                max_ins, max_count = sorted(
-                    uniq_inss_count.items(), key=lambda x: x[1])[-1]
-                max_pos = int(max_ins.split("---")[1])
-                for ins_ in uniq_inss:
-                    if uniq_inss_count[ins_] <= max_count * 0.5 or 0 < abs(int(ins_.split("---")[1]) - max_pos) < 4:
-                        del uniq_inss_count[ins_]
-                new_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[2]), x[3]),
-                                                 map(lambda x: x.split("---"), uniq_inss_count.keys()))).sort()
-                out_variants.extend(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
-                    x[1]) - 1, int(x[1])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])) + x[3], "0/1", score], new_bed))
-    return out_variants
+    thread_logger = logging.getLogger(
+        "{} ({})".format(find_resolved_variants.__name__, multiprocessing.current_process().name))
+    try:
+        ref = pysam.FastaFile(reference)
+        out_variants = []
+        start, end = map(int, [start, end])
+        region = [chrom, start, end]
+        vartypes = map(lambda x: x[-1], variant)
+        scores = map(lambda x: x[5], variant)
+        if len(set(vartypes)) > 1:
+            out_variants.extend(
+                map(lambda x: [x[0], int(x[1]), x[3], x[4], x[10], x[5]], variant))
+        else:
+            vartype = vartypes[0]
+            score = scores[0]
+            if vartype == "DEL":
+                intervals = []
+                dels = []
+                with pysam.AlignmentFile(input_bam) as samfile:
+                    for record in samfile.fetch(chrom, start, end):
+                        if record.cigarstring and "D" in record.cigarstring:
+                            dels.extend(extract_del(record))
+                dels = filter(lambda x: (
+                    start <= x[1] <= end) or start <= x[2] <= end, dels)
+                if dels:
+                    intervals = map(lambda x: pybedtools.Interval(
+                        x[0], x[1], x[2]), dels)
+                    bed = pybedtools.BedTool(intervals)
+                    del_strs = map(lambda x: "---".join(x[0:3]), bed)
+                    uniq_dels = list(set(del_strs))
+                    uniq_dels_count = {}
+                    for del_ in uniq_dels:
+                        uniq_dels_count[del_] = del_strs.count(del_)
+                    max_count = max(uniq_dels_count.values())
+                    for del_ in uniq_dels:
+                        if uniq_dels_count[del_] <= max_count * 0.5:
+                            del uniq_dels_count[del_]
+                    new_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[2])),
+                                                     map(lambda x: x.split("---"), uniq_dels_count.keys())))
+                    new_bed = new_bed.sort().merge(c=[1], o="count")
+                    out_variants.extend(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
+                        x[1]) - 1, int(x[2])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])), "0/1", score], new_bed))
+            elif vartype == "INS":
+                intervals = []
+                inss = []
+                with pysam.AlignmentFile(input_bam) as samfile:
+                    for record in samfile.fetch(chrom, start, end):
+                        if record.cigarstring and "I" in record.cigarstring:
+                            inss.extend(extract_ins(record))
+                inss = filter(lambda x: (
+                    start <= x[1] <= end) or start <= x[2] <= end, inss)
+                if inss:
+                    intervals = map(lambda x: pybedtools.Interval(
+                        x[0], x[1], x[2], x[3]), inss)
+                    bed = pybedtools.BedTool(intervals)
+                    ins_strs = map(lambda x: "---".join(x[0:4]), bed)
+                    uniq_inss = list(set(ins_strs))
+                    uniq_inss_count = {}
+                    for ins_ in uniq_inss:
+                        uniq_inss_count[ins_] = ins_strs.count(ins_)
+                    max_ins, max_count = sorted(
+                        uniq_inss_count.items(), key=lambda x: x[1])[-1]
+                    max_pos = int(max_ins.split("---")[1])
+                    for ins_ in uniq_inss:
+                        if uniq_inss_count[ins_] <= max_count * 0.5 or 0 < abs(int(ins_.split("---")[1]) - max_pos) < 4:
+                            del uniq_inss_count[ins_]
+                    new_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[2]), x[3]),
+                                                     map(lambda x: x.split("---"), uniq_inss_count.keys()))).sort()
+                    out_variants.extend(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
+                        x[1]) - 1, int(x[1])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])) + x[3], "0/1", score], new_bed))
+        return out_variants
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
@@ -189,6 +191,11 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
         pool.close()
         traceback.print_exc()
         raise Exception
+
+    for o in out_variants_list:
+        if o is None:
+            raise Exception("resolve_variants failed!")
+
     out_variants = [x for xs in out_variants_list for x in xs]
     chroms_order = get_chromosomes_order(bam=input_bam)
 
@@ -229,7 +236,7 @@ if __name__ == '__main__':
                          args.reference, args.target_vcf,
                          args.target_bed, args.num_threads)
     except Exception as e:
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error(
             "resolve_variants.py failure on arguments: {}".format(args))

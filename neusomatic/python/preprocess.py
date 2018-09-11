@@ -21,19 +21,22 @@ from scan_alignments import scan_alignments
 from utils import concatenate_vcfs
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
 
 def split_dbsnp((restart, dbsnp, region_bed, dbsnp_region_vcf)):
-    if restart or not os.path.exists(dbsnp_region_vcf):
-        pybedtools.BedTool(dbsnp).intersect(
-            region_bed, u=True).saveas(dbsnp_region_vcf)
-    return dbsnp_region_vcf
+    thread_logger = logging.getLogger(
+        "{} ({})".format(split_dbsnp.__name__, multiprocessing.current_process().name))
+    try:
+        if restart or not os.path.exists(dbsnp_region_vcf):
+            pybedtools.BedTool(dbsnp).intersect(
+                region_bed, u=True).saveas(dbsnp_region_vcf)
+        return dbsnp_region_vcf
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp,
@@ -52,14 +55,14 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
         logger.info("Filter candidates.")
         if restart or not os.path.exists(filtered_candidates_vcf):
             if dbsnp and not dbsnp_regions:
+                map_args = []
+                for raw_vcf, count_bed, split_region_bed in scan_outputs:
+                    dbsnp_region_vcf = os.path.join(os.path.dirname(
+                        os.path.realpath(raw_vcf)), "dbsnp_region.vcf")
+                    map_args.append(
+                        (restart, dbsnp, split_region_bed, dbsnp_region_vcf))
                 pool = multiprocessing.Pool(num_threads)
                 try:
-                    map_args = []
-                    for raw_vcf, count_bed, split_region_bed in scan_outputs:
-                        dbsnp_region_vcf = os.path.join(os.path.dirname(
-                            os.path.realpath(raw_vcf)), "dbsnp_region.vcf")
-                        map_args.append(
-                            (restart, dbsnp, split_region_bed, dbsnp_region_vcf))
                     dbsnp_regions = pool.map_async(split_dbsnp, map_args).get()
                     pool.close()
                 except Exception as inst:
@@ -67,29 +70,39 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
                     pool.close()
                     traceback.print_exc()
                     raise Exception
-            pool = multiprocessing.Pool(num_threads)
-            try:
-                map_args = []
-                for i, (raw_vcf, count_bed, split_region_bed) in enumerate(scan_outputs):
-                    filtered_vcf = os.path.join(os.path.dirname(
-                        os.path.realpath(raw_vcf)), "filtered_candidates.vcf")
-                    dbsnp_region_vcf = None
-                    if dbsnp:
-                        dbsnp_region_vcf = dbsnp_regions[i]
-                    map_args.append((raw_vcf, filtered_vcf, reference, dbsnp_region_vcf, min_dp, good_ao,
-                                     min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af, del_merge_min_af,
-                                     ins_merge_min_af, merge_r))
 
+                for o in dbsnp_regions:
+                    if o is None:
+                        raise Exception("split_dbsnp failed!")
+
+            pool = multiprocessing.Pool(num_threads)
+            map_args = []
+            for i, (raw_vcf, count_bed, split_region_bed) in enumerate(scan_outputs):
+                filtered_vcf = os.path.join(os.path.dirname(
+                    os.path.realpath(raw_vcf)), "filtered_candidates.vcf")
+                dbsnp_region_vcf = None
+                if dbsnp:
+                    dbsnp_region_vcf = dbsnp_regions[i]
+                map_args.append((raw_vcf, filtered_vcf, reference, dbsnp_region_vcf, min_dp, good_ao,
+                                 min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af, del_merge_min_af,
+                                 ins_merge_min_af, merge_r))
+            try:
                 filtered_candidates_vcfs = pool.map_async(
                     filter_candidates, map_args).get()
-                concatenate_vcfs(filtered_candidates_vcfs,
-                                 filtered_candidates_vcf, check_file_existence=True)
                 pool.close()
             except Exception as inst:
                 logger.error(inst)
                 pool.close()
                 traceback.print_exc()
                 raise Exception
+
+            for o in filtered_candidates_vcfs:
+                if o is None:
+                    raise Exception("filter_candidates failed!")
+
+            concatenate_vcfs(filtered_candidates_vcfs,
+                             filtered_candidates_vcf, check_file_existence=True)
+
         else:
             filtered_candidates_vcfs = []
             for raw_vcf, _, _ in scan_outputs:
@@ -115,9 +128,18 @@ def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, regi
 
 
 def get_ensemble_region((reference, ensemble_bed, region, ensemble_bed_region_file, matrix_base_pad)):
-    pybedtools.BedTool(ensemble_bed).intersect(
-        pybedtools.BedTool(region).slop(
-            g=reference + ".fai", b=matrix_base_pad + 3), u=True).saveas(ensemble_bed_region_file)
+    thread_logger = logging.getLogger(
+        "{} ({})".format(get_ensemble_region.__name__, multiprocessing.current_process().name))
+    try:
+        pybedtools.BedTool(ensemble_bed).intersect(
+            pybedtools.BedTool(region).slop(
+                g=reference + ".fai", b=matrix_base_pad + 3), u=True).saveas(ensemble_bed_region_file)
+        return ensemble_bed_region_file
+
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 def get_ensemble_beds(work, reference, ensemble_bed, split_regions, matrix_base_pad, num_threads):
@@ -134,13 +156,16 @@ def get_ensemble_beds(work, reference, ensemble_bed, split_regions, matrix_base_
                          ensemble_bed_region_file, matrix_base_pad))
     pool = multiprocessing.Pool(num_threads)
     try:
-        pool.map_async(get_ensemble_region, map_args).get()
+        outputs = pool.map_async(get_ensemble_region, map_args).get()
         pool.close()
     except Exception as inst:
         logger.error(inst)
         pool.close()
         traceback.print_exc()
         raise Exception
+    for o in outputs:
+        if o is None:
+            raise Exception("get_ensemble_region failed!")
     return ensemble_beds
 
 
@@ -174,7 +199,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                scan_alignments_binary,):
 
     logger.info("-----------------------------------------------------------")
-    logger.info("Postprocessing")
+    logger.info("Preprocessing")
     logger.info("-----------------------------------------------------------")
     if restart or not os.path.exists(work):
         os.mkdir(work)
@@ -358,7 +383,7 @@ if __name__ == '__main__':
                    args.ensemble_tsv, args.long_read, args.restart, args.skip_without_qual, args.num_threads,
                    args.scan_alignments_binary)
     except Exception as e:
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error(
             "preprocess.py failure on arguments: {}".format(args))

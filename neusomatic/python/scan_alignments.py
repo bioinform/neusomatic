@@ -21,41 +21,47 @@ import numpy as np
 from utils import concatenate_files, run_shell_command
 from split_bed import split_region
 
-
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
 
 def run_scan_alignments((work, reference, scan_alignments_binary, split_region_file,
                          input_bam, window_size, maf, min_mapq, calc_qual, num_threads)):
-    if not os.path.exists(work):
-        os.mkdir(work)
-    if len(pybedtools.BedTool(split_region_file)) > 0:
-        cmd = "{} --ref {} -b {} -L {} --out_vcf_file {}/candidates.vcf --out_count_file {}/count.bed \
-                    --window_size {} --min_af {} --min_mapq {} --num_thread {}".format(
-            scan_alignments_binary, reference, input_bam, split_region_file,
-            work, work, window_size, maf, min_mapq, num_threads)
-        if calc_qual:
-            cmd += " --calculate_qual_stat"
-        ret_code = run_shell_command(cmd, stdout=os.path.join(work, "scan.out"),
-                                     stderr=os.path.join(work, "scan.err"))
-        if ret_code != 0:
-            logger.error("scan_alignments failed")
-            logger.error("Aborting!")
-            raise Exception(
-                "scan_alignments failure on command: {}".format(cmd))
-    else:
-        pybedtools.BedTool([]).saveas(os.path.join(work, "candidates.vcf"))
-        pybedtools.BedTool([]).saveas(os.path.join(work, "count.bed"))
+    thread_logger = logging.getLogger(
+        "{} ({})".format(run_scan_alignments.__name__, multiprocessing.current_process().name))
+    try:
 
-    pysam.tabix_index(os.path.join(work, "count.bed"), preset="bed")
-    concatenate_files([split_region_file], os.path.join(work, "region.bed"))
-    return os.path.join(work, "candidates.vcf"), os.path.join(work, "count.bed.gz"), os.path.join(work, "region.bed")
+        if not os.path.exists(scan_alignments_binary):
+            raise IOError("File not found: {}".format(scan_alignments_binary))
+        if not os.path.exists(work):
+            os.mkdir(work)
+        if len(pybedtools.BedTool(split_region_file)) > 0:
+            cmd = "{} --ref {} -b {} -L {} --out_vcf_file {}/candidates.vcf --out_count_file {}/count.bed \
+                        --window_size {} --min_af {} --min_mapq {} --num_thread {}".format(
+                scan_alignments_binary, reference, input_bam, split_region_file,
+                work, work, window_size, maf, min_mapq, num_threads)
+            if calc_qual:
+                cmd += " --calculate_qual_stat"
+            run_shell_command(cmd, stdout=os.path.join(work, "scan.out"),
+                              stderr=os.path.join(work, "scan.err"),
+                              run_logger=thread_logger)
+        else:
+            pybedtools.BedTool([]).saveas(os.path.join(work, "candidates.vcf"))
+            pybedtools.BedTool([]).saveas(os.path.join(work, "count.bed"))
+
+        pysam.tabix_index(os.path.join(work, "count.bed"), preset="bed")
+        concatenate_files([split_region_file],
+                          os.path.join(work, "region.bed"))
+        return os.path.join(work, "candidates.vcf"), os.path.join(work, "count.bed.gz"), os.path.join(work, "region.bed")
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        stderr_file = os.path.join(work, "scan.err")
+        if os.path.exists(stderr_file) and os.path.getsize(stderr_file):
+            thread_logger.error(
+                "Please check error log at {}".format(stderr_file))
+        return None
 
 
 def scan_alignments(work, scan_alignments_binary, input_bam,
@@ -128,6 +134,11 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
         logger.error(inst)
         traceback.print_exc()
         raise Exception
+
+    for o in outputs:
+        if o is None:
+            raise Exception("scan_alignments failed!")
+
     for i, output in zip(not_done, outputs):
         all_outputs[i] = output
     return all_outputs
@@ -162,7 +173,7 @@ if __name__ == '__main__':
                                   args.num_threads, args.window_size, args.maf,
                                   args.min_mapq)
     except Exception as e:
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error(
             "scan_alignments.py failure on arguments: {}".format(args))

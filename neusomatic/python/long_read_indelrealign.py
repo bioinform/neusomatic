@@ -26,12 +26,8 @@ from Bio.Alphabet import DNAAlphabet
 from utils import run_shell_command, get_chromosomes_order
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -427,26 +423,14 @@ def split_bam_to_chuncks(work, region, input_bam, samtools_binary, chunck_size=2
                         out_samfile.write(record)
             cmd = "{} sort {} -o {}.sorted.bam".format(
                 samtools_binary, split_input_bam, split_input_bam)
-            ret_code = run_shell_command(cmd)
-            if ret_code != 0:
-                logger.error("Aborting!")
-                raise Exception(
-                    "long_read_indelrealign.py failure on command: {}".format(cmd))
+            run_shell_command(cmd, run_logger=logger)
 
             cmd = "mv {}.sorted.bam {}".format(
                 split_input_bam, split_input_bam)
-            ret_code = run_shell_command(cmd)
-            if ret_code != 0:
-                logger.error("Aborting!")
-                raise Exception(
-                    "long_read_indelrealign.py failure on command: {}".format(cmd))
+            run_shell_command(cmd, run_logger=logger)
 
             cmd = "{} index {}".format(samtools_binary, split_input_bam)
-            ret_code = run_shell_command(cmd)
-            if ret_code != 0:
-                logger.error("Aborting!")
-                raise Exception(
-                    "long_read_indelrealign.py failure on command: {}".format(cmd))
+            run_shell_command(cmd, run_logger=logger)
 
             bams.append(split_input_bam)
             lens.append(i_end - i_start + 1)
@@ -651,40 +635,48 @@ def find_realign_dict(realign_bed_file, chrom):
 
 
 def correct_bam_chrom((work, input_bam, realign_bed_file, ref_fasta_file, chrom)):
-    fasta_file = pysam.Fastafile(ref_fasta_file)
-    ref_seq = fasta_seq(fasta_file)
-    ref_seq.set_chrom(chrom)
-    out_sam = os.path.join(work, "output_{}.sam".format(chrom))
-    with pysam.AlignmentFile(input_bam, "rb") as samfile:
-        with pysam.AlignmentFile(out_sam, "w", template=samfile) as out_samfile:
-            realign_dict, chrom_regions = find_realign_dict(
-                realign_bed_file, chrom)
-            if chrom_regions:
-                region_cnt = 0
-                next_region = chrom_regions[0]
-                done_regions = False
-            else:
-                done_regions = True
-            in_active_region = False
-            for record in samfile.fetch(chrom):
-                if not done_regions and in_active_region and record.pos > next_region[1]:
-                    if region_cnt == len(chrom_regions) - 1:
-                        done_regions = True
-                    else:
-                        region_cnt += 1
-                        next_region = chrom_regions[region_cnt]
-                if done_regions or (record.aend < next_region[0]):
-                    out_samfile.write(record)
-                    continue
-                q_key = "{}_{}_{}".format(
-                    record.query_name, record.pos, record.cigarstring)
-                if q_key not in realign_dict:
-                    out_samfile.write(record)
-                    continue
-                fixed_record = realign_dict[q_key].fix_record(record, ref_seq)
-                out_samfile.write(fixed_record)
-                in_active_region = True
-    return out_sam
+    thread_logger = logging.getLogger(
+        "{} ({})".format(correct_bam_chrom.__name__, multiprocessing.current_process().name))
+    try:
+        fasta_file = pysam.Fastafile(ref_fasta_file)
+        ref_seq = fasta_seq(fasta_file)
+        ref_seq.set_chrom(chrom)
+        out_sam = os.path.join(work, "output_{}.sam".format(chrom))
+        with pysam.AlignmentFile(input_bam, "rb") as samfile:
+            with pysam.AlignmentFile(out_sam, "w", template=samfile) as out_samfile:
+                realign_dict, chrom_regions = find_realign_dict(
+                    realign_bed_file, chrom)
+                if chrom_regions:
+                    region_cnt = 0
+                    next_region = chrom_regions[0]
+                    done_regions = False
+                else:
+                    done_regions = True
+                in_active_region = False
+                for record in samfile.fetch(chrom):
+                    if not done_regions and in_active_region and record.pos > next_region[1]:
+                        if region_cnt == len(chrom_regions) - 1:
+                            done_regions = True
+                        else:
+                            region_cnt += 1
+                            next_region = chrom_regions[region_cnt]
+                    if done_regions or (record.aend < next_region[0]):
+                        out_samfile.write(record)
+                        continue
+                    q_key = "{}_{}_{}".format(
+                        record.query_name, record.pos, record.cigarstring)
+                    if q_key not in realign_dict:
+                        out_samfile.write(record)
+                        continue
+                    fixed_record = realign_dict[
+                        q_key].fix_record(record, ref_seq)
+                    out_samfile.write(fixed_record)
+                    in_active_region = True
+        return out_sam
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 def correct_bam_all(work, input_bam, output_bam, ref_fasta_file, realign_bed_file, samtools_binary):
@@ -724,11 +716,7 @@ def correct_bam_all(work, input_bam, output_bam, ref_fasta_file, realign_bed_fil
                     in_active_region = True
     if os.path.exists(output_bam):
         cmd = "{} index {}".format(samtools_binary, output_bam)
-        ret_code = run_shell_command(cmd)
-        if ret_code != 0:
-            logger.error("Aborting!")
-            raise Exception(
-                "long_read_indelrealign.py failure on command: {}".format(cmd))
+        run_shell_command(cmd, run_logger=logger)
 
 
 def concatenate_sam_files(files, output, bam_header):
@@ -756,38 +744,37 @@ def parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file, realign_be
 
         cmd = "{} view -H {} > {}".format(samtools_binary,
                                           input_bam, bam_header)
-        ret_code = run_shell_command(cmd)
-        if ret_code != 0:
-            logger.error("Aborting!")
-            raise Exception(
-                "long_read_indelrealign.py failure on command: {}".format(cmd))
+        run_shell_command(cmd, run_logger=logger)
 
         map_args = []
         with pysam.AlignmentFile(input_bam, "rb") as samfile:
             for chrom in samfile.references:
                 map_args.append(
                     (work, input_bam, realign_bed_file, ref_fasta_file, chrom))
-        sams = pool.map_async(correct_bam_chrom, map_args).get()
+
+        try:
+            sams = pool.map_async(correct_bam_chrom, map_args).get()
+            pool.close()
+        except Exception as inst:
+            pool.close()
+            logger.error(inst)
+            traceback.print_exc()
+            raise Exception
+
+        for o in sams:
+            if o is None:
+                raise Exception("correct_bam_chrom failed!")
 
         output_sam = output_bam[:-4] + ".sam"
         concatenate_sam_files(sams, output_sam, bam_header)
         if os.path.exists(output_sam):
             cmd = "{} view -bS {} > {} && {} index {}".format(
                 samtools_binary, output_sam, output_bam, samtools_binary, output_bam)
-            ret_code = run_shell_command(cmd)
-            if ret_code != 0:
-                logger.error("Aborting!")
-                raise Exception(
-                    "long_read_indelrealign.py failure on command: {}".format(cmd))
+            run_shell_command(cmd, run_logger=logger)
 
             for sam in [bam_header] + sams:
                 cmd = "rm {}".format(sam)
-                ret_code = run_shell_command(cmd)
-                if ret_code != 0:
-                    logger.error("Aborting!")
-                    raise Exception(
-                        "long_read_indelrealign.py failure on command: {}".format(cmd))
-        pool.close()
+                run_shell_command(cmd, run_logger=logger)
     else:
         correct_bam_all(work, input_bam, output_bam,
                         ref_fasta_file, realign_bed_file, samtools_binary)
@@ -795,12 +782,15 @@ def parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file, realign_be
 
 def run_msa(in_fasta_file, match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
             msa_binary):
+
+    if not os.path.exists(msa_binary):
+        raise IOError("File not found: {}".format(msa_binary))
     out_fasta_file = ".".join(in_fasta_file.split(".")[:-1]) + "_aligned.fasta"
     cmd = "{} -A {} -B {} -O {} -E {} -i {} -o {}".format(msa_binary, match_score, mismatch_penalty,
                                                           gap_open_penalty, gap_ext_penalty,
                                                           in_fasta_file, out_fasta_file)
     if not os.path.exists(out_fasta_file):
-        ret_code = run_shell_command(cmd)
+        ret_code = run_shell_command(cmd, run_logger=logger)
         if ret_code != 0:
             logger.error("Aborting!")
             raise Exception(
@@ -902,76 +892,86 @@ def run_realignment((work, ref_fasta_file, target_region, pad, chunck_size, chun
                      snp_min_af, del_min_af, ins_min_af, len_chr, input_bam,
                      match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
                      msa_binary, samtools_binary, get_var)):
-    region = Region(target_region, pad, len_chr)
 
-    original_tempdir = pybedtools.get_tempdir()
-    pybedtmp = os.path.join(work, "pybedtmp_{}".format(region.__str__()))
-    if not os.path.exists(pybedtmp):
-        os.mkdir(pybedtmp)
-    pybedtools.set_tempdir(pybedtmp)
-    variant = []
-    all_entries = []
-    input_bam_splits, lens_splits = split_bam_to_chuncks(
-        work, region, input_bam, samtools_binary, chunck_size, chunck_scale)
-    new_seqs = []
-    new_ref_seq = ""
-    skipped = 0
-    if len(input_bam_splits) <= 2:
-        scale_maf = 1
-    else:
-        scale_maf = 2
-    afss = []
-    for i, i_bam in enumerate(input_bam_splits):
-        in_fasta_file, info_file = prepare_fasta(
-            work, region, i_bam, ref_fasta_file, True, i)
-        if do_realign(region, info_file):
-            out_fasta_file_0 = run_msa(
-                in_fasta_file, match_score, mismatch_penalty, gap_open_penalty,
-                gap_ext_penalty, msa_binary)
-            if get_var:
-                ref_seq_, alt_seq_, afs = find_var(
-                    out_fasta_file_0, snp_min_af, del_min_af, ins_min_af, scale_maf)
-                afss.append(afs)
-                new_ref_seq = ref_seq_
-                new_seqs.append(alt_seq_)
-            new_cigars, excess_start, excess_end = extract_new_cigars(
-                region, info_file, out_fasta_file_0)
-            if new_cigars:
-                entries = get_entries(
-                    region, info_file, new_cigars, excess_start, excess_end)
-                all_entries.extend(entries)
+    thread_logger = logging.getLogger(
+        "{} ({})".format(run_realignment.__name__, multiprocessing.current_process().name))
+
+    try:
+        region = Region(target_region, pad, len_chr)
+
+        original_tempdir = pybedtools.get_tempdir()
+        pybedtmp = os.path.join(work, "pybedtmp_{}".format(region.__str__()))
+        if not os.path.exists(pybedtmp):
+            os.mkdir(pybedtmp)
+        pybedtools.set_tempdir(pybedtmp)
+        variant = []
+        all_entries = []
+        input_bam_splits, lens_splits = split_bam_to_chuncks(
+            work, region, input_bam, samtools_binary, chunck_size, chunck_scale)
+        new_seqs = []
+        new_ref_seq = ""
+        skipped = 0
+        if len(input_bam_splits) <= 2:
+            scale_maf = 1
         else:
-            skipped += 1
-    if get_var and new_seqs:
-        for i in range(skipped):
+            scale_maf = 2
+        afss = []
+        for i, i_bam in enumerate(input_bam_splits):
+            in_fasta_file, info_file = prepare_fasta(
+                work, region, i_bam, ref_fasta_file, True, i)
+            if do_realign(region, info_file):
+                out_fasta_file_0 = run_msa(
+                    in_fasta_file, match_score, mismatch_penalty, gap_open_penalty,
+                    gap_ext_penalty, msa_binary)
+                if get_var:
+                    ref_seq_, alt_seq_, afs = find_var(
+                        out_fasta_file_0, snp_min_af, del_min_af, ins_min_af, scale_maf)
+                    afss.append(afs)
+                    new_ref_seq = ref_seq_
+                    new_seqs.append(alt_seq_)
+                new_cigars, excess_start, excess_end = extract_new_cigars(
+                    region, info_file, out_fasta_file_0)
+                if new_cigars:
+                    entries = get_entries(
+                        region, info_file, new_cigars, excess_start, excess_end)
+                    all_entries.extend(entries)
+            else:
+                skipped += 1
+        if get_var and new_seqs:
+            for i in range(skipped):
+                new_seqs = [new_ref_seq] + new_seqs
             new_seqs = [new_ref_seq] + new_seqs
-        new_seqs = [new_ref_seq] + new_seqs
-        consensus_fasta = os.path.join(
-            work, region.__str__() + "_consensus.fasta")
-        with open(consensus_fasta, "w") as output_handle:
-            for i, seq in enumerate(new_seqs):
-                record = SeqRecord(
-                    Seq(seq, DNAAlphabet.letters), id=str(i), description="")
-                SeqIO.write(record, output_handle, "fasta")
-        consensus_fasta_aligned = run_msa(
-            consensus_fasta, match_score, mismatch_penalty, gap_open_penalty,
-            gap_ext_penalty, msa_binary)
-        ref_seq, alt_seq, afs = find_var(
-            consensus_fasta_aligned, snp_min_af, del_min_af, ins_min_af, 1)
-        if ref_seq != alt_seq:
-            ref, alt, pos = TrimREFALT(ref_seq, alt_seq, int(region.start) + 1)
-            a = int(np.ceil(np.max(afs) * len(afss)))
-            af = sum(sorted(map(lambda x:
-                                np.max(x) if x.shape[0] > 0 else 0,
-                                afss))[-a:]) / float(len(afss))
-            dp = sum(lens_splits)
-            ao = int(af * dp)
-            ro = dp - ao
-            variant = [region.chrom, pos, ref, alt, dp, ro, ao]
+            consensus_fasta = os.path.join(
+                work, region.__str__() + "_consensus.fasta")
+            with open(consensus_fasta, "w") as output_handle:
+                for i, seq in enumerate(new_seqs):
+                    record = SeqRecord(
+                        Seq(seq, DNAAlphabet.letters), id=str(i), description="")
+                    SeqIO.write(record, output_handle, "fasta")
+            consensus_fasta_aligned = run_msa(
+                consensus_fasta, match_score, mismatch_penalty, gap_open_penalty,
+                gap_ext_penalty, msa_binary)
+            ref_seq, alt_seq, afs = find_var(
+                consensus_fasta_aligned, snp_min_af, del_min_af, ins_min_af, 1)
+            if ref_seq != alt_seq:
+                ref, alt, pos = TrimREFALT(
+                    ref_seq, alt_seq, int(region.start) + 1)
+                a = int(np.ceil(np.max(afs) * len(afss)))
+                af = sum(sorted(map(lambda x:
+                                    np.max(x) if x.shape[0] > 0 else 0,
+                                    afss))[-a:]) / float(len(afss))
+                dp = sum(lens_splits)
+                ao = int(af * dp)
+                ro = dp - ao
+                variant = [region.chrom, pos, ref, alt, dp, ro, ao]
 
-    shutil.rmtree(pybedtmp)
-    pybedtools.set_tempdir(original_tempdir)
-    return all_entries, variant
+        shutil.rmtree(pybedtmp)
+        pybedtools.set_tempdir(original_tempdir)
+        return all_entries, variant
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 class fasta_seq:
@@ -1201,8 +1201,21 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                          msa_binary, samtools_binary, get_var))
 
     shuffle(map_args)
-    realign_output = pool.map_async(run_realignment, map_args).get()
+    try:
+        realign_output = pool.map_async(run_realignment, map_args).get()
+        pool.close()
+    except Exception as inst:
+        pool.close()
+        logger.error(inst)
+        traceback.print_exc()
+        raise Exception
+
+    for o in realign_output:
+        if o is None:
+            raise Exception("run_realignment failed!")
+
     realign_entries = map(lambda x: x[0], realign_output)
+
     realign_variants = map(lambda x: x[1], realign_output)
     realign_variants = filter(lambda x: x, realign_variants)
 
@@ -1239,7 +1252,6 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
 
     relaign_bed = pybedtools.BedTool(realign_bed_file)
 
-    pool.close()
     if output_bam:
         parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file,
                              realign_bed_file, num_threads, samtools_binary)
@@ -1302,7 +1314,7 @@ if __name__ == '__main__':
                                            args.mismatch_penalty, args.gap_open_penalty,
                                            args.gap_ext_penalty, args.msa_binary, args.samtools)
     except Exception as e:
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error(
             "long_read_indelrealign.py failure on arguments: {}".format(args))

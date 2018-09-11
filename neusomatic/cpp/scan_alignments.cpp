@@ -109,9 +109,6 @@ int main(int argc, char **argv) {
         std::cerr<<"#Aligned read number: "<<records.size()<<std::endl;
       }
       ++cnt_region;
-      //if (opts.verbosity()>0){
-        //std::cerr<<"#On region "<<ginvstr<<"\n";
-      //}
       if (records.empty()) continue; 
       MSA msa(ginv, records, ref_seqs.QueryRegion(ginvstr.contig(), ginvstr.left(), ginvstr.right() - 1));
       std::vector<std::string> msa_, bqual_, lscs_, rscs_;

@@ -8,19 +8,15 @@ import zlib
 import glob
 import logging
 import base64
-
+import traceback
 
 from numpy import random
 import numpy as np
 import torch
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
 type_class_dict = {"DEL": 0, "INS": 1, "NONE": 2, "SNP": 3}
 
@@ -45,60 +41,66 @@ def candidate_loader_tsv(tsv, idx, i):
 
 
 def extract_info_tsv((i_b, tsv, idx, L, max_load_candidates, nclasses_t, nclasses_l)):
+    thread_logger = logging.getLogger(
+        "{} ({})".format(extract_info_tsv.__name__, multiprocessing.current_process().name))
+    try:
+        n_none = 0
+        with open(tsv, "r") as i_f:
+            for line in i_f:
+                tag = line.strip().split()[2]
+                n_none += (1 if "NONE" in tag else 0)
+        n_var = L - n_none
 
-    n_none = 0
-    with open(tsv, "r") as i_f:
-        for line in i_f:
-            tag = line.strip().split()[2]
-            n_none += (1 if "NONE" in tag else 0)
-    n_var = L - n_none
+        max_load_candidates_var = min(n_var, max_load_candidates)
+        max_load_candidates_none = max_load_candidates - max_load_candidates_var
 
-    max_load_candidates_var = min(n_var, max_load_candidates)
-    max_load_candidates_none = max_load_candidates - max_load_candidates_var
-
-    j = 0
-    matrices = []
-    none_ids = []
-    var_ids = []
-    count_class_t = [0] * nclasses_t
-    count_class_l = [0] * nclasses_l
-    data = []
-    cnt_none = 0
-    cnt_var = 0
-    with open(tsv, "r") as i_f:
-        for i in range(L):
-            i_f.seek(idx[i])
-            fields = i_f.read(idx[i + 1] - idx[i]).strip().split()
-            ii = int(fields[0])
-            assert ii == i
-            tag = fields[2]
-            matrices.append([i_b, i])
-            if "NONE" in tag:
-                none_ids.append(j)
-            else:
-                var_ids.append(j)
-            j += 1
-            _, _, _, _, vartype, _, length, _, _ = tag.split(".")
-            count_class_t[type_class_dict[vartype]] += 1
-            count_class_l[min(int(length), 3)] += 1
-            if ((cnt_var < max_load_candidates_var) and ("NONE" not in tag)) or (
-                    (cnt_none < max_load_candidates_none) and ("NONE" in tag)):
-                im = extract_zlib(base64.b64decode(fields[3]))
-                label = type_class_dict[tag.split(".")[4]]
-                if len(fields) > 4:
-                    anns = map(float, fields[4:])
-                else:
-                    anns = []
-                data.append([tag, im, anns, label])
+        j = 0
+        matrices = []
+        none_ids = []
+        var_ids = []
+        count_class_t = [0] * nclasses_t
+        count_class_l = [0] * nclasses_l
+        data = []
+        cnt_none = 0
+        cnt_var = 0
+        with open(tsv, "r") as i_f:
+            for i in range(L):
+                i_f.seek(idx[i])
+                fields = i_f.read(idx[i + 1] - idx[i]).strip().split()
+                ii = int(fields[0])
+                assert ii == i
+                tag = fields[2]
+                matrices.append([i_b, i])
                 if "NONE" in tag:
-                    cnt_none += 1
+                    none_ids.append(j)
                 else:
-                    cnt_var += 1
-            else:
-                data.append([])
-    logger.info("Loaded {} candidates for {}".format(
-        len(matrices), tsv))
-    return matrices, data, none_ids, var_ids, count_class_t, count_class_l
+                    var_ids.append(j)
+                j += 1
+                _, _, _, _, vartype, _, length, _, _ = tag.split(".")
+                count_class_t[type_class_dict[vartype]] += 1
+                count_class_l[min(int(length), 3)] += 1
+                if ((cnt_var < max_load_candidates_var) and ("NONE" not in tag)) or (
+                        (cnt_none < max_load_candidates_none) and ("NONE" in tag)):
+                    im = extract_zlib(base64.b64decode(fields[3]))
+                    label = type_class_dict[tag.split(".")[4]]
+                    if len(fields) > 4:
+                        anns = map(float, fields[4:])
+                    else:
+                        anns = []
+                    data.append([tag, im, anns, label])
+                    if "NONE" in tag:
+                        cnt_none += 1
+                    else:
+                        cnt_var += 1
+                else:
+                    data.append([])
+        thread_logger.info("Loaded {} candidates for {}".format(
+            len(matrices), tsv))
+        return matrices, data, none_ids, var_ids, count_class_t, count_class_l
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 class NeuSomaticDataset(torch.utils.data.Dataset):
@@ -154,9 +156,20 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                 Ls_.append(self.Ls[i_b])
             logger.info("Len's of tsv files in this batch: {}".format(Ls_))
             pool = multiprocessing.Pool(num_threads)
-            records_ = pool.map_async(
-                extract_info_tsv, map_args).get()
-            pool.close()
+            try:
+                records_ = pool.map_async(
+                    extract_info_tsv, map_args).get()
+                pool.close()
+            except Exception as inst:
+                pool.close()
+                logger.error(inst)
+                traceback.print_exc()
+                raise Exception
+
+            for o in records_:
+                if o is None:
+                    raise Exception("extract_info_tsv failed!")
+
             records_done[i] = records_
 
         j = 0
