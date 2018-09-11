@@ -106,7 +106,7 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, 
         fasta_file = pysam.FastaFile(ref_file)
         ACGT = "ACGT"
         I = imread(true_path_) / 255.0
-        vcf_record = None
+        vcf_record = []
         Ih, Iw, _ = I.shape
         zref_pos = np.where((np.argmax(I[:, :, 0], 0) == 0) & (
             sum(I[:, :, 0], 0) > 0))[0]
