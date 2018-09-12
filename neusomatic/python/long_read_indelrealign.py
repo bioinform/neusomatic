@@ -293,7 +293,7 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
                     for record in samfile.fetch(region.chrom, region.start, region.end + 1):
                         if record.is_supplementary and "SA" in dict(record.tags):
                             sas = dict(record.tags)["SA"].split(";")
-                            sas = filter(lambda x: x, sas)
+                            sas = filter(None, sas)
                             sas_cigs = map(lambda x: x.split(",")[3], sas)
                             if record.cigarstring in sas_cigs:
                                 continue
@@ -370,7 +370,7 @@ def split_bam_to_chuncks(work, region, input_bam, chunck_size=200,
         for record in samfile.fetch(region.chrom, region.start, region.end + 1):
             if record.is_supplementary and "SA" in dict(record.tags):
                 sas = dict(record.tags)["SA"].split(";")
-                sas = filter(lambda x: x, sas)
+                sas = filter(None, sas)
                 sas_cigs = map(lambda x: x.split(",")[3], sas)
                 if record.cigarstring in sas_cigs:
                     continue
@@ -1206,7 +1206,7 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
     realign_entries = map(lambda x: x[0], realign_output)
 
     realign_variants = map(lambda x: x[1], realign_output)
-    realign_variants = filter(lambda x: x, realign_variants)
+    realign_variants = filter(None, realign_variants)
 
     if get_var:
         with open(output_vcf, "w") as o_f:

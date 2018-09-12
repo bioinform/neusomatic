@@ -302,7 +302,7 @@ def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, 
         if o is None:
             raise Exception("pred_vcf_records_path failed!")
 
-    all_vcf_records = filter(lambda x: x, all_vcf_records)
+    all_vcf_records = filter(None, all_vcf_records)
 
     return all_vcf_records
 

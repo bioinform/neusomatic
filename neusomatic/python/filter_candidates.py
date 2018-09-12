@@ -43,7 +43,7 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
                 loc = "{}.{}".format(chrom, pos)
                 dp, ro, ao = map(int, info.split(":")[1:4])
                 info_dict = dict(map(lambda x: x.split(
-                    "="), filter(lambda x: x, info_.split(";"))))
+                    "="), filter(None, info_.split(";"))))
                 mq_ = safe_read_info_dict(info_dict, "MQ", int, -100)
                 bq_ = safe_read_info_dict(info_dict, "BQ", int, -100)
                 nm_ = safe_read_info_dict(info_dict, "NM", int, -100)
