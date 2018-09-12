@@ -421,8 +421,10 @@ def split_bam_to_chuncks(work, region, input_bam, chunck_size=200,
                                          template=samfile) as out_samfile:
                     for record in records[i_start:i_end]:
                         out_samfile.write(record)
-            pysam.sort("-o", "{}.sorted.bam".format(split_input_bam), split_input_bam)
-            shutil.move("{}.sorted.bam".format(split_input_bam), split_input_bam)
+            pysam.sort("-o", "{}.sorted.bam".format(split_input_bam),
+                       split_input_bam)
+            shutil.move("{}.sorted.bam".format(
+                split_input_bam), split_input_bam)
             pysam.index(split_input_bam)
 
             bams.append(split_input_bam)
@@ -733,9 +735,8 @@ def parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file, realign_be
     if num_threads > 1:
         pool = multiprocessing.Pool(num_threads)
         bam_header = output_bam[:-4] + ".header"
-        with open(bam_header,"w") as h_f:
+        with open(bam_header, "w") as h_f:
             h_f.write(pysam.view("-H", input_bam,))
-
 
         map_args = []
         with pysam.AlignmentFile(input_bam, "rb") as samfile:
