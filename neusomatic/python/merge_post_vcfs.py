@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
 
 
-def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, target_vcf, out_vcf,
+def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, out_vcf,
                     pass_threshold, lowqual_threshold):
 
     logger.info("-----------------------------------------------------------")
@@ -67,14 +67,12 @@ if __name__ == '__main__':
     parser.add_argument('--resolved_vcf', help='resolved_vcf', required=True)
     parser.add_argument('--no_resolve_vcf',
                         help='no resolve vcf', required=True)
-    parser.add_argument(
-        '--target_vcf', help='resolve target vcf', required=True)
     parser.add_argument('--out_vcf', help='output vcf', required=True)
     args = parser.parse_args()
     logger.info(args)
     try:
         merge_post_vcfs(args.ref, args.resolved_vcf,
-                        args.no_resolve_vcf, args.target_vcf, args.out_vcf)
+                        args.no_resolve_vcf, args.out_vcf)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")

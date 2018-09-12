@@ -81,7 +81,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumo
 
     logger.info("Merge vcfs")
     merge_post_vcfs(reference, resolved_vcf,
-                    all_no_resolve, target_vcf, output_vcf,
+                    all_no_resolve, output_vcf,
                     pass_threshold, lowqual_threshold)
 
     logger.info("Output NeuSomatic prediction at {}".format(output_vcf))

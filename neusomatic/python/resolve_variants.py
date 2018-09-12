@@ -72,7 +72,7 @@ def extract_ins(record):
     return inss
 
 
-def find_resolved_variants((chrom, start, end, variant, input_bam, reference)):
+def find_resolved_variants((chrom, start, end, variants, input_bam, reference)):
     thread_logger = logging.getLogger(
         "{} ({})".format(find_resolved_variants.__name__, multiprocessing.current_process().name))
     try:
@@ -80,14 +80,14 @@ def find_resolved_variants((chrom, start, end, variant, input_bam, reference)):
         out_variants = []
         start, end = map(int, [start, end])
         region = [chrom, start, end]
-        vartypes = map(lambda x: x[-1], variant)
-        scores = map(lambda x: x[5], variant)
+        vartypes = map(lambda x: x[-1], variants)
+        scores = map(lambda x: x[5], variants)
         if len(set(vartypes)) > 1:
             out_variants.extend(
-                map(lambda x: [x[0], int(x[1]), x[3], x[4], x[10], x[5]], variant))
+                map(lambda x: [x[0], int(x[1]), x[3], x[4], x[10], x[5]], variants))
         else:
             vartype = vartypes[0]
-            score = scores[0]
+            score = max(scores)
             if vartype == "DEL":
                 intervals = []
                 dels = []
