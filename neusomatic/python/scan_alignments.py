@@ -67,9 +67,7 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
 
     logger = logging.getLogger(scan_alignments.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Scan Alignment BAM")
-    logger.info("-----------------------------------------------------------")
+    logger.info("-------------------Scan Alignment BAM----------------------")
 
     if not split_region_files:
         if regions_bed_file:

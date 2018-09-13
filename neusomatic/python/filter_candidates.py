@@ -21,10 +21,7 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
         "{} ({})".format(filter_candidates.__name__, multiprocessing.current_process().name))
     try:
         thread_logger.info(
-            "-----------------------------------------------------------")
-        thread_logger.info("Filter Candidates")
-        thread_logger.info(
-            "-----------------------------------------------------------")
+            "---------------------Filter Candidates---------------------")
 
         records = {}
         with open(candidates_vcf) as v_f:

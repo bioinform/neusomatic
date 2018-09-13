@@ -15,9 +15,7 @@ from utils import get_chromosomes_order
 def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
     logger = logging.getLogger(resolve_scores.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Resolve Prediction Scores for Realigned Variants")
-    logger.info("-----------------------------------------------------------")
+    logger.info("-----Resolve Prediction Scores for Realigned Variants------")
 
     ra_out = pybedtools.BedTool(ra_vcf)
     ra_target = pybedtools.BedTool(target_vcf)

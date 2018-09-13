@@ -19,9 +19,7 @@ def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, out_vcf,
 
     logger = logging.getLogger(merge_post_vcfs.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Merge vcfs")
-    logger.info("-----------------------------------------------------------")
+    logger.info("------------------------Merge vcfs-------------------------")
 
     chroms_order = get_chromosomes_order(reference=ref)
 

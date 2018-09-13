@@ -363,9 +363,10 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     use_cuda):
     logger = logging.getLogger(call_neusomatic.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Call Somatic Mutations")
-    logger.info("-----------------------------------------------------------")
+    logger.info("-----------------Call Somatic Mutations--------------------")
+
+    if not use_cuda:
+        torch.set_num_threads(num_threads)
 
     chroms_order = get_chromosomes_order(reference=ref_file)
     with pysam.FastaFile(ref_file) as rf:

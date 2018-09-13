@@ -201,9 +201,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                scan_alignments_binary,):
     logger = logging.getLogger(preprocess.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Preprocessing")
-    logger.info("-----------------------------------------------------------")
+    logger.info("----------------------Preprocessing------------------------")
     if restart or not os.path.exists(work):
         os.mkdir(work)
 
