@@ -7,6 +7,8 @@
 
 NeuSomatic can be used universally as a stand-alone somatic mutation detection method or with an ensemble of existing methods. In the ensemble mode NeuSomatic currently supports outputs from MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2. For ensemble mode, the ensembled outputs of different somatic callers (as a single `.tsv` file) should be prepared and inputed using `--ensemble_tsv` argument in `preprocess.py`. 
 
+The following steps use docker pipelines to prepare the ensemble `.tsv` file:
+
 ### 1. Prepare run scripts
 To run the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), you can use the following command that create 10 (if we set `splits` to 10) equal-size regions in 10 bed files, and parallelize the jobs into 10 regions.
 ```
@@ -20,7 +22,7 @@ prepare_callers_scripts.sh \
 --selector /ABSOLUTE/PATH/TO/region.bed \
 --mutect2 --somaticsniper --vardict --varscan2 --muse --strelka --wrapper
 ```
-This command will create 10 sub-folders under `output`, each with the following sctructure:
+This command will create sub-folders with the following sctructure for the split regions:
 ```
 output
 ├── genome.bed
@@ -77,7 +79,8 @@ This will generate "Ensemble.sSNV.tsv" and "Ensemble.sINDEL.tsv" under each regi
 
 Now you can combine these files to generate `enemble_ann.tsv` file.
 ```
-cat <(cat output/*/Wrapper/Ensemble.s*.tsv |grep CHROM|head -1) <(cat output/*/Wrapper/Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
+cat <(cat output/*/Wrapper/Ensemble.s*.tsv |grep CHROM|head -1) \
+    <(cat output/*/Wrapper/Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
 
 ```
 and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.

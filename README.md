@@ -188,13 +188,14 @@ SomaticSeq.Wrapper.sh \
 
 Then, in the output directory, do:
 ```
-cat <(cat Ensemble.s*.tsv |grep CHROM|head -1) <(cat Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
+cat <(cat Ensemble.s*.tsv |grep CHROM|head -1) \
+    <(cat Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
 ```
 and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
 
-**Dockerized solution** for running all of the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), and the above wrapper that combines their output is explained [here](/ensemble_docker_pipelines).
+**Dockerized solution** for running all of the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), and the above wrapper that combines their output is explained at [ensemble_docker_pipelines](https://github.com/bioinform/neusomatic/tree/master/ensemble_docker_pipelines).
 
-###NOTE: 
+### NOTE: 
 
 * To train or call in the ensemble mode you should use `--ensemble` argument in `train.py` and `call.py`.
 
