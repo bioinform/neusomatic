@@ -5,4 +5,3 @@ neusomatic/bin/*
 others/
 neusomatic/python/*.pyc
 test/example/
-etc/

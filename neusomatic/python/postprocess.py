@@ -24,11 +24,6 @@ from long_read_indelrealign import long_read_indelrealign
 from resolve_scores import resolve_scores
 
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
-
 def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumor_bam, min_len,
                 postprocess_max_dist, long_read,
                 lr_pad, lr_chunck_size, lr_chunck_scale,
@@ -36,6 +31,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumo
                 lr_gap_open_penalty, lr_gap_ext_penalty,
                 pass_threshold, lowqual_threshold,
                 msa_binary, num_threads):
+    logger = logging.getLogger(postprocess.__name__)
 
     logger.info("-----------------------------------------------------------")
     logger.info("Postprocessing")
@@ -89,6 +85,11 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumo
     return output_vcf
 
 if __name__ == '__main__':
+
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description='Preprocess predictions for call mode')
     parser.add_argument('--reference', type=str,
