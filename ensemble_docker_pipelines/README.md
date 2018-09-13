@@ -61,7 +61,7 @@ do
 	do
 		for script in output/${i}/logs/${tool}.cmd
 		do
-			qsub script
+			qsub $script
 		done
 	done
 done
