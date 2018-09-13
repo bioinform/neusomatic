@@ -10,12 +10,9 @@ import numpy as np
 
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
+
 
 class DSBlock(nn.Module):
 

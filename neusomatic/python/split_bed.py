@@ -4,25 +4,18 @@
 #-------------------------------------------------------------------------
 import os
 import argparse
+import traceback
 from random import shuffle
 import logging
 
 import pybedtools
 
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
-logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
-
 def split_region(work, region_bed_file, num_splits, max_region=1000000, min_region=20, shuffle_intervals=False):
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Split region")
-    logger.info("-----------------------------------------------------------")
+    logger = logging.getLogger(split_region.__name__)
+
+    logger.info("------------------------Split region-----------------------")
 
     regions_bed = pybedtools.BedTool(region_bed_file).sort().merge(d=0)
     intervals = []
@@ -83,9 +76,15 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
     return split_region_files
 
 if __name__ == '__main__':
+
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description='Split bedfile to multiple beds')
-    parser.add_argument('--region_bed', type=str, help='region bed', required=True)
+    parser.add_argument('--region_bed', type=str,
+                        help='region bed', required=True)
     parser.add_argument('--num_splits', type=int,
                         help='number of splits', required=True)
     parser.add_argument('--output', type=str,
@@ -102,5 +101,12 @@ if __name__ == '__main__':
     if not os.path.exists(work):
         os.mkdir(work)
 
-    split_region_files = split_region(
-        work, args.region_bed, args.num_splits, args.max_region, args.min_region)
+    try:
+        split_region_files = split_region(
+            work, args.region_bed, args.num_splits, args.max_region, args.min_region)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("Aborting!")
+        logger.error(
+            "split_bed.py failure on arguments: {}".format(args))
+        raise e

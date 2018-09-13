@@ -24,26 +24,16 @@ from long_read_indelrealign import long_read_indelrealign
 from resolve_scores import resolve_scores
 
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
-logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
-
-
 def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumor_bam, min_len,
                 postprocess_max_dist, long_read,
                 lr_pad, lr_chunck_size, lr_chunck_scale,
                 lr_snp_min_af, lr_ins_min_af, lr_del_min_af, lr_match_score, lr_mismatch_penalty,
                 lr_gap_open_penalty, lr_gap_ext_penalty,
                 pass_threshold, lowqual_threshold,
-                msa_binary, samtools_binary, num_threads):
+                msa_binary, num_threads):
+    logger = logging.getLogger(postprocess.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Postprocessing")
-    logger.info("-----------------------------------------------------------")
+    logger.info("----------------------Postprocessing-----------------------")
 
     candidates_preds = os.path.join(work, "candidates_preds.vcf")
     ensembled_preds = os.path.join(work, "ensembled_preds.vcf")
@@ -77,7 +67,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumo
                                lr_chunck_size, lr_chunck_scale, lr_snp_min_af,
                                lr_del_min_af, lr_ins_min_af,
                                lr_match_score, lr_mismatch_penalty, lr_gap_open_penalty,
-                               lr_gap_ext_penalty, msa_binary, samtools_binary)
+                               lr_gap_ext_penalty, msa_binary)
         resolve_scores(tumor_bam, ra_resolved_vcf, target_vcf, resolved_vcf)
 
     all_no_resolve = concatenate_files(
@@ -85,7 +75,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumo
 
     logger.info("Merge vcfs")
     merge_post_vcfs(reference, resolved_vcf,
-                    all_no_resolve, target_vcf, output_vcf,
+                    all_no_resolve, output_vcf,
                     pass_threshold, lowqual_threshold)
 
     logger.info("Output NeuSomatic prediction at {}".format(output_vcf))
@@ -93,6 +83,11 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumo
     return output_vcf
 
 if __name__ == '__main__':
+
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description='Preprocess predictions for call mode')
     parser.add_argument('--reference', type=str,
@@ -138,8 +133,6 @@ if __name__ == '__main__':
                         default=0.4)
     parser.add_argument('--msa_binary', type=str,
                         help='MSA binary', default="../bin/msa")
-    parser.add_argument('--samtools_binary', type=str,
-                        help='samtools binary', default="samtools")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     parser.add_argument('--work', type=str,
@@ -156,7 +149,11 @@ if __name__ == '__main__':
                                  args.lr_match_score, args.lr_mismatch_penalty,
                                  args.lr_gap_open_penalty,
                                  args.lr_gap_ext_penalty, args.pass_threshold, args.lowqual_threshold,
-                                 args.msa_binary, args.samtools_binary, args.num_threads)
+                                 args.msa_binary, args.num_threads)
 
-    except:
-        traceback.print_exc()
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("Aborting!")
+        logger.error(
+            "postprocess.py failure on arguments: {}".format(args))
+        raise e

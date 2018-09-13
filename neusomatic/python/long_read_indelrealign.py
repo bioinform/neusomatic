@@ -25,14 +25,6 @@ from Bio.Alphabet import DNAAlphabet
 
 from utils import run_shell_command, get_chromosomes_order
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
-logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
-
 CIGAR_MATCH = 0
 CIGAR_INS = 1
 CIGAR_DEL = 2
@@ -98,6 +90,7 @@ class Realign_Read:
 
     def add_realignment(self, region_start, region_end, start_idx, end_idx, del_start, del_end,
                         pos_start, pos_end, new_cigar, excess_start, excess_end):
+        logger = logging.getLogger(Realign_Read.add_realignment.__name__)
         pos_start = int(pos_start)
         if pos_start > self.end_ra_pos:
             self.realignments.append([int(region_start), int(region_end), int(start_idx),
@@ -108,6 +101,7 @@ class Realign_Read:
             self.end_ra_pos = int(pos_end)
 
     def fix_record(self, record, ref_seq):
+        logger = logging.getLogger(Realign_Read.fix_record.__name__)
         self.realignments = sorted(self.realignments, key=lambda x: x[0])
         cigartuples = record.cigartuples
         start_hc = cigartuples[0][1] if cigartuples[
@@ -233,6 +227,7 @@ class Realign_Read:
 
 
 def get_cigar_stat(cigartuple, keys=[]):
+    logger = logging.getLogger(get_cigar_stat.__name__)
     if not keys:
         keys = set(map(lambda x: x[0], cigartuple))
     n_key = {}
@@ -242,6 +237,7 @@ def get_cigar_stat(cigartuple, keys=[]):
 
 
 def find_NM(record, ref_seq):
+    logger = logging.getLogger(find_NM.__name__)
     positions = np.array(map(lambda x: x if x else -1,
                              (record.get_reference_positions(full_length=True))))
     sc_start = (record.cigartuples[0][0] ==
@@ -270,16 +266,19 @@ def find_NM(record, ref_seq):
 
 
 def cigarstring_to_tuple(cigarstring):
+    logger = logging.getLogger(cigarstring_to_tuple.__name__)
     return tuple((_CIGAR_OP_DICT[op],
                   int(length)) for length,
                  op in _CIGAR_PATTERN.findall(cigarstring))
 
 
 def cigartuple_to_string(cigartuples):
+    logger = logging.getLogger(cigartuple_to_string.__name__)
     return "".join(map(lambda x: "%d%s" % (x[1], _CIGAR_OPS[x[0]]), cigartuples))
 
 
 def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i):
+    logger = logging.getLogger(prepare_fasta.__name__)
     in_fasta_file = os.path.join(
         work, region.__str__() + "_split_{}".format(split_i) + "_0.fasta")
     info_file = os.path.join(work, region.__str__() +
@@ -297,7 +296,7 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
                     for record in samfile.fetch(region.chrom, region.start, region.end + 1):
                         if record.is_supplementary and "SA" in dict(record.tags):
                             sas = dict(record.tags)["SA"].split(";")
-                            sas = filter(lambda x: x, sas)
+                            sas = filter(None, sas)
                             sas_cigs = map(lambda x: x.split(",")[3], sas)
                             if record.cigarstring in sas_cigs:
                                 continue
@@ -356,7 +355,8 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
                             NM_INDEL = cigar_stat[
                                 CIGAR_DEL] + cigar_stat[CIGAR_INS] + del_start + del_end
                             in_fasta.write(">%s\n" % cnt)
-                            in_fasta.write("%s\n" % record.seq[start_idx:end_idx + 1].upper())
+                            in_fasta.write(
+                                "%s\n" % record.seq[start_idx:end_idx + 1].upper())
                             info_txt.write("\t".join(map(str, [cnt, record.query_name, record.pos,
                                                                record.cigarstring, start_idx,
                                                                end_idx,
@@ -366,14 +366,15 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
     return in_fasta_file, info_file
 
 
-def split_bam_to_chuncks(work, region, input_bam, samtools_binary, chunck_size=200,
+def split_bam_to_chuncks(work, region, input_bam, chunck_size=200,
                          chunck_scale=1.5):
+    logger = logging.getLogger(split_bam_to_chuncks.__name__)
     records = []
     with pysam.Samfile(input_bam, "rb") as samfile:
         for record in samfile.fetch(region.chrom, region.start, region.end + 1):
             if record.is_supplementary and "SA" in dict(record.tags):
                 sas = dict(record.tags)["SA"].split(";")
-                sas = filter(lambda x: x, sas)
+                sas = filter(None, sas)
                 sas_cigs = map(lambda x: x.split(",")[3], sas)
                 if record.cigarstring in sas_cigs:
                     continue
@@ -420,18 +421,15 @@ def split_bam_to_chuncks(work, region, input_bam, samtools_binary, chunck_size=2
             split_input_bam = os.path.join(
                 work, region.__str__() + "_split_{}.bam".format(i))
             with pysam.AlignmentFile(input_bam, "rb") as samfile:
-                with pysam.AlignmentFile(split_input_bam, "wb", template=samfile
-                                         ) as out_samfile:
+                with pysam.AlignmentFile(split_input_bam, "wb",
+                                         template=samfile) as out_samfile:
                     for record in records[i_start:i_end]:
                         out_samfile.write(record)
-            cmd = "{} sort {} -o {}.sorted.bam".format(
-                samtools_binary, split_input_bam, split_input_bam)
-            run_shell_command(cmd)
-            cmd = "mv {}.sorted.bam {}".format(
-                split_input_bam, split_input_bam)
-            run_shell_command(cmd)
-            cmd = "{} index {}".format(samtools_binary, split_input_bam)
-            run_shell_command(cmd)
+            pysam.sort("-o", "{}.sorted.bam".format(split_input_bam),
+                       split_input_bam)
+            shutil.move("{}.sorted.bam".format(
+                split_input_bam), split_input_bam)
+            pysam.index(split_input_bam)
 
             bams.append(split_input_bam)
             lens.append(i_end - i_start + 1)
@@ -439,6 +437,7 @@ def split_bam_to_chuncks(work, region, input_bam, samtools_binary, chunck_size=2
 
 
 def read_info(info_file):
+    logger = logging.getLogger(read_info.__name__)
     info = {}
     with open(info_file, 'rb') as csvfile:
         spamreader = csv.reader(csvfile, delimiter='\t', quotechar='|')
@@ -448,6 +447,7 @@ def read_info(info_file):
 
 
 def find_cigar(alignment):
+    logger = logging.getLogger(find_cigar.__name__)
     SOME_BIG_NUMBER = 100
     augmented_alignment = np.append(alignment, [SOME_BIG_NUMBER])
     event_pos = np.append([-1], np.nonzero(np.diff(augmented_alignment)))
@@ -463,15 +463,14 @@ def find_cigar(alignment):
 
 
 def extract_new_cigars(region, info_file, out_fasta_file):
+    logger = logging.getLogger(extract_new_cigars.__name__)
     info = read_info(info_file)
     aligned_reads = {}
     records = SeqIO.to_dict(SeqIO.parse(out_fasta_file, "fasta"))
     if len(records) <= 1:
         return {}, {}, {}
 
-    try:
-        assert(not set(map(int, records.keys())) ^ set(range(len(records))))
-    except:
+    if set(map(int, records.keys())) ^ set(range(len(records))):
         logger.error("sequences are missing in the alignment {}".format(
             set(map(int, records.keys())) ^ set(range(len(records)))))
         raise Exception
@@ -505,6 +504,7 @@ def extract_new_cigars(region, info_file, out_fasta_file):
 
 
 def extract_consensus(region, out_fasta_file):
+    logger = logging.getLogger(extract_consensus.__name__)
     aligned_reads = {}
     records = SeqIO.to_dict(SeqIO.parse(out_fasta_file, "fasta"))
     if len(records) <= 1:
@@ -546,13 +546,12 @@ def extract_consensus(region, out_fasta_file):
 
 
 def get_final_msa(region, msa_0, consensus, out_fasta_file_1, out_fasta_file_final):
+    logger = logging.getLogger(get_final_msa.__name__)
     aligned_reads = {}
     records = SeqIO.to_dict(SeqIO.parse(out_fasta_file_1, "fasta"))
     if len(records) <= 1:
         return False
-    try:
-        assert(not set(map(int, records.keys())) ^ set(range(2)))
-    except:
+    if set(map(int, records.keys())) ^ set(range(2)):
         logger.error("sequences are missing in the alignment {}".format(
             set(map(int, records.keys())) ^ set(range(1, len(records) + 1))))
         raise Exception
@@ -586,12 +585,11 @@ def get_final_msa(region, msa_0, consensus, out_fasta_file_1, out_fasta_file_fin
 
 
 def get_entries(region, info_file, new_cigars, excess_start, excess_end):
+    logger = logging.getLogger(get_entries.__name__)
     info = read_info(info_file)
     N = len(new_cigars)
 
-    try:
-        assert(len(info) == N)
-    except:
+    if len(info) != N:
         logger.error(
             "number of items in info is different from length of new cigars: {} vs {}".format(
                 len(info), N))
@@ -610,6 +608,7 @@ def get_entries(region, info_file, new_cigars, excess_start, excess_end):
 
 
 def merge_cigartuples(tuple1, tuple2):
+    logger = logging.getLogger(merge_cigartuples.__name__)
     if not tuple1:
         return tuple2
     if not tuple2:
@@ -620,15 +619,15 @@ def merge_cigartuples(tuple1, tuple2):
 
 
 def find_realign_dict(realign_bed_file, chrom):
+    logger = logging.getLogger(find_realign_dict.__name__)
     realign_bed = pybedtools.BedTool(
         realign_bed_file).filter(lambda x: x[0] == chrom)
     realign_dict = {}
     chrom_regions = set([])
     for interval in realign_bed:
         chrom, start, end, query_name = interval[0:4]
-        pos, start_idx, end_idx, cigarstring, del_start, del_end, pos_start, pos_end, new_cigar,
-        excess_start, excess_end = interval[
-            6:]
+        pos, start_idx, end_idx, cigarstring, del_start, del_end, pos_start, pos_end, new_cigar, \
+            excess_start, excess_end = interval[6:]
         q_key = "{}_{}_{}".format(query_name, pos, cigarstring)
         if q_key not in realign_dict:
             realign_dict[q_key] = Realign_Read(
@@ -643,43 +642,52 @@ def find_realign_dict(realign_bed_file, chrom):
 
 
 def correct_bam_chrom((work, input_bam, realign_bed_file, ref_fasta_file, chrom)):
-    fasta_file = pysam.Fastafile(ref_fasta_file)
-    ref_seq = fasta_seq(fasta_file)
-    ref_seq.set_chrom(chrom)
-    out_sam = os.path.join(work, "output_{}.sam".format(chrom))
-    with pysam.AlignmentFile(input_bam, "rb") as samfile:
-        with pysam.AlignmentFile(out_sam, "w", template=samfile) as out_samfile:
-            realign_dict, chrom_regions = find_realign_dict(
-                realign_bed_file, chrom)
-            if chrom_regions:
-                region_cnt = 0
-                next_region = chrom_regions[0]
-                done_regions = False
-            else:
-                done_regions = True
-            in_active_region = False
-            for record in samfile.fetch(chrom):
-                if not done_regions and in_active_region and record.pos > next_region[1]:
-                    if region_cnt == len(chrom_regions) - 1:
-                        done_regions = True
-                    else:
-                        region_cnt += 1
-                        next_region = chrom_regions[region_cnt]
-                if done_regions or (record.aend < next_region[0]):
-                    out_samfile.write(record)
-                    continue
-                q_key = "{}_{}_{}".format(
-                    record.query_name, record.pos, record.cigarstring)
-                if q_key not in realign_dict:
-                    out_samfile.write(record)
-                    continue
-                fixed_record = realign_dict[q_key].fix_record(record, ref_seq)
-                out_samfile.write(fixed_record)
-                in_active_region = True
-    return out_sam
+    thread_logger = logging.getLogger(
+        "{} ({})".format(correct_bam_chrom.__name__, multiprocessing.current_process().name))
+    try:
+        fasta_file = pysam.Fastafile(ref_fasta_file)
+        ref_seq = fasta_seq(fasta_file)
+        ref_seq.set_chrom(chrom)
+        out_sam = os.path.join(work, "output_{}.sam".format(chrom))
+        with pysam.AlignmentFile(input_bam, "rb") as samfile:
+            with pysam.AlignmentFile(out_sam, "w", template=samfile) as out_samfile:
+                realign_dict, chrom_regions = find_realign_dict(
+                    realign_bed_file, chrom)
+                if chrom_regions:
+                    region_cnt = 0
+                    next_region = chrom_regions[0]
+                    done_regions = False
+                else:
+                    done_regions = True
+                in_active_region = False
+                for record in samfile.fetch(chrom):
+                    if not done_regions and in_active_region and record.pos > next_region[1]:
+                        if region_cnt == len(chrom_regions) - 1:
+                            done_regions = True
+                        else:
+                            region_cnt += 1
+                            next_region = chrom_regions[region_cnt]
+                    if done_regions or (record.aend < next_region[0]):
+                        out_samfile.write(record)
+                        continue
+                    q_key = "{}_{}_{}".format(
+                        record.query_name, record.pos, record.cigarstring)
+                    if q_key not in realign_dict:
+                        out_samfile.write(record)
+                        continue
+                    fixed_record = realign_dict[
+                        q_key].fix_record(record, ref_seq)
+                    out_samfile.write(fixed_record)
+                    in_active_region = True
+        return out_sam
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
-def correct_bam_all(work, input_bam, output_bam, ref_fasta_file, realign_bed_file, samtools_binary):
+def correct_bam_all(work, input_bam, output_bam, ref_fasta_file, realign_bed_file):
+    logger = logging.getLogger(correct_bam_all.__name__)
     with pysam.AlignmentFile(input_bam, "rb") as samfile:
         with pysam.AlignmentFile(output_bam, "wb", template=samfile) as out_samfile:
             fasta_file = pysam.Fastafile(ref_fasta_file)
@@ -715,11 +723,11 @@ def correct_bam_all(work, input_bam, output_bam, ref_fasta_file, realign_bed_fil
                     out_samfile.write(fixed_record)
                     in_active_region = True
     if os.path.exists(output_bam):
-        cmd = "{} index {}".format(samtools_binary, output_bam)
-        run_shell_command(cmd)
+        pysam.index(output_bam)
 
 
 def concatenate_sam_files(files, output, bam_header):
+    logger = logging.getLogger(concatenate_sam_files.__name__)
     good_files = filter(lambda x: x and os.path.isfile(x), files)
     fin = fileinput.input(good_files)
     with open(output, "w") as merged_fd:
@@ -737,49 +745,66 @@ def concatenate_sam_files(files, output, bam_header):
 
 
 def parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file, realign_bed_file,
-                         num_threads, samtools_binary):
+                         num_threads):
+    logger = logging.getLogger(parallel_correct_bam.__name__)
     if num_threads > 1:
         pool = multiprocessing.Pool(num_threads)
         bam_header = output_bam[:-4] + ".header"
-
-        cmd = "{} view -H {} > {}".format(samtools_binary,
-                                          input_bam, bam_header)
-        run_shell_command(cmd)
+        with open(bam_header, "w") as h_f:
+            h_f.write(pysam.view("-H", input_bam,))
 
         map_args = []
         with pysam.AlignmentFile(input_bam, "rb") as samfile:
             for chrom in samfile.references:
                 map_args.append(
                     (work, input_bam, realign_bed_file, ref_fasta_file, chrom))
-        sams = pool.map_async(correct_bam_chrom, map_args).get()
+
+        try:
+            sams = pool.map_async(correct_bam_chrom, map_args).get()
+            pool.close()
+        except Exception as inst:
+            pool.close()
+            logger.error(inst)
+            traceback.print_exc()
+            raise Exception
+
+        for o in sams:
+            if o is None:
+                raise Exception("correct_bam_chrom failed!")
 
         output_sam = output_bam[:-4] + ".sam"
         concatenate_sam_files(sams, output_sam, bam_header)
         if os.path.exists(output_sam):
-            cmd = "{} view -bS {} > {} && {} index {}".format(
-                samtools_binary, output_sam, output_bam, samtools_binary, output_bam)
-            run_shell_command(cmd)
+            with pysam.AlignmentFile(output_sam, "r") as samfile:
+                with pysam.AlignmentFile(output_bam, "wb",
+                                         template=samfile) as out_samfile:
+                    for record in samfile.fetch():
+                        out_samfile.write(record)
+            pysam.index(output_bam)
+
             for sam in [bam_header] + sams:
-                cmd = "rm {}".format(sam)
-                run_shell_command(cmd)
-        pool.close()
+                shutil.rmtree(sam)
     else:
         correct_bam_all(work, input_bam, output_bam,
-                        ref_fasta_file, realign_bed_file, samtools_binary)
+                        ref_fasta_file, realign_bed_file)
 
 
 def run_msa(in_fasta_file, match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
             msa_binary):
+    logger = logging.getLogger(run_msa.__name__)
+    if not os.path.exists(msa_binary):
+        raise IOError("File not found: {}".format(msa_binary))
     out_fasta_file = ".".join(in_fasta_file.split(".")[:-1]) + "_aligned.fasta"
     cmd = "{} -A {} -B {} -O {} -E {} -i {} -o {}".format(msa_binary, match_score, mismatch_penalty,
                                                           gap_open_penalty, gap_ext_penalty,
                                                           in_fasta_file, out_fasta_file)
     if not os.path.exists(out_fasta_file):
-        run_shell_command(cmd)
+        run_shell_command(cmd, run_logger=logger)
     return out_fasta_file
 
 
 def do_realign(region, info_file, thr_realign=0.0135, max_N=1000):
+    logger = logging.getLogger(do_realign.__name__)
     sum_nm_snp = 0
     sum_nm_indel = 0
     c = 0
@@ -790,18 +815,18 @@ def do_realign(region, info_file, thr_realign=0.0135, max_N=1000):
             sum_nm_indel += int(x[-1])
             c += 1
     eps = 0.0001
-    if (c < max_N) and \
-            ((sum_nm_snp +
-                sum_nm_indel) / float(c + eps) / float(region.span() + eps) > thr_realign):
+    if (c < max_N) and (
+            (sum_nm_snp + sum_nm_indel
+             ) / float(c + eps) / float(region.span() + eps)
+            > thr_realign):
         return True
     return False
 
 
 def find_var(out_fasta_file, snp_min_af, del_min_af, ins_min_af, scale_maf):
+    logger = logging.getLogger(find_var.__name__)
     records = SeqIO.to_dict(SeqIO.parse(out_fasta_file, "fasta"))
-    try:
-        assert(not set(map(int, records.keys())) ^ set(range(len(records))))
-    except:
+    if set(map(int, records.keys())) ^ set(range(len(records))):
         logger.error("sequences are missing in the alignment {}".format(
             set(map(int, records.keys())) ^ set(range(len(records)))))
         raise Exception
@@ -852,6 +877,7 @@ def find_var(out_fasta_file, snp_min_af, del_min_af, ins_min_af, scale_maf):
 
 
 def TrimREFALT(ref, alt, pos):
+    logger = logging.getLogger(TrimREFALT.__name__)
     alte = len(alt)
     refe = len(ref)
     while (alte > 1 and refe > 1 and alt[alte - 1] == ref[refe - 1]):
@@ -873,76 +899,87 @@ def TrimREFALT(ref, alt, pos):
 def run_realignment((work, ref_fasta_file, target_region, pad, chunck_size, chunck_scale,
                      snp_min_af, del_min_af, ins_min_af, len_chr, input_bam,
                      match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
-                     msa_binary, samtools_binary, get_var)):
-    region = Region(target_region, pad, len_chr)
+                     msa_binary, get_var)):
 
-    original_tempdir = pybedtools.get_tempdir()
-    pybedtmp = os.path.join(work, "pybedtmp_{}".format(region.__str__()))
-    if not os.path.exists(pybedtmp):
-        os.mkdir(pybedtmp)
-    pybedtools.set_tempdir(pybedtmp)
-    variant = []
-    all_entries = []
-    input_bam_splits, lens_splits = split_bam_to_chuncks(
-        work, region, input_bam, samtools_binary, chunck_size, chunck_scale)
-    new_seqs = []
-    new_ref_seq = ""
-    skipped = 0
-    if len(input_bam_splits) <= 2:
-        scale_maf = 1
-    else:
-        scale_maf = 2
-    afss = []
-    for i, i_bam in enumerate(input_bam_splits):
-        in_fasta_file, info_file = prepare_fasta(
-            work, region, i_bam, ref_fasta_file, True, i)
-        if do_realign(region, info_file):
-            out_fasta_file_0 = run_msa(
-                in_fasta_file, match_score, mismatch_penalty, gap_open_penalty,
-                gap_ext_penalty, msa_binary)
-            if get_var:
-                ref_seq_, alt_seq_, afs = find_var(
-                    out_fasta_file_0, snp_min_af, del_min_af, ins_min_af, scale_maf)
-                afss.append(afs)
-                new_ref_seq = ref_seq_
-                new_seqs.append(alt_seq_)
-            new_cigars, excess_start, excess_end = extract_new_cigars(
-                region, info_file, out_fasta_file_0)
-            if new_cigars:
-                entries = get_entries(
-                    region, info_file, new_cigars, excess_start, excess_end)
-                all_entries.extend(entries)
+    thread_logger = logging.getLogger(
+        "{} ({})".format(run_realignment.__name__, multiprocessing.current_process().name))
+
+    try:
+        region = Region(target_region, pad, len_chr)
+
+        original_tempdir = pybedtools.get_tempdir()
+        pybedtmp = os.path.join(work, "pybedtmp_{}".format(region.__str__()))
+        if not os.path.exists(pybedtmp):
+            os.mkdir(pybedtmp)
+        pybedtools.set_tempdir(pybedtmp)
+        variant = []
+        all_entries = []
+        input_bam_splits, lens_splits = split_bam_to_chuncks(
+            work, region, input_bam, chunck_size, chunck_scale)
+        new_seqs = []
+        new_ref_seq = ""
+        skipped = 0
+        if len(input_bam_splits) <= 2:
+            scale_maf = 1
         else:
-            skipped += 1
-    if get_var and new_seqs:
-        for i in range(skipped):
+            scale_maf = 2
+        afss = []
+        for i, i_bam in enumerate(input_bam_splits):
+            in_fasta_file, info_file = prepare_fasta(
+                work, region, i_bam, ref_fasta_file, True, i)
+            if do_realign(region, info_file):
+                out_fasta_file_0 = run_msa(
+                    in_fasta_file, match_score, mismatch_penalty, gap_open_penalty,
+                    gap_ext_penalty, msa_binary)
+                if get_var:
+                    ref_seq_, alt_seq_, afs = find_var(
+                        out_fasta_file_0, snp_min_af, del_min_af, ins_min_af, scale_maf)
+                    afss.append(afs)
+                    new_ref_seq = ref_seq_
+                    new_seqs.append(alt_seq_)
+                new_cigars, excess_start, excess_end = extract_new_cigars(
+                    region, info_file, out_fasta_file_0)
+                if new_cigars:
+                    entries = get_entries(
+                        region, info_file, new_cigars, excess_start, excess_end)
+                    all_entries.extend(entries)
+            else:
+                skipped += 1
+        if get_var and new_seqs:
+            for i in range(skipped):
+                new_seqs = [new_ref_seq] + new_seqs
             new_seqs = [new_ref_seq] + new_seqs
-        new_seqs = [new_ref_seq] + new_seqs
-        consensus_fasta = os.path.join(
-            work, region.__str__() + "_consensus.fasta")
-        with open(consensus_fasta, "w") as output_handle:
-            for i, seq in enumerate(new_seqs):
-                record = SeqRecord(
-                    Seq(seq, DNAAlphabet.letters), id=str(i), description="")
-                SeqIO.write(record, output_handle, "fasta")
-        consensus_fasta_aligned = run_msa(
-            consensus_fasta, match_score, mismatch_penalty, gap_open_penalty,
-            gap_ext_penalty, msa_binary)
-        ref_seq, alt_seq, afs = find_var(
-            consensus_fasta_aligned, snp_min_af, del_min_af, ins_min_af, 1)
-        if ref_seq != alt_seq:
-            ref, alt, pos = TrimREFALT(ref_seq, alt_seq, int(region.start) + 1)
-            a = int(np.ceil(np.max(afs) * len(afss)))
-            af = sum(sorted(map(lambda x: np.max(x) if x.shape[
-                     0] > 0 else 0, afss))[-a:]) / float(len(afss))
-            dp = sum(lens_splits)
-            ao = int(af * dp)
-            ro = dp - ao
-            variant = [region.chrom, pos, ref, alt, dp, ro, ao]
+            consensus_fasta = os.path.join(
+                work, region.__str__() + "_consensus.fasta")
+            with open(consensus_fasta, "w") as output_handle:
+                for i, seq in enumerate(new_seqs):
+                    record = SeqRecord(
+                        Seq(seq, DNAAlphabet.letters), id=str(i), description="")
+                    SeqIO.write(record, output_handle, "fasta")
+            consensus_fasta_aligned = run_msa(
+                consensus_fasta, match_score, mismatch_penalty, gap_open_penalty,
+                gap_ext_penalty, msa_binary)
+            ref_seq, alt_seq, afs = find_var(
+                consensus_fasta_aligned, snp_min_af, del_min_af, ins_min_af, 1)
+            if ref_seq != alt_seq:
+                ref, alt, pos = TrimREFALT(
+                    ref_seq, alt_seq, int(region.start) + 1)
+                a = int(np.ceil(np.max(afs) * len(afss)))
+                af = sum(sorted(map(lambda x:
+                                    np.max(x) if x.shape[0] > 0 else 0,
+                                    afss))[-a:]) / float(len(afss))
+                dp = sum(lens_splits)
+                ao = int(af * dp)
+                ro = dp - ao
+                variant = [region.chrom, pos, ref, alt, dp, ro, ao]
 
-    shutil.rmtree(pybedtmp)
-    pybedtools.set_tempdir(original_tempdir)
-    return all_entries, variant
+        shutil.rmtree(pybedtmp)
+        pybedtools.set_tempdir(original_tempdir)
+        return all_entries, variant
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 class fasta_seq:
@@ -962,6 +999,7 @@ class fasta_seq:
 
 def extend_regions_hp(region_bed_file, extended_region_bed_file, ref_fasta_file,
                       chrom_lengths, pad):
+    logger = logging.getLogger(extend_regions_hp.__name__)
     with pysam.Fastafile(ref_fasta_file) as ref_fasta:
         region_bed = pybedtools.BedTool(region_bed_file)
         intervals = []
@@ -1008,6 +1046,7 @@ def extend_regions_hp(region_bed_file, extended_region_bed_file, ref_fasta_file,
 
 
 def check_rep(ref_seq, left_right, w):
+    logger = logging.getLogger(check_rep.__name__)
     if len(ref_seq) < 2 * w:
         return False
     if left_right == "left":
@@ -1021,6 +1060,7 @@ def check_rep(ref_seq, left_right, w):
 
 def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_file,
                           chrom_lengths, pad):
+    logger = logging.getLogger(extend_regions_repeat.__name__)
     with pysam.Fastafile(ref_fasta_file) as ref_fasta:
         region_bed = pybedtools.BedTool(region_bed_file)
         intervals = []
@@ -1121,12 +1161,10 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                            ref_fasta_file, num_threads, pad,
                            chunck_size, chunck_scale, snp_min_af, del_min_af, ins_min_af,
                            match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
-                           msa_binary, samtools_binary):
+                           msa_binary):
+    logger = logging.getLogger(long_read_indelrealign.__name__)
 
-
-    logger.info("-----------------------------------------------------------")
-    logger.info("Resolve variants for INDELS (long-read)")
-    logger.info("-----------------------------------------------------------")
+    logger.info("-----------Resolve variants for INDELS (long-read)---------")
 
     if not output_bam and not output_vcf:
         logger.error(
@@ -1170,28 +1208,40 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                          chunck_scale, snp_min_af, del_min_af, ins_min_af,
                          chrom_lengths[target_region[0]], input_bam,
                          match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
-                         msa_binary, samtools_binary, get_var))
+                         msa_binary, get_var))
 
     shuffle(map_args)
-    realign_output = pool.map_async(run_realignment, map_args).get()
+    try:
+        realign_output = pool.map_async(run_realignment, map_args).get()
+        pool.close()
+    except Exception as inst:
+        pool.close()
+        logger.error(inst)
+        traceback.print_exc()
+        raise Exception
+
+    for o in realign_output:
+        if o is None:
+            raise Exception("run_realignment failed!")
+
     realign_entries = map(lambda x: x[0], realign_output)
+
     realign_variants = map(lambda x: x[1], realign_output)
-    realign_variants = filter(lambda x: x, realign_variants)
+    realign_variants = filter(None, realign_variants)
 
     if get_var:
         with open(output_vcf, "w") as o_f:
             o_f.write("#" + "\t".join(["CHROM", "POS", "ID", "REF",
                                        "ALT", "QUAL", "FILTER", "INFO", "FORMAT"]) + "\n")
-            realign_variants = sorted(realign_variants, key=lambda x: [
-                                      chroms_order[x[0]], x[1]])
+            realign_variants = sorted(realign_variants, key=lambda x:
+                                      [chroms_order[x[0]], x[1]])
             for variant in realign_variants:
                 if variant:
                     chrom, pos, ref, alt, dp, ro, ao = variant
                     line = "\t".join([chrom, str(pos), ".", ref, alt, "100", ".",
                                       "DP={};RO={};AO={}".format(dp, ro, ao),
                                       "GT:DP:RO:AO", "0/1:{}:{}:{}".format(
-                                          dp, ro, ao),
-                                      ])
+                                          dp, ro, ao), ])
                     o_f.write(line + "\n")
 
     original_tempdir = pybedtools.get_tempdir()
@@ -1212,10 +1262,9 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
 
     relaign_bed = pybedtools.BedTool(realign_bed_file)
 
-    pool.close()
     if output_bam:
         parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file,
-                             realign_bed_file, num_threads, samtools_binary)
+                             realign_bed_file, num_threads)
 
     shutil.rmtree(pybedtmp)
     pybedtools.set_tempdir(original_tempdir)
@@ -1224,7 +1273,11 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
 
 
 if __name__ == '__main__':
-    logging.info("Begin")
+
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(description='realign indels using MSA')
     parser.add_argument('--input_bam', type=str, help='input bam')
     parser.add_argument('--output_vcf', type=str,
@@ -1261,8 +1314,6 @@ if __name__ == '__main__':
                         help='penalty for extending a gap', default=6)
     parser.add_argument('--msa_binary', type=str,
                         help='MSA binary', default="../bin/msa")
-    parser.add_argument('--samtools_binary', type=str,
-                        help='samtools binary', default="samtools")
     args = parser.parse_args()
     logger.info(args)
 
@@ -1273,6 +1324,10 @@ if __name__ == '__main__':
                                            args.chunck_scale, args.snp_min_af, args.del_min_af,
                                            args.ins_min_af, args.match_score,
                                            args.mismatch_penalty, args.gap_open_penalty,
-                                           args.gap_ext_penalty, args.msa_binary, args.samtools)
-    except:
-        traceback.print_exc()
+                                           args.gap_ext_penalty, args.msa_binary)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("Aborting!")
+        logger.error(
+            "long_read_indelrealign.py failure on arguments: {}".format(args))
+        raise e

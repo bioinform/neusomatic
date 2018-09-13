@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 set -e
 
 mkdir -p example
@@ -93,7 +93,7 @@ python ../../neusomatic/python/postprocess.py \
 file1=work_standalone/NeuSomatic_standalone.vcf
 file2=../NeuSomatic_standalone.vcf
 
-cmp --silent $file1 $file2 && echo '### NeuSomatic stand-alone: SUCCESS!  ###' \
+cmp --silent $file1 $file2 && echo '### NeuSomatic stand-alone: SUCCESS! ###' \
 || echo '### NeuSomatic stand-alone FAILED: Files test/NeuSomatic_standalone.vcf and test/example/work_standalone/NeuSomatic_standalone.vcf Are Different! ###'
 
 

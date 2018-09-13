@@ -8,20 +8,10 @@ import traceback
 import logging
 
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
-logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
-
-
 def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
+    logger = logging.getLogger(extract_postprocess_targets.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Extract Postprocessing Targets")
-    logger.info("-----------------------------------------------------------")
+    logger.info("--------------Extract Postprocessing Targets---------------")
 
     base_name = ".".join(input_vcf.split(".")[:-1])
     out_vcf = "{}.no_resolve.vcf".format(base_name)
@@ -79,6 +69,11 @@ def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
 
 
 if __name__ == '__main__':
+
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description='infer genotype by ao and ro counts')
     parser.add_argument('--input_vcf', type=str,
@@ -94,5 +89,9 @@ if __name__ == '__main__':
     try:
         extract_postprocess_targets(
             args.input_vcf, args.min_len, args.max_dist, args.pad)
-    except:
-        traceback.print_exc()
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("Aborting!")
+        logger.error(
+            "extract_postprocess_targets.py failure on arguments: {}".format(args))
+        raise e
