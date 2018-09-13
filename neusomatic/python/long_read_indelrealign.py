@@ -90,7 +90,7 @@ class Realign_Read:
 
     def add_realignment(self, region_start, region_end, start_idx, end_idx, del_start, del_end,
                         pos_start, pos_end, new_cigar, excess_start, excess_end):
-        logger = logging.getLogger(add_realignment.__name__)
+        logger = logging.getLogger(Realign_Read.add_realignment.__name__)
         pos_start = int(pos_start)
         if pos_start > self.end_ra_pos:
             self.realignments.append([int(region_start), int(region_end), int(start_idx),
@@ -101,7 +101,7 @@ class Realign_Read:
             self.end_ra_pos = int(pos_end)
 
     def fix_record(self, record, ref_seq):
-        logger = logging.getLogger(fix_record.__name__)
+        logger = logging.getLogger(Realign_Read.fix_record.__name__)
         self.realignments = sorted(self.realignments, key=lambda x: x[0])
         cigartuples = record.cigartuples
         start_hc = cigartuples[0][1] if cigartuples[

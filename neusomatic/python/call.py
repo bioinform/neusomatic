@@ -172,20 +172,20 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, 
         vartype_candidate = get_type(ref, alt)
         col_2_pos = {}
         if vartype_candidate == "DEL":
-            ancor = [pos + 1, center]
+            anchor = [pos + 1, center]
         elif vartype_candidate == "INS":
-            ancor = [pos, center - 1]
+            anchor = [pos, center - 1]
         elif vartype_candidate == "SNP":
-            ancor = [pos, center]
+            anchor = [pos, center]
         cnt = 0
         for i in nzref_pos:
             col_2_pos[i] = cnt
             cnt += 1
-        if ancor[1] not in col_2_pos:
+        if anchor[1] not in col_2_pos:
             # print "NNN",path,pred
             return vcf_record
 
-        b = (ancor[0] - col_2_pos[ancor[1]])
+        b = (anchor[0] - col_2_pos[anchor[1]])
         for i in nzref_pos:
             col_2_pos[i] += b
         pos_2_col = {v: k for k, v in col_2_pos.iteritems()}
