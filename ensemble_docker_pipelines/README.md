@@ -1,7 +1,9 @@
 ## Docker pipelines to prepare other callers output for Ensemble mode
 
 NeuSomatic can be used universally as a stand-alone somatic mutation detection method or with an ensemble of existing methods. In the ensemble mode NeuSomatic currently supports outputs from MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2. For ensemble mode, the ensembled outputs of different somatic callers (as a single `.tsv` file) should be prepared and inputed using `--ensemble_tsv` argument in `preprocess.py`. 
+
 The following steps use docker pipelines to prepare the ensemble `.tsv` file.
+
 This is an adaptation of SomaticSeq's [scripts](https://github.com/bioinform/somaticseq/tree/master/utilities/dockered_pipelines). 
 
 ### Requirement
