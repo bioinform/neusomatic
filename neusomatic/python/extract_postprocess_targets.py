@@ -8,12 +8,8 @@ import traceback
 import logging
 
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
-
 def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
+    logger = logging.getLogger(extract_postprocess_targets.__name__)
 
     logger.info("-----------------------------------------------------------")
     logger.info("Extract Postprocessing Targets")
@@ -75,6 +71,11 @@ def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
 
 
 if __name__ == '__main__':
+
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description='infer genotype by ao and ro counts')
     parser.add_argument('--input_vcf', type=str,

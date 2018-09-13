@@ -12,12 +12,8 @@ import numpy as np
 
 from utils import get_chromosomes_order
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
-
 def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
+    logger = logging.getLogger(resolve_scores.__name__)
 
     logger.info("-----------------------------------------------------------")
     logger.info("Resolve Prediction Scores for Realigned Variants")
@@ -78,6 +74,11 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
 
 
 if __name__ == '__main__':
+
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(description='Resolve scores')
     parser.add_argument('--input_bam', type=str,
                         help='input bam', required=True)

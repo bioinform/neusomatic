@@ -13,10 +13,6 @@ import numpy as np
 
 from utils import safe_read_info_dict
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
 
 def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp, min_dp, good_ao,
                        min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af,
@@ -296,6 +292,10 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
 
 
 if __name__ == '__main__':
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(description='filter candidates vcf')
     parser.add_argument('--candidates_vcf', type=str, help='raw candidates vcf',
                         required=True)

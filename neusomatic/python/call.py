@@ -24,12 +24,9 @@ from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset
 from utils import get_chromosomes_order, prob2phred
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
 
 def get_type(ref, alt):
+    logger = logging.getLogger(get_type.__name__)
     len_diff = len(ref) - len(alt.split(",")[0])
     if len_diff > 0:
         return "DEL"
@@ -40,6 +37,7 @@ def get_type(ref, alt):
 
 
 def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cuda):
+    logger = logging.getLogger(call_variants.__name__)
     net.eval()
     nclasses = len(vartype_classes)
     final_preds = {}
@@ -283,6 +281,7 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, 
 
 
 def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, num_threads):
+    logger = logging.getLogger(pred_vcf_records.__name__)
     map_args = []
     for path in final_preds.keys():
         map_args.append([path, true_path[path], final_preds[path],
@@ -308,6 +307,7 @@ def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, 
 
 
 def pred_vcf_records_none(none_preds, chroms):
+    logger = logging.getLogger(pred_vcf_records_none.__name__)
     all_vcf_records = {}
     for path in none_preds.keys():
         pred = none_preds[path]
@@ -326,6 +326,7 @@ def pred_vcf_records_none(none_preds, chroms):
 
 
 def get_vcf_records(all_vcf_records):
+    logger = logging.getLogger(get_vcf_records.__name__)
     vcf_records = []
     for path in all_vcf_records:
         if all_vcf_records[path]:
@@ -334,6 +335,7 @@ def get_vcf_records(all_vcf_records):
 
 
 def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_threshold):
+    logger = logging.getLogger(write_vcf.__name__)
     vcf_records = filter(lambda x: len(x) > 0, vcf_records)
     vcf_records = sorted(vcf_records, key=lambda x: [chroms_order[x[0]], x[1]])
     lines = []
@@ -359,6 +361,7 @@ def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_thr
 def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     batch_size, max_load_candidates, pass_threshold, lowqual_threshold,
                     use_cuda):
+    logger = logging.getLogger(call_neusomatic.__name__)
 
     logger.info("-----------------------------------------------------------")
     logger.info("Call Somatic Mutations")
@@ -473,6 +476,11 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     return output_vcf
 
 if __name__ == '__main__':
+
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description='simple call variants from bam')
     parser.add_argument('--candidates_tsv', nargs="*",
