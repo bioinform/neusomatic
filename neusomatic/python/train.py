@@ -172,9 +172,10 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                      max_load_candidates, coverage_thr, save_freq, use_cuda):
     logger = logging.getLogger(train_neusomatic.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Train NeuSomatic Network")
-    logger.info("-----------------------------------------------------------")
+    logger.info("----------------Train NeuSomatic Network-------------------")
+
+    if not use_cuda:
+        torch.set_num_threads(num_threads)
 
     data_transform = transforms.Compose(
         [transforms.ToTensor(),

@@ -1352,9 +1352,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                      ensemble_bed, tsv_batch_size):
     logger = logging.getLogger(generate_dataset.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Generate Dataset")
-    logger.info("-----------------------------------------------------------")
+    logger.info("---------------------Generate Dataset----------------------")
 
     if not os.path.exists(work):
         os.mkdir(work)

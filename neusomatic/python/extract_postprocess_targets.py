@@ -11,9 +11,7 @@ import logging
 def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
     logger = logging.getLogger(extract_postprocess_targets.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Extract Postprocessing Targets")
-    logger.info("-----------------------------------------------------------")
+    logger.info("--------------Extract Postprocessing Targets---------------")
 
     base_name = ".".join(input_vcf.split(".")[:-1])
     out_vcf = "{}.no_resolve.vcf".format(base_name)

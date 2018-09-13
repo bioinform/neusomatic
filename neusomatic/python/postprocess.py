@@ -33,9 +33,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumo
                 msa_binary, num_threads):
     logger = logging.getLogger(postprocess.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Postprocessing")
-    logger.info("-----------------------------------------------------------")
+    logger.info("----------------------Postprocessing-----------------------")
 
     candidates_preds = os.path.join(work, "candidates_preds.vcf")
     ensembled_preds = os.path.join(work, "ensembled_preds.vcf")

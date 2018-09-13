@@ -1164,9 +1164,7 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                            msa_binary):
     logger = logging.getLogger(long_read_indelrealign.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Resolve variants for INDELS (long-read)")
-    logger.info("-----------------------------------------------------------")
+    logger.info("-----------Resolve variants for INDELS (long-read)---------")
 
     if not output_bam and not output_vcf:
         logger.error(

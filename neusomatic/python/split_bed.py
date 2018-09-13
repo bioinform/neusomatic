@@ -15,9 +15,7 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
 
     logger = logging.getLogger(split_region.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Split region")
-    logger.info("-----------------------------------------------------------")
+    logger.info("------------------------Split region-----------------------")
 
     regions_bed = pybedtools.BedTool(region_bed_file).sort().merge(d=0)
     intervals = []

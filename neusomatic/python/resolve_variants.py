@@ -151,9 +151,7 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
                      target_bed_file, num_threads):
     logger = logging.getLogger(resolve_variants.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Resolve variants (e.g. exact INDEL sequences)")
-    logger.info("-----------------------------------------------------------")
+    logger.info("-------Resolve variants (e.g. exact INDEL sequences)-------")
 
     variants = {}
     with open(target_vcf_file) as tv_f:
