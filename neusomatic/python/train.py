@@ -426,5 +426,5 @@ if __name__ == '__main__':
         logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error(
-            "traina.py failure on arguments: {}".format(args))
+            "train.py failure on arguments: {}".format(args))
         raise e
