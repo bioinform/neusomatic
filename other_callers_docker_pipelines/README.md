@@ -77,7 +77,8 @@ This will generate "Ensemble.sSNV.tsv" and "Ensemble.sINDEL.tsv" under each regi
 
 Now you can combine these files to generate `enemble_ann.tsv` file.
 ```
-cat output/*/Wrapper/Ensemble.s*.tsv |sed "s/nan/0/g" > enemble_ann.tsv
+cat <(cat output/*/Wrapper/Ensemble.s*.tsv |grep CHROM|head -1) <(cat output/*/Wrapper/Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
+
 ```
 and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
 
