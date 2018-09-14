@@ -21,16 +21,14 @@ from torchvision import transforms
 from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
 type_class_dict = {"DEL": 0, "INS": 1, "NONE": 2, "SNP": 3}
 vartype_classes = ['DEL', 'INS', 'NONE', 'SNP']
 
 
 def make_weights_for_balanced_classes(count_class_t, count_class_l, nclasses_t, nclasses_l,
                                       none_count=None):
+    logger = logging.getLogger(make_weights_for_balanced_classes.__name__)
+
     w_t = [0] * nclasses_t
     w_l = [0] * nclasses_l
 
@@ -60,6 +58,7 @@ def make_weights_for_balanced_classes(count_class_t, count_class_l, nclasses_t, 
 
 
 def test(net, epoch, validation_loader, use_cuda):
+    logger = logging.getLogger(test.__name__)
     net.eval()
     nclasses = len(vartype_classes)
     class_correct = list(0. for i in range(nclasses))
@@ -172,10 +171,12 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                      num_threads, batch_size, max_epochs, learning_rate, lr_drop_epochs,
                      lr_drop_ratio, momentum, boost_none, none_count_scale,
                      max_load_candidates, coverage_thr, save_freq, use_cuda):
+    logger = logging.getLogger(train_neusomatic.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Train NeuSomatic Network")
-    logger.info("-----------------------------------------------------------")
+    logger.info("----------------Train NeuSomatic Network-------------------")
+
+    if not use_cuda:
+        torch.set_num_threads(num_threads)
 
     data_transform = transforms.Compose(
         [transforms.ToTensor(),
@@ -364,6 +365,11 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     return '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch)
 
 if __name__ == '__main__':
+
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description='simple call variants from bam')
     parser.add_argument('--candidates_tsv', nargs="*",
@@ -424,5 +430,5 @@ if __name__ == '__main__':
         logger.error(traceback.format_exc())
         logger.error("Aborting!")
         logger.error(
-            "traina.py failure on arguments: {}".format(args))
+            "train.py failure on arguments: {}".format(args))
         raise e

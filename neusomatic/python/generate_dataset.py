@@ -21,10 +21,6 @@ from split_bed import split_region
 from utils import concatenate_vcfs, get_chromosomes_order
 
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
 NUC_to_NUM_hp = {"A": 1, "C": 2, "G": 3, "T": 4, "N": 5}
 NUC_to_NUM = {"a": 1, "c": 2, "g": 3, "t": 4, "-": 5, " ": 0, "A": 1, "C": 2, "G": 3, "T": 4, "N": 5,
               "b": 1, "d": 2, "h": 3, "u": 4}
@@ -34,6 +30,7 @@ NUM_to_NUC_hp = {v: k for k, v in NUC_to_NUM_hp.iteritems()}
 
 
 def get_type(ref, alt):
+    logger = logging.getLogger(get_type.__name__)
     len_diff = len(ref) - len(alt.split(",")[0])
     if len_diff > 0:
         return "DEL"
@@ -44,6 +41,7 @@ def get_type(ref, alt):
 
 
 def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad):
+    logger = logging.getLogger(get_variant_matrix_tabix.__name__)
     chrom, pos, ref, alt = record[0:4]
     fasta_file = pysam.Fastafile(ref_file)
     tb = pysam.TabixFile(count_bed, parser=pysam.asTuple())
@@ -166,6 +164,7 @@ def align_tumor_normal_matrices(record, tumor_matrix_, bq_tumor_matrix_, mq_tumo
                                 bq_normal_matrix_, mq_normal_matrix_, st_normal_matrix_,
                                 lsc_normal_matrix_, rsc_normal_matrix_, tag_normal_matrices_,
                                 normal_ref_array, normal_col_pos_map):
+    logger = logging.getLogger(align_tumor_normal_matrices.__name__)
     if not tumor_col_pos_map:
         logger.error("record: {}".format(record))
         raise(RuntimeError("tumor_col_pos_map is empty."))
@@ -291,6 +290,7 @@ def align_tumor_normal_matrices(record, tumor_matrix_, bq_tumor_matrix_, mq_tumo
 
 
 def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, record, rlen, rcenter, matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov):
+    logger = logging.getLogger(prepare_info_matrices_tabix.__name__)
 
     chrom, pos, ref, alt = record[0:4]
 
@@ -647,6 +647,7 @@ def prep_data_single_tabix((ref_file, tumor_count_bed, normal_count_bed, record,
 
 
 def push_lr(fasta_file, record, left_right_both):
+    logger = logging.getLogger(push_lr.__name__)
     record[0] = str(record[0])
     eqs = [record]
     if "," not in record[3]:
@@ -714,6 +715,7 @@ def push_lr(fasta_file, record, left_right_both):
 
 
 def merge_records(fasta_file, records):
+    logger = logging.getLogger(merge_records.__name__)
     if len(set(map(lambda x: x[0], records))) != 1:
         return None
     if len(records) == 1:
@@ -763,6 +765,7 @@ def merge_records(fasta_file, records):
 
 
 def is_part_of(record1, record2):
+    logger = logging.getLogger(is_part_of.__name__)
     chrom1, pos1, ref1, alt1 = record1[0:4]
     chrom2, pos2, ref2, alt2 = record2[0:4]
     if chrom1 != chrom2:
@@ -784,6 +787,7 @@ def is_part_of(record1, record2):
 
 
 def find_i_center(ref, alt):
+    logger = logging.getLogger(find_i_center.__name__)
     i_center = 0
     if len(alt) != len(ref):
         while(min(len(alt), len(ref)) > i_center and alt[i_center] == ref[i_center]):
@@ -792,6 +796,7 @@ def find_i_center(ref, alt):
 
 
 def find_len(ref, alt):
+    logger = logging.getLogger(find_len.__name__)
     i_ = 0
     while(min(len(alt), len(ref)) > i_ and alt[i_] == ref[i_]):
         i_ += 1
@@ -1229,6 +1234,7 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
 
 
 def extract_ensemble(work, ensemble_tsv):
+    logger = logging.getLogger(extract_ensemble.__name__)
     ensemble_data = []
     ensemble_pos = []
     header = []
@@ -1344,10 +1350,9 @@ def extract_ensemble(work, ensemble_tsv):
 def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
                      ensemble_bed, tsv_batch_size):
+    logger = logging.getLogger(generate_dataset.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Generate Dataset")
-    logger.info("-----------------------------------------------------------")
+    logger.info("---------------------Generate Dataset----------------------")
 
     if not os.path.exists(work):
         os.mkdir(work)
@@ -1524,6 +1529,10 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
 
 
 if __name__ == '__main__':
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description='Generate dataset for train/call candidate variants on CNN')
     parser.add_argument('--mode', type=str, help='train/call mode',

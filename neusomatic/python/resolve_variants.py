@@ -16,11 +16,6 @@ import numpy as np
 
 from utils import get_chromosomes_order
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
-
 CIGAR_MATCH = 0
 CIGAR_INS = 1
 CIGAR_DEL = 2
@@ -39,6 +34,7 @@ NUM_to_NUC = {1: "A", 2: "C", 3: "G", 4: "T", 0: "-", 5: "N"}
 
 
 def extract_del(record):
+    logger = logging.getLogger(extract_del.__name__)
     dels = []
     pos = record.pos
     for C, L in record.cigartuples:
@@ -52,6 +48,7 @@ def extract_del(record):
 
 
 def extract_ins(record):
+    logger = logging.getLogger(extract_ins.__name__)
     inss = []
     pos = record.pos
     seq_pos = 0
@@ -72,7 +69,7 @@ def extract_ins(record):
     return inss
 
 
-def find_resolved_variants((chrom, start, end, variant, input_bam, reference)):
+def find_resolved_variants((chrom, start, end, variants, input_bam, reference)):
     thread_logger = logging.getLogger(
         "{} ({})".format(find_resolved_variants.__name__, multiprocessing.current_process().name))
     try:
@@ -80,14 +77,14 @@ def find_resolved_variants((chrom, start, end, variant, input_bam, reference)):
         out_variants = []
         start, end = map(int, [start, end])
         region = [chrom, start, end]
-        vartypes = map(lambda x: x[-1], variant)
-        scores = map(lambda x: x[5], variant)
+        vartypes = map(lambda x: x[-1], variants)
+        scores = map(lambda x: x[5], variants)
         if len(set(vartypes)) > 1:
             out_variants.extend(
-                map(lambda x: [x[0], int(x[1]), x[3], x[4], x[10], x[5]], variant))
+                map(lambda x: [x[0], int(x[1]), x[3], x[4], x[10], x[5]], variants))
         else:
             vartype = vartypes[0]
-            score = scores[0]
+            score = max(scores)
             if vartype == "DEL":
                 intervals = []
                 dels = []
@@ -152,10 +149,9 @@ def find_resolved_variants((chrom, start, end, variant, input_bam, reference)):
 
 def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
                      target_bed_file, num_threads):
+    logger = logging.getLogger(resolve_variants.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Resolve variants (e.g. exact INDEL sequences)")
-    logger.info("-----------------------------------------------------------")
+    logger.info("-------Resolve variants (e.g. exact INDEL sequences)-------")
 
     variants = {}
     with open(target_vcf_file) as tv_f:
@@ -215,6 +211,11 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
 
 
 if __name__ == '__main__':
+
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description='Resolve ambigues variants for high quality reads')
     parser.add_argument('--input_bam', type=str,

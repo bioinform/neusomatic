@@ -20,10 +20,6 @@ from generate_dataset import generate_dataset, extract_ensemble
 from scan_alignments import scan_alignments
 from utils import concatenate_vcfs
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
 
 def split_dbsnp((restart, dbsnp, region_bed, dbsnp_region_vcf)):
     thread_logger = logging.getLogger(
@@ -46,6 +42,7 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
                          ins_merge_min_af, merge_r,
                          scan_alignments_binary, restart, num_threads, calc_qual, regions=[], dbsnp_regions=[]):
 
+    logger = logging.getLogger(process_split_region.__name__)
     logger.info("Scan bam.")
     scan_outputs = scan_alignments(work, scan_alignments_binary, alignment_bam,
                                    region, reference, num_threads, scan_window_size, scan_maf,
@@ -122,6 +119,7 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
 
 def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
                             matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_bed, tsv_batch_size):
+    logger = logging.getLogger(generate_dataset_region.__name__)
     generate_dataset(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, None, ensemble_bed,
                      tsv_batch_size)
@@ -143,6 +141,8 @@ def get_ensemble_region((reference, ensemble_bed, region, ensemble_bed_region_fi
 
 
 def get_ensemble_beds(work, reference, ensemble_bed, split_regions, matrix_base_pad, num_threads):
+    logger = logging.getLogger(get_ensemble_beds.__name__)
+
     work_ensemble = os.path.join(work, "ensemble_anns")
     if not os.path.exists(work_ensemble):
         os.mkdir(work_ensemble)
@@ -172,6 +172,8 @@ def get_ensemble_beds(work, reference, ensemble_bed, split_regions, matrix_base_
 def extract_candidate_split_regions(
         work, filtered_candidates_vcfs, split_regions, ensemble_beds,
         reference, matrix_base_pad, merge_d_for_short_read):
+    logger = logging.getLogger(extract_candidate_split_regions.__name__)
+
     candidates_split_regions = []
     for i, (filtered_vcf, split_region_) in enumerate(zip(filtered_candidates_vcfs,
                                                           split_regions)):
@@ -197,10 +199,9 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                matrix_width, matrix_base_pad, min_ev_frac_per_col,
                ensemble_tsv, long_read, restart, skip_without_qual, num_threads,
                scan_alignments_binary,):
+    logger = logging.getLogger(preprocess.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Preprocessing")
-    logger.info("-----------------------------------------------------------")
+    logger.info("----------------------Preprocessing------------------------")
     if restart or not os.path.exists(work):
         os.mkdir(work)
 
@@ -301,6 +302,10 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
 
 
 if __name__ == '__main__':
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description='Preprocess input alignments for train/call')
     parser.add_argument('--mode', type=str, help='train/call mode',

@@ -13,10 +13,6 @@ import numpy as np
 
 from utils import safe_read_info_dict
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
 
 def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp, min_dp, good_ao,
                        min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af,
@@ -25,10 +21,7 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
         "{} ({})".format(filter_candidates.__name__, multiprocessing.current_process().name))
     try:
         thread_logger.info(
-            "-----------------------------------------------------------")
-        thread_logger.info("Filter Candidates")
-        thread_logger.info(
-            "-----------------------------------------------------------")
+            "---------------------Filter Candidates---------------------")
 
         records = {}
         with open(candidates_vcf) as v_f:
@@ -43,7 +36,7 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
                 loc = "{}.{}".format(chrom, pos)
                 dp, ro, ao = map(int, info.split(":")[1:4])
                 info_dict = dict(map(lambda x: x.split(
-                    "="), filter(lambda x: x, info_.split(";"))))
+                    "="), filter(None, info_.split(";"))))
                 mq_ = safe_read_info_dict(info_dict, "MQ", int, -100)
                 bq_ = safe_read_info_dict(info_dict, "BQ", int, -100)
                 nm_ = safe_read_info_dict(info_dict, "NM", int, -100)
@@ -296,6 +289,10 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
 
 
 if __name__ == '__main__':
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(description='filter candidates vcf')
     parser.add_argument('--candidates_vcf', type=str, help='raw candidates vcf',
                         required=True)

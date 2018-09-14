@@ -21,10 +21,6 @@ import numpy as np
 from utils import concatenate_files, run_shell_command
 from split_bed import split_region
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
 
 def run_scan_alignments((work, reference, scan_alignments_binary, split_region_file,
                          input_bam, window_size, maf, min_mapq, calc_qual, num_threads)):
@@ -69,9 +65,9 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
                     num_threads, window_size, maf, min_mapq, restart=True,
                     split_region_files=[], calc_qual=True):
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Scan Alignment BAM")
-    logger.info("-----------------------------------------------------------")
+    logger = logging.getLogger(scan_alignments.__name__)
+
+    logger.info("-------------------Scan Alignment BAM----------------------")
 
     if not split_region_files:
         if regions_bed_file:
@@ -144,6 +140,10 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
     return all_outputs
 
 if __name__ == '__main__':
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description='simple call variants from bam')
     parser.add_argument('--input_bam', type=str,

@@ -11,16 +11,11 @@ import logging
 import pybedtools
 
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-logger = logging.getLogger(__name__)
-
-
 def split_region(work, region_bed_file, num_splits, max_region=1000000, min_region=20, shuffle_intervals=False):
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Split region")
-    logger.info("-----------------------------------------------------------")
+    logger = logging.getLogger(split_region.__name__)
+
+    logger.info("------------------------Split region-----------------------")
 
     regions_bed = pybedtools.BedTool(region_bed_file).sort().merge(d=0)
     intervals = []
@@ -81,6 +76,11 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
     return split_region_files
 
 if __name__ == '__main__':
+
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(
         description='Split bedfile to multiple beds')
     parser.add_argument('--region_bed', type=str,
