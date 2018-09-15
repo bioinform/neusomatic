@@ -188,28 +188,16 @@ SomaticSeq.Wrapper.sh \
 
 Then, in the output directory, do:
 ```
-cat Ensemble.s*.tsv |sed "s/nan/0/g" > enemble_ann.tsv
+cat <(cat Ensemble.s*.tsv |grep CHROM|head -1) \
+    <(cat Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
 ```
 and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
 
-The requirements for this wrapper script can be found [here](https://github.com/bioinform/somaticseq). The docker image with those requirement installed can be found [here](https://hub.docker.com/r/lethalfang/somaticseq/). 
+**Dockerized solution** for running all of the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), and the above wrapper that combines their output is explained at [ensemble_docker_pipelines](https://github.com/bioinform/neusomatic/tree/master/ensemble_docker_pipelines).
 
-To run the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), you can follow dockerized pipeline indicated [here](https://github.com/bioinform/somaticseq/tree/master/utilities/dockered_pipelines).
+### NOTE: 
 
-For instance:
-```
-$PATH/TO/somaticseq/utilities/dockered_pipelines/submit_callers_multiThreads.sh \
---normal-bam      /ABSOLUTE/PATH/TO/normal_sample.bam \
---tumor-bam       /ABSOLUTE/PATH/TO/tumor_sample.bam \
---human-reference /ABSOLUTE/PATH/TO/GRCh38.fa \
---output-dir      /ABSOLUTE/PATH/TO/RESULTS \
---threads         10 \
---dbsnp           /ABSOLUTE/PATH/TO/dbSNP.GRCh38.vcf \
---selector      /ABSOLUTE/PATH/TO/region.bed \
---mutect2 --vardict --varscan2 --muse --somaticsniper --strelka --somaticseq
-```
-
-To train or call in the ensemble mode you should use `--ensemble` argument in `train.py` and `call.py`.
+* To train or call in the ensemble mode you should use `--ensemble` argument in `train.py` and `call.py`.
 
 ## Creating Training Data
 The best performance can be obtained when the network is trained on your input dataset. You can creat training data for your input data using [BAMSurgeon](https://github.com/adamewing/bamsurgeon) that can spike in *in silico* somatic mutations into existing BAM files. The dockerized piplines and complete documentation on how to creat training sets can be found [here](https://github.com/bioinform/somaticseq/tree/master/utilities/dockered_pipelines/bamSimulator).
