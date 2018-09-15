@@ -6,7 +6,7 @@ The following steps use docker pipelines to prepare the ensemble `.tsv` file.
 
 This is an adaptation of SomaticSeq's [scripts](https://github.com/bioinform/somaticseq/tree/master/utilities/dockered_pipelines). 
 
-### Requirement
+### Requirements
 * Have internet connection and docker daemon. Be able to pull and run docker images from Docker Hub.
 * **Highly recommended**: Have cluster management system with valid `qsub` command, such as Sun Grid Engine.
 
@@ -52,8 +52,8 @@ output
      └── somaticsniper.cmd   # SomaticSniper run script for whole region genome.bed
 ```
 
-### 2. Run all individaul callers scripts
-You should first run all individaul callers `.cmd` run scripts for all regions. For instance with `qsub` command:
+### 2. Run all individual callers scripts
+You should first run all individual callers `.cmd` run scripts for all regions. For instance with `qsub` command:
 ```
 for tool in strelka muse mutect2 vardict varscan2
 do
@@ -90,7 +90,7 @@ and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
 
 
 ## Options and Parameters
-**prepare_callers_scripts.sh** can prepare dockered somatic mutation calling jobs. The following options are available:
+**prepare_callers_scripts.sh** can prepare dockerized somatic mutation calling jobs. The following options are available:
 * `--normal-bam`                  /ABSOLUTE/PATH/TO/normal_sample.bam (Required)
 * `--tumor-bam`                   /ABSOLUTE/PATH/TO/tumor_sample.bam  (Required)
 * `--output-dir`                  /ABSOLUTE/PATH/TO/OUTPUT_DIRECTORY (Required)
