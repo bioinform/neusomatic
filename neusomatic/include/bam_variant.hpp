@@ -131,6 +131,7 @@ std::vector<neusomatic::bio::Variant<std::string, Contig>> GetSNVs(const BamReco
   bool status = bam.GetZTag("MD", mdstr);
   if (!status) {
     std::cerr<<"Warning: no MD tag!\n";
+    return result;
   }
   std::transform(mdstr.begin(), mdstr.end(),mdstr.begin(), ::toupper);
   if (bam.Position() < 0) return result;
@@ -220,7 +221,7 @@ std::vector<neusomatic::bio::Variant<std::string, Contig>> GetSNVs(const BamReco
       ++b;
     }
     int32_t read_shift = read_consume - (ref_consume - ref_consume_goal);
-    if (b->Type() == 'I' && ref_consume == ref_consume_goal) { // SUB after an INS
+    if (b != cigar.end() && b->Type() == 'I' && ref_consume == ref_consume_goal) { // SUB after an INS
       read_shift += b->Length();
     }
     std::string s = seq.substr(read_pos + read_shift, t.allele().length()); 

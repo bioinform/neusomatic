@@ -100,9 +100,9 @@ int main(int argc, char **argv) {
   int cnt_region=0;
   while (capture_layout.NextRegion(opts.fully_contained())) {
     // a map from genomic interval -> a vector of alignReadIds
-    for (const auto& targeted_region : capture_layout.ginv_records()) {
+    for (auto targeted_region : capture_layout.ginv_records()) {
       const auto& ginv = targeted_region.first; 
-      const auto& records = targeted_region.second;
+      auto& records = targeted_region.second;
       GInvStdString ginvstr(bam_header.IDtoName(ginv.contig()), ginv.left(), ginv.right());
       if (cnt_region % 100 == 0){
         std::cerr<<"#On region "<<ginvstr<<"\n";
@@ -110,6 +110,9 @@ int main(int argc, char **argv) {
       }
       ++cnt_region;
       if (records.empty()) continue; 
+      if (records.size() > opts.max_depth()) {
+        records.resize(opts.max_depth());
+      }
       MSA msa(ginv, records, ref_seqs.QueryRegion(ginvstr.contig(), ginvstr.left(), ginvstr.right() - 1));
       std::vector<std::string> msa_, bqual_, lscs_, rscs_;
       std::vector<int> mqual_;

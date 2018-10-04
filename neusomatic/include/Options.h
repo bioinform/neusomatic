@@ -22,12 +22,11 @@ namespace neusomatic {
     {"fully_contained",                 no_argument,            0,        'y'},
     {"window_size",                     required_argument,      0,        'w'},
     {"num_threads",                     required_argument,      0,        't'},
+    {"max_depth",                       required_argument,      0,        'd'},
     {0, 0, 0, 0} // terminator
   };
 
-  //remove calculate_qual_stat
-  const char *short_options = "v:b:L:r:q:f:o:w:a:t:cy";
-  //const char *short_options = "v:b:L:r:q:f:o:w:a:t:y";
+  const char *short_options = "v:b:L:r:q:f:o:w:a:t:d:cy";
 
   void print_help()
   {
@@ -45,7 +44,8 @@ namespace neusomatic {
     std::cerr<< "-o/--out_count_file,                  output count file path,                                                required.\n";
     std::cerr<< "-w/--window_size,                     window size to scan the variants,                                      default is 15\n";
     std::cerr<< "-y/--fully_contained,                 if this option is on. A read has to be fully contained in the region,  default is False\n";
-    std::cerr<< "-t/--num_threads,                      numbef or thread used for building the count matrix,                   default is 4\n";
+    std::cerr<< "-t/--num_threads,                     numbef or thread used for building the count matrix,                   default is 4\n";
+    std::cerr<< "-d/--max_depth,                       maximum depth for building the count matrix,                           default is 40,000\n";
   }
 
   int parseInt(const char* optarg, int lower, const char *errmsg, void (*print_help)()) {
@@ -120,6 +120,9 @@ namespace neusomatic {
           break;
         case 'f':
           opt.vcf_out() = optarg;
+          break;
+        case 'd':
+          opt.max_depth() = parseInt(optarg, 1, "-d/--max_depth must be at least 1", print_help);
           break;
         case 'o':
           opt.count_out() = optarg;
@@ -244,6 +247,10 @@ struct Options {
     return (fully_contained_);
   }
 
+  decltype(auto) max_depth() {
+    return (max_depth_);
+  }
+
 private:
   unsigned verbosity_ = 0;
   std::string bam_in_;
@@ -258,7 +265,7 @@ private:
   int min_mapq_ = 0;
   int window_size_ = 500;
   int num_threads_ = 4;
-
+  int max_depth_ = 40000;
 };
 }//namespace neusomatic
 
