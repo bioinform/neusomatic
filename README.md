@@ -17,7 +17,7 @@ doi: https://doi.org/10.1101/393801](https://doi.org/10.1101/393801)
 ## Table of Contents
 **[Availability](#availability)**<br>
 **[NeuSomatic Docker Image](#neusomatic-docker-image)**<br>
-**[Requird Inputs](#requird-inputs)**<br>
+**[Required Inputs](#required-inputs)**<br>
 **[Quick Test](#quick-test)**<br>
 **[Example Usage](#example-usage)**<br>
 **[Ensemble mode](#ensemble-mode)**<br>
@@ -63,13 +63,13 @@ g++ 5.4.0 can also be obained as `sudo apt-get install gcc-5 g++-5`.
 
 The docker image with all the packages installed (CPU-only) can be found at https://hub.docker.com/r/msahraeian/neusomatic/ 
 
-To use GPU (in `train.py` and `call.py` steps), you should use conda environment to locally install requried packages as shown above.
+To use GPU (in `train.py` and `call.py` steps), you should use conda environment to locally install required packages as shown above.
 
 The dockerfile is also available at `docker/Dockerfile` for local build.
 
 Examples on how to use the docker image are shown at `test/docker_test.sh`.
 
-## Requird Inputs
+## Required Inputs
 
 For training mode, the following inputs are required:
 * tumor `.bam` alignment file 
