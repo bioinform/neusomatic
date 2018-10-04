@@ -8,7 +8,6 @@ import traceback
 import argparse
 import datetime
 import logging
-import time
 
 import numpy as np
 import torch
@@ -20,6 +19,7 @@ from torchvision import transforms
 
 from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset
+from merge_tsvs import merge_tsvs
 
 type_class_dict = {"DEL": 0, "INS": 1, "NONE": 2, "SNP": 3}
 vartype_classes = ['DEL', 'INS', 'NONE', 'SNP']
@@ -149,6 +149,7 @@ class SubsetNoneSampler(torch.utils.data.sampler.Sampler):
         self.current_none_id = 0
 
     def __iter__(self):
+        logger = logging.getLogger(SubsetNoneSampler.__iter__.__name__)
         if self.current_none_id > (len(self.none_indices) - self.none_count):
             this_round_nones = self.none_indices[self.current_none_id:]
             self.none_indices = map(lambda i: self.none_indices[i],
@@ -161,7 +162,9 @@ class SubsetNoneSampler(torch.utils.data.sampler.Sampler):
             self.current_none_id += self.none_count
 
         current_indices = this_round_nones + self.var_indices
-        return iter(map(lambda i: current_indices[i], torch.randperm(len(current_indices))))
+        ret = iter(map(lambda i: current_indices[i],
+                       torch.randperm(len(current_indices))))
+        return ret
 
     def __len__(self):
         return len(self.var_indices) + self.none_count
@@ -170,7 +173,9 @@ class SubsetNoneSampler(torch.utils.data.sampler.Sampler):
 def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpoint,
                      num_threads, batch_size, max_epochs, learning_rate, lr_drop_epochs,
                      lr_drop_ratio, momentum, boost_none, none_count_scale,
-                     max_load_candidates, coverage_thr, save_freq, use_cuda):
+                     max_load_candidates, coverage_thr, save_freq, ensemble,
+                     merged_candidates_per_tsv, merged_max_num_tsvs, overwrite_merged_tsvs,
+                     use_cuda):
     logger = logging.getLogger(train_neusomatic.__name__)
 
     logger.info("----------------Train NeuSomatic Network-------------------")
@@ -182,7 +187,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         [transforms.ToTensor(),
          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
     )
-    num_channels = 119 if args.ensemble else 26
+    num_channels = 119 if ensemble else 26
     net = NeuSomaticNet(num_channels)
     if use_cuda:
         net.cuda()
@@ -230,6 +235,13 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         time_now = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
         tag = "neusomatic_{}".format(time_now)
     logger.info("tag: {}".format(tag))
+
+    if len(candidates_tsv) > merged_max_num_tsvs:
+        candidates_tsv = merge_tsvs(input_tsvs=candidates_tsv, out=out_dir,
+                                    candidates_per_tsv=merged_candidates_per_tsv,
+                                    max_num_tsvs=merged_max_num_tsvs,
+                                    overwrite_merged_tsvs=overwrite_merged_tsvs,
+                                    keep_none_types=True)
 
     train_set = NeuSomaticDataset(roots=candidates_tsv,
                                   max_load_candidates=max_load_candidates,
@@ -300,9 +312,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     # loop over the dataset multiple times
     for epoch in range(max_epochs - prev_epochs):
         running_loss = 0.0
-        t1=time.time()
         for i, data in enumerate(train_loader, 0):
-            logger.info("T2 {}".format(time.time()-t1))
             # get the inputs
             (inputs, labels, var_pos_s, var_len_s, _), _ = data
             # wrap them in Variable
@@ -335,7 +345,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                             epoch + 1 + prev_epochs, i + 1,
                             learning_rate, running_loss / print_freq))
                 running_loss = 0.0
-            t1=time.time()
+
         curr_epoch = int(
             round(len(loss_s) / float(len_train_set) * batch_size)) + prev_epochs
         if curr_epoch % save_freq == 0:
@@ -406,6 +416,14 @@ if __name__ == '__main__':
                         help='maximum candidates to load in memory', default=1000000)
     parser.add_argument('--save_freq', type=int,
                         help='the frequency of saving checkpoints in terms of # epochs', default=50)
+    parser.add_argument('--merged_candidates_per_tsv', type=int,
+                        help='Maximum number of candidates in each merged tsv file ', default=40000000)
+    parser.add_argument('--merged_max_num_tsvs', type=int,
+                        help='Maximum number of merged tsv files \
+                        (higher priority than merged_candidates_per_tsv)', default=10)
+    parser.add_argument('--overwrite_merged_tsvs',
+                        help='if OUT/merged_tsvs/ folder exists overwrite the merged tsvs',
+                        action="store_true")
     parser.add_argument('--coverage_thr', type=int,
                         help='maximum coverage threshold to be used for network input \
                               normalization. \
@@ -425,7 +443,11 @@ if __name__ == '__main__':
                                       args.max_epochs,
                                       args.lr, args.lr_drop_epochs, args.lr_drop_ratio, args.momentum,
                                       args.boost_none, args.none_count_scale,
-                                      args.max_load_candidates, args.coverage_thr, args.save_freq, use_cuda)
+                                      args.max_load_candidates, args.coverage_thr, args.save_freq,
+                                      args.ensemble,
+                                      args.merged_candidates_per_tsv, args.merged_max_num_tsvs,
+                                      args.overwrite_merged_tsvs,
+                                      use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")

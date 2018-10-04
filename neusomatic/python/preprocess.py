@@ -300,6 +300,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                     matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, num_threads,
                                     ensemble_beds[i] if ensemble_tsv else None, tsv_batch_size)
 
+    logger.info("Preprocessing is Done.")
 
 if __name__ == '__main__':
     FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'

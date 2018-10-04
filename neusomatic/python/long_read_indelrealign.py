@@ -783,7 +783,7 @@ def parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file, realign_be
             pysam.index(output_bam)
 
             for sam in [bam_header] + sams:
-                shutil.rmtree(sam)
+                os.remove(sam)
     else:
         correct_bam_all(work, input_bam, output_bam,
                         ref_fasta_file, realign_bed_file)

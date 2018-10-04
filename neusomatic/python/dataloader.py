@@ -13,7 +13,6 @@ import traceback
 from numpy import random
 import numpy as np
 import torch
-import time
 import resource
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
@@ -31,7 +30,6 @@ def candidate_loader_tsv(tsv, open_tsv, idx, i):
     if open_tsv:
         i_f = open_tsv
     else:
-        print tsv
         i_f = open(tsv, "r")
     i_f.seek(idx[i])
     fields = i_f.read(idx[i + 1] - idx[i]).strip().split()
@@ -71,9 +69,9 @@ def extract_info_tsv((i_b, tsv, idx, L, max_load_candidates, nclasses_t, nclasse
         cnt_none = 0
         cnt_var = 0
         with open(tsv, "r") as i_f:
-            for i in range(L):
-                i_f.seek(idx[i])
-                fields = i_f.read(idx[i + 1] - idx[i]).strip().split()
+            i = 0
+            for line in i_f:
+                fields = line.strip().split()
                 ii = int(fields[0])
                 assert ii == i
                 tag = fields[2]
@@ -101,6 +99,8 @@ def extract_info_tsv((i_b, tsv, idx, L, max_load_candidates, nclasses_t, nclasse
                         cnt_var += 1
                 else:
                     data.append([])
+                i += 1
+            assert i == L
         thread_logger.info("Loaded {} candidates for {}".format(
             len(matrices), tsv))
         return matrices, data, none_ids, var_ids, count_class_t, count_class_l
@@ -157,7 +157,8 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                 idx = pickle.load(open(tsv + ".idx"))
                 self.idxs.append(idx)
                 self.Ls.append(len(idx) - 1)
-        logger.info("Opened {}/{} tsv's".format(opened_tsvs, num_threads*len(self.tsvs)))
+        logger.info("Opened {}/{} tsv's".format(opened_tsvs,
+                                                num_threads * len(self.tsvs)))
         self.data = []
         total_L = sum(self.Ls)
         batches = []
@@ -181,9 +182,9 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                                  max_load_, nclasses_t, nclasses_l])
                 Ls_.append(self.Ls[i_b])
             logger.info("Len's of tsv files in this batch: {}".format(Ls_))
-            if len(map_args)==1:
-               records_=[extract_info_tsv(map_args[0])]
-            else: 
+            if len(map_args) == 1:
+                records_ = [extract_info_tsv(map_args[0])]
+            else:
                 pool = multiprocessing.Pool(num_threads)
                 try:
                     records_ = pool.map_async(
@@ -225,11 +226,17 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         if len(self.data[index]) == 0:
             i_b, i = self.matrices[index]
-            path, matrix, anns, label = candidate_loader_tsv(self.tsvs[i_b],
+            if multiprocessing.current_process()._identity:
+                path, matrix, anns, label = candidate_loader_tsv(self.tsvs[i_b],
                                                              self.open_tsvs[
                 int(multiprocessing.current_process()._identity[0]
                     ) % self.num_threads][i_b],
                 self.idxs[i_b], i)
+            else:
+                path, matrix, anns, label = candidate_loader_tsv(self.tsvs[i_b],
+                                                             self.open_tsvs[0][i_b],
+                self.idxs[i_b], i)
+
         else:
             path, matrix, anns, label = self.data[index]
 

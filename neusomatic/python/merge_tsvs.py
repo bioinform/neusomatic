@@ -11,27 +11,46 @@ import pickle
 import traceback
 
 import pybedtools
+import numpy as np
 
 
 def merge_tsvs(input_tsvs, out,
-               candidates_per_tsv, keep_none_types):
-
+               candidates_per_tsv, max_num_tsvs, overwrite_merged_tsvs,
+               keep_none_types):
+    logger = logging.getLogger(merge_tsvs.__name__)
+    logger.info("----------------Merging Candidate tsvs-------------------")
     if not os.path.exists(out):
         os.mkdir(out)
-    out_mreged_folder=os.path.join(out,"merged_tsvs")
+    out_mreged_folder = os.path.join(out, "merged_tsvs")
     if os.path.exists(out_mreged_folder):
-        shutil.rmtree(out_mreged_folder)
+        if overwrite_merged_tsvs:
+            shutil.rmtree(out_mreged_folder)
+        else:
+            i=1
+            while os.path.exists(out_mreged_folder):
+                out_mreged_folder = os.path.join(out, "merged_tsvs_{}".format(i))
+                i+=1
     os.mkdir(out_mreged_folder)
     n_var_file = 0
-    var_file = os.path.join(out_mreged_folder, "merged_var_{}.tsv".format(n_var_file))
+    var_file = os.path.join(
+        out_mreged_folder, "merged_var_{}.tsv".format(n_var_file))
     var_f = open(var_file, "w")
     var_idx = []
     n_none_file = 0
     if not keep_none_types:
-        none_file = os.path.join(out_mreged_folder, "merged_none_{}.tsv".format(n_none_file))
+        none_file = os.path.join(
+            out_mreged_folder, "merged_none_{}.tsv".format(n_none_file))
         none_f = open(none_file, "w")
         none_idx = []
-    merged_tsvs=[]
+    merged_tsvs = []
+
+    totla_L = 0
+    for tsv in input_tsvs:
+        totla_L += len(pickle.load(open(tsv + ".idx"))) - 1
+    totla_L = max(0, totla_L)
+    candidates_per_tsv = max(candidates_per_tsv, np.ceil(
+        totla_L / float(max_num_tsvs)) + 1)
+
     for tsv in input_tsvs:
         with open(tsv, "r") as i_f:
             for line in i_f:
@@ -39,8 +58,8 @@ def merge_tsvs(input_tsvs, out,
                 tag = fields[2]
                 is_none_type = "NONE" in tag
                 if not keep_none_types and is_none_type:
-                    fields[0]=str(len(none_idx))
-                    line="\t".join(fields)
+                    fields[0] = str(len(none_idx))
+                    line = "\t".join(fields) + "\n"
                     none_idx.append(none_f.tell())
                     none_f.write(line)
                     if len(none_idx) >= candidates_per_tsv:
@@ -54,8 +73,8 @@ def merge_tsvs(input_tsvs, out,
                         none_f = open(none_file, "w")
                         none_idx = []
                 else:
-                    fields[0]=str(len(var_idx))
-                    line="\t".join(fields)
+                    fields[0] = str(len(var_idx))
+                    line = "\t".join(fields) + "\n"
                     var_idx.append(var_f.tell())
                     var_f.write(line)
                     if len(var_idx) >= candidates_per_tsv:
@@ -80,6 +99,7 @@ def merge_tsvs(input_tsvs, out,
         merged_tsvs.append(none_file)
 
     logger.info("Merged input tsvs to: {}".format(merged_tsvs))
+    return merged_tsvs
 
 if __name__ == '__main__':
 
@@ -93,15 +113,24 @@ if __name__ == '__main__':
     parser.add_argument('--out', type=str,
                         help='output directory', required=True)
     parser.add_argument('--candidates_per_tsv', type=int,
-                        help='Maximum number of candidates in each merged tsv file ', default=1000000)
+                        help='Maximum number of candidates in each merged tsv file ',
+                        default=10000000)
+    parser.add_argument('--max_num_tsvs', type=int,
+                        help='Maximum number of merged tsv files \
+                        (higher priority than candidates_per_tsv)', default=10)
+    parser.add_argument('--overwrite_merged_tsvs',
+                        help='if OUT/merged_tsvs/ folder exists overwrite the merged tsvs',
+                        action="store_true")
     parser.add_argument('--keep_none_types', action="store_true",
                         help='Do not split none somatic candidates to seperate files')
     args = parser.parse_args()
     logger.info(args)
 
     try:
-        merge_tsvs(args.input_tsvs, args.out,
-                   args.candidates_per_tsv, args.keep_none_types)
+        merged_tsvs = merge_tsvs(args.input_tsvs, args.out,
+                                 args.candidates_per_tsv, args.max_num_tsvs,
+                                 args.overwrite_merged_tsvs,
+                                 args.keep_none_types)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")
