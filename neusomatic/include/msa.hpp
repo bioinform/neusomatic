@@ -262,6 +262,10 @@ public:
   MSABuilder() = default; 
   using ContigGaps = GappedSeq<char, Gap, GInv>; 
 
+  size_t size() {
+    return bam_records_.size();
+  }
+
   MSABuilder(const GInv& ginv, const std::vector<BamRecord>& bams, const std::string& refstr):  
       ginv_(ginv), bam_records_(bams), ref_gaps_(refstr, ginv) {
         

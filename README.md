@@ -16,6 +16,8 @@ doi: https://doi.org/10.1101/393801](https://doi.org/10.1101/393801)
 
 ## Table of Contents
 **[Availability](#availability)**<br>
+**[NeuSomatic Docker Image](#neusomatic-docker-image)**<br>
+**[Required Inputs](#required-inputs)**<br>
 **[Quick Test](#quick-test)**<br>
 **[Example Usage](#example-usage)**<br>
 **[Ensemble mode](#ensemble-mode)**<br>
@@ -48,7 +50,7 @@ It also depends on the following packages:
 * bedtools 2.27.1
 * samtools 1.7
 
-You can install these packages using [anaconda](https://www.anaconda.com/download):
+You can install these packages using [anaconda](https://www.anaconda.com/download)/[miniconda](https://conda.io/miniconda.html) :
 ```
 conda install zlib=1.2.11 numpy=1.14.3 scipy=1.1.0 
 conda install pytorch=0.3.1 torchvision=0.2.0 cuda80=1.0 -c pytorch
@@ -57,7 +59,17 @@ conda install pysam=0.14.1 pybedtools=0.7.10 samtools=1.7 tabix=0.2.5 bedtools=2
 ```
 g++ 5.4.0 can also be obained as `sudo apt-get install gcc-5 g++-5`.
 
-## Requird Inputs
+## NeuSomatic Docker Image
+
+The docker image with all the packages installed (CPU-only) can be found at https://hub.docker.com/r/msahraeian/neusomatic/ 
+
+To use GPU (in `train.py` and `call.py` steps), you should use conda environment to locally install required packages as shown above.
+
+The dockerfile is also available at `docker/Dockerfile` for local build.
+
+Examples on how to use the docker image are shown at `test/docker_test.sh`.
+
+## Required Inputs
 
 For training mode, the following inputs are required:
 * tumor `.bam` alignment file 
@@ -86,6 +98,11 @@ cd test
 ```
 The outputs at `test/example/work_standalone/NeuSomatic_standalone.vcf` and `test/example/work_ensemble/NeuSomatic_ensemble.vcf` for stand-alone and ensemble modes should look like `test/NeuSomatic_standalone.vcf` and `test/NeuSomatic_ensemble.vcf`, respectively.
 
+Similarly, you can test docker image as:
+```
+cd test
+./docker_test.sh
+```
 
 ## Example Usage
 

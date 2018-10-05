@@ -35,31 +35,6 @@ public:
     return (bam_reader_);
   }
 
-  std::map<GInv, std::vector<BamRecord>> GetRegion(const int region_idx, const bool full_contained) {
-    if (region_idx < 0 || region_idx >= ginvs_.size()) {
-      throw std::runtime_error("region idx not exist");
-    }
-    std::map <GInv, std::vector<BamRecord>> ginv_records;
-    const GInv& curr_ginv = ginvs_[region_idx];
-    SeqLib::GenomicRegion gr(curr_ginv.contig(), curr_ginv.left(), curr_ginv.right());
-    bam_reader_.SetRegion(gr); 
-    std::vector<BamRecord> records;
-    BamRecord rec;
-    while (bam_reader_.GetNextRecord(rec)) {
-      if (full_contained) {
-        if (rec.Position() <= curr_ginv.left() && rec.PositionEnd() + 1 >= curr_ginv.right() && rec.MapQuality()>=opts_.min_mapq() && (!rec.SecondaryFlag()) ) {
-          records.push_back(rec);
-        }
-      } else {
-        if (rec.Position() < curr_ginv.right() && curr_ginv.left() <= rec.PositionEnd() && rec.MapQuality() >= opts_.min_mapq() && (!rec.SecondaryFlag())) { // overlapped
-          records.push_back(rec);
-        }
-      }
-    }
-    ginv_records[curr_ginv] = records;
-    return ginv_records;
-  }
-
   size_t NumRegion() const {
     return ginvs_.size();
   }
@@ -75,15 +50,23 @@ public:
     std::vector<BamRecord> records;
     BamRecord rec;
     while (bam_reader_.GetNextRecord(rec)) {
+      bool good = false;
       if (full_contained) {
         if (rec.Position() <= curr_ginv.left() && rec.PositionEnd() + 1 >= curr_ginv.right() && rec.MapQuality()>=opts_.min_mapq() && (!rec.SecondaryFlag())) {
-          records.push_back(rec);
+          good = true;
         }
       } else {
         if (rec.Position() < curr_ginv.right() && curr_ginv.left() <= rec.PositionEnd() && rec.MapQuality()>=opts_.min_mapq() && (!rec.SecondaryFlag())) { // overlapped
-          records.push_back(rec);
+          good = true;
         }
       }
+      if (good) {
+        if(rec.GetCigar().size() == 0) {
+          std::cerr << "warning: " << rec.Qname() << " has no cigar\n";
+        } else {
+          records.push_back(rec);
+        }
+      } 
     }
     ginv_records_[curr_ginv] = records;
 
