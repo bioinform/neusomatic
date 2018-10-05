@@ -1068,8 +1068,8 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
             chrom, start, end = interval[0:3]
             start, end = int(start), int(end)
             w = 3
-            new_start = start - pad - w
-            new_end = end + pad + w
+            new_start = max(start - pad - w, 1)
+            new_end = min(end + pad + w, chrom_lengths[chrom] - 2)
             ref_seq = ref_fasta.fetch(chrom, new_start, new_end + 1).upper()
             cnt_s = 0
             while check_rep(ref_seq, "left", 2):

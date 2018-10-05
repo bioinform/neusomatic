@@ -14,7 +14,7 @@ import numpy as np
 from utils import safe_read_info_dict
 
 
-def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp, min_dp, good_ao,
+def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp, min_dp, max_dp, good_ao,
                        min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af,
                        del_merge_min_af, ins_merge_min_af, merge_r)):
     thread_logger = logging.getLogger(
@@ -49,6 +49,8 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
                 rs_ = safe_read_info_dict(info_dict, "RS", int, -100)
 
                 if ao < min(ro, min_ao):
+                    continue
+                if dp >= max_dp:
                     continue
 
                 if loc not in records:
@@ -147,6 +149,8 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
             for record in rs:
                 dp = record[4]
                 if dp <= min_dp:
+                    continue
+                if dp >= max_dp:
                     continue
                 ro, ao = record[5:7]
                 if record[2] != "N" and record[3] != "N" and record[2] != record[3]:
@@ -324,13 +328,16 @@ if __name__ == '__main__':
                         help='merge af ratio to the max af for merging adjacent variants',
                         default=0.5)
     parser.add_argument('--min_dp', type=float, help='min depth', default=5)
+    parser.add_argument('--max_dp', type=float,
+                        help='max depth', default=40000)
 
     args = parser.parse_args()
     logger.info(args)
 
     try:
         output = filter_candidates((args.candidates_vcf, args.filtered_candidates_vcf,
-                                    args.reference, args.dbsnp_to_filter, args.min_dp, args.good_ao, args.min_ao,
+                                    args.reference, args.dbsnp_to_filter, args.min_dp, args.max_dp,
+                                    args.good_ao, args.min_ao,
                                     args.snp_min_af, args.snp_min_bq, args.snp_min_ao,
                                     args.ins_min_af, args.del_min_af,
                                     args.del_merge_min_af, args.ins_merge_min_af, args.merge_r))
