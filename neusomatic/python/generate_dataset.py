@@ -44,10 +44,14 @@ def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad, chrom
     logger = logging.getLogger(get_variant_matrix_tabix.__name__)
     chrom, pos, ref, alt = record[0:4]
     fasta_file = pysam.Fastafile(ref_file)
-
-    tb = pysam.TabixFile(count_bed, parser=pysam.asTuple())
-    tabix_records = tb.fetch(
+    try:
+        tb = pysam.TabixFile(count_bed, parser=pysam.asTuple())
+        tabix_records = tb.fetch(
         chrom, max(pos - matrix_base_pad, 0), min(pos + matrix_base_pad, chrom_lengths[chrom] - 2))
+    except:
+        logger.warning("No count information at {}:{}-{} for {}".format(chrom,
+                     pos - matrix_base_pad, pos + matrix_base_pad, count_bed))
+        tabix_records = []
 
     NUC_to_NUM_tabix = {"A": 1, "C": 2, "G": 3, "T": 4, "-": 0}
     matrix_ = []
