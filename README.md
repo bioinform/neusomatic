@@ -57,6 +57,11 @@ conda install pytorch=0.3.1 torchvision=0.2.0 cuda80=1.0 -c pytorch
 conda install cmake=3.12.1 -c conda-forge
 conda install pysam=0.14.1 pybedtools=0.7.10 samtools=1.7 tabix=0.2.5 bedtools=2.27.1 biopython=1.68 -c bioconda
 ```
+Then you can export the conda paths as:
+```
+export PATH="/PATH/TO/CONDA/bin:$PATH"
+export LD_LIBRARY_PATH="/PATH/TO/CONDA/lib:$LD_LIBRARY_PATH"
+```
 g++ 5.4.0 can also be obained as `sudo apt-get install gcc-5 g++-5`.
 
 ## NeuSomatic Docker Image

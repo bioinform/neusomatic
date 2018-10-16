@@ -46,7 +46,7 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
     logger.info("Scan bam.")
     scan_outputs = scan_alignments(work, scan_alignments_binary, alignment_bam,
                                    region, reference, num_threads, scan_window_size, scan_maf,
-                                   min_mapq, restart=restart, split_region_files=regions,
+                                   min_mapq, max_dp, restart=restart, split_region_files=regions,
                                    calc_qual=calc_qual)
     if filtered_candidates_vcf:
         logger.info("Filter candidates.")
@@ -331,7 +331,7 @@ if __name__ == '__main__':
                         help='minimum mapping quality', default=1)
     parser.add_argument('--min_dp', type=float, help='min depth', default=5)
     parser.add_argument('--max_dp', type=float,
-                        help='max depth', default=50000)
+                        help='max depth', default=40000)
     parser.add_argument('--good_ao', type=float,
                         help='good alternate count (ignores maf)', default=10)
     parser.add_argument('--min_ao', type=float,

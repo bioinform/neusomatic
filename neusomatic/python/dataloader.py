@@ -127,6 +127,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             max_opended_tsv = new_soft
         else:
             max_opended_tsv = min(max_opended_tsv, new_soft)
+        self.max_opended_tsv=max_opended_tsv
         self.da_shift_p = 0.3
         self.da_base_p = 0.05
         self.da_rev_p = 0.1
@@ -141,7 +142,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
 
         self.tsvs = []
         self.open_tsvs = [[] for t in range(num_threads)]
-        opened_tsvs = 0
+        self.opened_tsvs = []
         self.num_threads = num_threads
         self.Ls = []
         self.idxs = []
@@ -149,16 +150,10 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             for tsv in glob.glob(root):
                 self.tsvs.append(tsv)
                 for t in range(num_threads):
-                    if opened_tsvs < max_opended_tsv - 1:
-                        self.open_tsvs[t].append(open(tsv))
-                        opened_tsvs += 1
-                    else:
-                        self.open_tsvs[t].append("")
+                    self.open_tsvs[t].append("")
                 idx = pickle.load(open(tsv + ".idx"))
                 self.idxs.append(idx)
                 self.Ls.append(len(idx) - 1)
-        logger.info("Opened {}/{} tsv's".format(opened_tsvs,
-                                                num_threads * len(self.tsvs)))
         self.data = []
         total_L = sum(self.Ls)
         batches = []
@@ -223,171 +218,188 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         self.data_augmentation = data_augmentation
         self.coverage_thr = coverage_thr
 
+    def open_candidate_tsvs(self):
+        for i,tsv in enumerate(self.tsvs):
+            for t in range(self.num_threads):
+                if len(self.opened_tsvs) < self.max_opended_tsv - 1:
+                    self.open_tsvs[t][i]=open(tsv)
+                    self.opened_tsvs.append([t,i])
+
+    def close_candidate_tsvs(self):
+        for t,i in self.opened_tsvs:
+            self.open_tsvs[t][i].close()
+        self.opened_tsvs=[]
+
     def __getitem__(self, index):
-        if len(self.data[index]) == 0:
-            i_b, i = self.matrices[index]
-            if multiprocessing.current_process()._identity:
-                path, matrix, anns, label = candidate_loader_tsv(self.tsvs[i_b],
-                                                             self.open_tsvs[
-                int(multiprocessing.current_process()._identity[0]
-                    ) % self.num_threads][i_b],
-                self.idxs[i_b], i)
-            else:
-                path, matrix, anns, label = candidate_loader_tsv(self.tsvs[i_b],
-                                                             self.open_tsvs[0][i_b],
-                self.idxs[i_b], i)
-
-        else:
-            path, matrix, anns, label = self.data[index]
-
-        if self.disable_ensemble:
-            anns = []
-
-        tag = path.split("/")[-1]
-        _, _, _, _, vartype, center, length, tumor_cov, normal_cov = tag.split(
-            ".")
-        tumor_cov = int(tumor_cov)
-        normal_cov = int(normal_cov)
-        center = int(center)
-        length = int(length)
-
-        h, w, _ = matrix.shape
-        orig_matrix = matrix.copy()
-        orig_center = int(center)
-
-        h, w, _ = matrix.shape
-        far_center = False
-        if (((center - 2) * 2 / 3) >= (center - 2)) or (((w - center - 2) * 2 / 3)
-                                                        >= (w - center - 2)):
-            far_center = True
-
-        # Data augmentaion by shifting left or right
-        if self.data_augmentation and (not self.is_test) and (random.rand() < self.da_shift_p
-                                                              and (not far_center)):
-            h, w, c = matrix.shape
-            r = random.rand()
-            if r < 0.6:
-                x_left = random.randint((center - 2) * 2 / 3, center - 2)
-            else:
-                x_left = 0
-            if r > 0.4:
-                x_right = random.randint(
-                    (w - center - 2) * 2 / 3, w - center - 2)
-            else:
-                x_right = 0
-            if x_left > 0:
-                matrix[:, 0:w - x_left, :] = matrix[:, x_left:, :]
-                matrix[:, -x_left:, :] = -1
-                center -= x_left
-            if x_right > 0:
-                matrix[:, x_right:, :] = matrix[:, 0:w - x_right, :]
-                matrix[:, 0:x_right, :] = -1
-                center += x_right
-
-        # Data augmentaion by switch bases
-        if self.data_augmentation and (not self.is_test) and random.rand() < self.da_base_p \
-                and (vartype != "NONE"):
-            [i, j] = random.permutation(range(1, 5))[0:2]
-            a = matrix[i, :, :]
-            matrix[i, :, :] = matrix[j, :, :]
-            matrix[j, :, :] = a
-
-        # Data augmentaion by random flip
         try:
-            nt_matrix = matrix.copy()
-            nt_center = int(center)
-            if self.data_augmentation and (not self.is_test) and random.rand() < self.da_rev_p \
-                    and (vartype not in ["DEL"]):
+            if len(self.data[index]) == 0:
+                i_b, i = self.matrices[index]
+                if multiprocessing.current_process()._identity:
+                    path, matrix, anns, label = candidate_loader_tsv(self.tsvs[i_b],
+                                                                 self.open_tsvs[
+                    int(multiprocessing.current_process()._identity[0]
+                        ) % self.num_threads][i_b],
+                    self.idxs[i_b], i)
+                else:
+                    path, matrix, anns, label = candidate_loader_tsv(self.tsvs[i_b],
+                                                                 self.open_tsvs[0][i_b],
+                    self.idxs[i_b], i)
+
+            else:
+                path, matrix, anns, label = self.data[index]
+
+            if self.disable_ensemble:
+                anns = []
+
+            tag = path.split("/")[-1]
+            _, _, _, _, vartype, center, length, tumor_cov, normal_cov = tag.split(
+                ".")
+            tumor_cov = int(tumor_cov)
+            normal_cov = int(normal_cov)
+            center = int(center)
+            length = int(length)
+
+            h, w, _ = matrix.shape
+            orig_matrix = matrix.copy()
+            orig_center = int(center)
+
+            h, w, _ = matrix.shape
+            far_center = False
+            if (((center - 2) * 2 / 3) >= (center - 2)) or (((w - center - 2) * 2 / 3)
+                                                            >= (w - center - 2)):
+                far_center = True
+
+            # Data augmentaion by shifting left or right
+            if self.data_augmentation and (not self.is_test) and (random.rand() < self.da_shift_p
+                                                                  and (not far_center)):
                 h, w, c = matrix.shape
-                refbase = np.nonzero(matrix[:, center, 0])[0]
-                if len(refbase) > 1:
-                    logger.warning("{} {}".format(path, refbase))
-                if len(refbase) == 1:
-                    refbase = refbase[0]
-                    b = center
-                    e = center + 1
-                    if refbase != 0:
-                        for i in range(center - 1, 0, -1):
-                            if matrix[refbase, i, 0] == 1:
-                                b -= 1
-                            else:
-                                break
-                        for i in range(center + 1, w):
-                            if matrix[refbase, i, 0] == 1:
-                                e += 1
-                            else:
-                                break
-                    elif refbase == 0:
-                        hp_base = 0
-                        for i in range(center + 1, w):
-                            if sum(matrix[:, i, 0]) == 0:
-                                break
-                            base = np.nonzero(matrix[:, i, 0])[0][0]
-                            if base != 0:
-                                hp_base = base
-                                break
-                        if matrix[hp_base, center, 1] >= np.max(matrix[1:, center, 1]):
+                r = random.rand()
+                if r < 0.6:
+                    x_left = random.randint((center - 2) * 2 / 3, center - 2)
+                else:
+                    x_left = 0
+                if r > 0.4:
+                    x_right = random.randint(
+                        (w - center - 2) * 2 / 3, w - center - 2)
+                else:
+                    x_right = 0
+                if x_left > 0:
+                    matrix[:, 0:w - x_left, :] = matrix[:, x_left:, :]
+                    matrix[:, -x_left:, :] = -1
+                    center -= x_left
+                if x_right > 0:
+                    matrix[:, x_right:, :] = matrix[:, 0:w - x_right, :]
+                    matrix[:, 0:x_right, :] = -1
+                    center += x_right
+
+            # Data augmentaion by switch bases
+            if self.data_augmentation and (not self.is_test) and random.rand() < self.da_base_p \
+                    and (vartype != "NONE"):
+                [i, j] = random.permutation(range(1, 5))[0:2]
+                a = matrix[i, :, :]
+                matrix[i, :, :] = matrix[j, :, :]
+                matrix[j, :, :] = a
+
+            # Data augmentaion by random flip
+            try:
+                nt_matrix = matrix.copy()
+                nt_center = int(center)
+                if self.data_augmentation and (not self.is_test) and random.rand() < self.da_rev_p \
+                        and (vartype not in ["DEL"]):
+                    h, w, c = matrix.shape
+                    refbase = np.nonzero(matrix[:, center, 0])[0]
+                    if len(refbase) > 1:
+                        logger.warning("{} {}".format(path, refbase))
+                    if len(refbase) == 1:
+                        refbase = refbase[0]
+                        b = center
+                        e = center + 1
+                        if refbase != 0:
+                            for i in range(center - 1, 0, -1):
+                                if matrix[refbase, i, 0] == 1:
+                                    b -= 1
+                                else:
+                                    break
+                            for i in range(center + 1, w):
+                                if matrix[refbase, i, 0] == 1:
+                                    e += 1
+                                else:
+                                    break
+                        elif refbase == 0:
+                            hp_base = 0
                             for i in range(center + 1, w):
                                 if sum(matrix[:, i, 0]) == 0:
                                     break
                                 base = np.nonzero(matrix[:, i, 0])[0][0]
                                 if base != 0:
-                                    if not matrix[hp_base, i, 0] == 1:
+                                    hp_base = base
+                                    break
+                            if matrix[hp_base, center, 1] >= np.max(matrix[1:, center, 1]):
+                                for i in range(center + 1, w):
+                                    if sum(matrix[:, i, 0]) == 0:
                                         break
-                                    h += 1
-                                else:
-                                    mx_1 = np.max(matrix[:, i, 1])
-                                    if matrix[0, i, 1] < mx_1 and matrix[hp_base, i, 1] < mx_1:
-                                        e = center + 1
-                                        break
-                                e += 1
-                        if h == 1:
-                            e = center + 1
-                    if (e - b) > 1:
-                        matrix[:, b:e, :] = matrix[:, e - 1:b - 1:-1, :].copy()
-                        center = e - 1 - (center - b)
-                matrix = matrix[:, ::-1, :].copy()
-                center = w - center - 1
-        except:
-            logger.warning(
-                "Failed random flip center={} tag={}".format(center, tag))
-            matrix = nt_matrix
-            center = nt_center
+                                    base = np.nonzero(matrix[:, i, 0])[0][0]
+                                    if base != 0:
+                                        if not matrix[hp_base, i, 0] == 1:
+                                            break
+                                        h += 1
+                                    else:
+                                        mx_1 = np.max(matrix[:, i, 1])
+                                        if matrix[0, i, 1] < mx_1 and matrix[hp_base, i, 1] < mx_1:
+                                            e = center + 1
+                                            break
+                                    e += 1
+                            if h == 1:
+                                e = center + 1
+                        if (e - b) > 1:
+                            matrix[:, b:e, :] = matrix[:, e - 1:b - 1:-1, :].copy()
+                            center = e - 1 - (center - b)
+                    matrix = matrix[:, ::-1, :].copy()
+                    center = w - center - 1
+            except:
+                logger.warning(
+                    "Failed random flip center={} tag={}".format(center, tag))
+                matrix = nt_matrix
+                center = nt_center
 
-        # Data augmentaion by changing coverage
-        if self.data_augmentation and (not self.is_test) and random.rand() < self.da_cov_p:
-            r_cov = (1 - self.da_cov_e) + (random.rand() * 2 * self.da_cov_e)
-            tumor_cov *= r_cov
-            normal_cov *= r_cov
+            # Data augmentaion by changing coverage
+            if self.data_augmentation and (not self.is_test) and random.rand() < self.da_cov_p:
+                r_cov = (1 - self.da_cov_e) + (random.rand() * 2 * self.da_cov_e)
+                tumor_cov *= r_cov
+                normal_cov *= r_cov
 
-        # add COV channel
-        matrix_ = np.zeros((matrix.shape[0], matrix.shape[1], 26 + len(anns)))
-        matrix_[:, :, 0:23] = matrix
-        matrix = matrix_
-        matrix[:, center, 23] = np.max(matrix[:, :, 0])
-        matrix[:, :, 24] = (min(tumor_cov, self.coverage_thr) /
-                            float(self.coverage_thr)) * 255.0
-        matrix[:, :, 25] = (
-            min(normal_cov, self.coverage_thr) / float(self.coverage_thr)) * 255.0
-        for i, a in enumerate(anns):
-            matrix[:, :, 26 + i] = a * 255.0
+            # add COV channel
+            matrix_ = np.zeros((matrix.shape[0], matrix.shape[1], 26 + len(anns)))
+            matrix_[:, :, 0:23] = matrix
+            matrix = matrix_
+            matrix[:, center, 23] = np.max(matrix[:, :, 0])
+            matrix[:, :, 24] = (min(tumor_cov, self.coverage_thr) /
+                                float(self.coverage_thr)) * 255.0
+            matrix[:, :, 25] = (
+                min(normal_cov, self.coverage_thr) / float(self.coverage_thr)) * 255.0
+            for i, a in enumerate(anns):
+                matrix[:, :, 26 + i] = a * 255.0
 
-        if self.is_test:
-            orig_matrix_ = np.zeros(
-                (orig_matrix.shape[0], orig_matrix.shape[1], 3))
-            orig_matrix_[:, :, 0:2] = orig_matrix[:, :, 0:2]
-            orig_matrix_[:, orig_center, 2] = np.max(orig_matrix[:, :, 0])
-            orig_matrix = orig_matrix_
-            non_transformed_matrix = np.array(orig_matrix).astype(np.uint8)
-        else:
-            non_transformed_matrix = []
+            if self.is_test:
+                orig_matrix_ = np.zeros(
+                    (orig_matrix.shape[0], orig_matrix.shape[1], 3))
+                orig_matrix_[:, :, 0:2] = orig_matrix[:, :, 0:2]
+                orig_matrix_[:, orig_center, 2] = np.max(orig_matrix[:, :, 0])
+                orig_matrix = orig_matrix_
+                non_transformed_matrix = np.array(orig_matrix).astype(np.uint8)
+            else:
+                non_transformed_matrix = []
 
-        if self.transform is not None:
-            matrix = self.transform(matrix)
+            if self.transform is not None:
+                matrix = self.transform(matrix)
 
-        var_pos = [length, center]
-        var_pos = torch.Tensor(var_pos)
-        varlen_label = min(length, 3)
+            var_pos = [length, center]
+            var_pos = torch.Tensor(var_pos)
+            varlen_label = min(length, 3)
+        except Exception as ex:
+            logger.error(traceback.format_exc())
+            logger.error(ex)
+            return None
 
         return (matrix, label, var_pos, varlen_label, non_transformed_matrix), [path, label]
 

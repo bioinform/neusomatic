@@ -24,7 +24,7 @@ from split_bed import split_region
 
 
 def run_scan_alignments((work, reference, scan_alignments_binary, split_region_file,
-                         input_bam, window_size, maf, min_mapq, calc_qual, num_threads)):
+                         input_bam, window_size, maf, min_mapq, max_dp, calc_qual, num_threads)):
     thread_logger = logging.getLogger(
         "{} ({})".format(run_scan_alignments.__name__, multiprocessing.current_process().name))
     try:
@@ -35,9 +35,9 @@ def run_scan_alignments((work, reference, scan_alignments_binary, split_region_f
             os.mkdir(work)
         if len(pybedtools.BedTool(split_region_file)) > 0:
             cmd = "{} --ref {} -b {} -L {} --out_vcf_file {}/candidates.vcf --out_count_file {}/count.bed \
-                        --window_size {} --min_af {} --min_mapq {} --num_thread {}".format(
+                        --window_size {} --min_af {} --min_mapq {} --max_depth {} --num_thread {}".format(
                 scan_alignments_binary, reference, input_bam, split_region_file,
-                work, work, window_size, maf, min_mapq, num_threads)
+                work, work, window_size, maf, min_mapq, max_dp, num_threads)
             if calc_qual:
                 cmd += " --calculate_qual_stat"
             run_shell_command(cmd, stdout=os.path.join(work, "scan.out"),
@@ -63,7 +63,7 @@ def run_scan_alignments((work, reference, scan_alignments_binary, split_region_f
 
 def scan_alignments(work, scan_alignments_binary, input_bam,
                     regions_bed_file, reference,
-                    num_threads, window_size, maf, min_mapq, restart=True,
+                    num_threads, window_size, maf, min_mapq, max_dp, restart=True,
                     split_region_files=[], calc_qual=True):
 
     logger = logging.getLogger(scan_alignments.__name__)
@@ -117,7 +117,7 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
                 shutil.rmtree(work_)
             map_args.append((os.path.join(work, "work.{}".format(i)),
                              reference, scan_alignments_binary, split_region_file,
-                             input_bam, window_size, maf, min_mapq, calc_qual, 1))
+                             input_bam, window_size, maf, min_mapq, max_dp, calc_qual, 1))
             not_done.append(i)
         else:
             all_outputs[i] = [os.path.join(work, "work.{}".format(i), "candidates.vcf"),
@@ -166,6 +166,8 @@ if __name__ == '__main__':
                         help='minimum allele freq', default=0.01)
     parser.add_argument('--min_mapq', type=int,
                         help='minimum mapping quality', default=1)
+    parser.add_argument('--max_dp', type=float,
+                        help='max depth', default=40000)
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     args = parser.parse_args()
@@ -175,7 +177,7 @@ if __name__ == '__main__':
         outputs = scan_alignments(args.work, args.scan_alignments_binary, args.input_bam,
                                   args.regions_bed_file, args.reference,
                                   args.num_threads, args.window_size, args.maf,
-                                  args.min_mapq)
+                                  args.min_mapq, args.max_dp)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")

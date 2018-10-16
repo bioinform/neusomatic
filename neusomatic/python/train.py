@@ -16,6 +16,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import transforms
+from random import shuffle
+import pickle
 
 from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset
@@ -46,7 +48,7 @@ def make_weights_for_balanced_classes(count_class_t, count_class_l, nclasses_t, 
     w_t = np.array(w_t)
     logger.info("weight type classes: {}".format(zip(vartype_classes, w_t)))
 
-    logger.info("weight length classes: {}".format(
+    logger.info("count length classes: {}".format(
         zip(range(nclasses_l), count_class_l)))
     N = float(sum(count_class_l))
     for i in range(nclasses_l):
@@ -130,10 +132,10 @@ def test(net, epoch, validation_loader, use_cuda):
         SN = 100 * len_class_correct[i] / (len_class_total[i] + 0.0001)
         PR = 100 * len_class_correct[i] / (len_class_p_total[i] + 0.0001)
         F1 = 2 * PR * SN / (PR + SN + 0.0001)
-        logger.info('Epoch {}: Type Accuracy of {:>5} ({}) : {:.2f}  {:.2f} {:.2f}'.format(
+        logger.info('Epoch {}: Length Accuracy of {:>5} ({}) : {:.2f}  {:.2f} {:.2f}'.format(
             epoch, i, len_class_total[i],
             SN, PR, F1))
-    logger.info('Epoch {}: Type Accuracy of the network on the {} test candidates: {:.4f} %'.format(
+    logger.info('Epoch {}: Length Accuracy of the network on the {} test candidates: {:.4f} %'.format(
         epoch, sum(len_class_total), (
             100 * sum(len_class_correct) / float(sum(len_class_total)))))
 
@@ -175,7 +177,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                      lr_drop_ratio, momentum, boost_none, none_count_scale,
                      max_load_candidates, coverage_thr, save_freq, ensemble,
                      merged_candidates_per_tsv, merged_max_num_tsvs, overwrite_merged_tsvs,
-                     use_cuda):
+                     trian_split_len, use_cuda):
     logger = logging.getLogger(train_neusomatic.__name__)
 
     logger.info("----------------Train NeuSomatic Network-------------------")
@@ -236,6 +238,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         tag = "neusomatic_{}".format(time_now)
     logger.info("tag: {}".format(tag))
 
+    shuffle(candidates_tsv)
+
     if len(candidates_tsv) > merged_max_num_tsvs:
         candidates_tsv = merge_tsvs(input_tsvs=candidates_tsv, out=out_dir,
                                     candidates_per_tsv=merged_candidates_per_tsv,
@@ -243,29 +247,66 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                                     overwrite_merged_tsvs=overwrite_merged_tsvs,
                                     keep_none_types=True)
 
-    train_set = NeuSomaticDataset(roots=candidates_tsv,
-                                  max_load_candidates=max_load_candidates,
-                                  transform=data_transform, is_test=False,
-                                  num_threads=num_threads, coverage_thr=coverage_thr)
-    none_indices = train_set.get_none_indices()
-    var_indices = train_set.get_var_indices()
-    if none_indices:
-        none_indices = map(lambda i: none_indices[i],
-                           torch.randperm(len(none_indices)).tolist())
-    logger.info("Non-somatic candidates: {}".format(len(none_indices)))
-    if var_indices:
-        var_indices = map(lambda i: var_indices[i],
-                          torch.randperm(len(var_indices)).tolist())
-    logger.info("Somatic candidates: {}".format(len(var_indices)))
-    none_count = min(len(none_indices), len(var_indices) * none_count_scale)
-    logger.info("Non-somatic considered in each epoch: {}".format(none_count))
-    sampler = SubsetNoneSampler(none_indices, var_indices, none_count)
+    Ls = []
+    for tsv in candidates_tsv:
+        idx = pickle.load(open(tsv + ".idx"))
+        Ls.append(len(idx) - 1)
 
-    train_loader = torch.utils.data.DataLoader(train_set,
-                                               batch_size=batch_size,
-                                               num_workers=num_threads, pin_memory=True,
-                                               sampler=sampler)
-    logger.info("#Train cadidates: {}".format(len(train_set)))
+    Ls, candidates_tsv = zip(
+        *sorted(zip(Ls, candidates_tsv), key=lambda x: x[0], reverse=True))
+
+    train_split_tsvs = []
+    current_L = 0
+    current_split_tsvs = []
+    for i, (L, tsv) in enumerate(zip(Ls, candidates_tsv)):
+        current_L += L
+        current_split_tsvs.append(tsv)
+        if current_L >= trian_split_len or (i == len(candidates_tsv) - 1 and current_L > 0):
+            logger.info("tsvs in split {}: {}".format(
+                len(train_split_tsvs), current_split_tsvs))
+            train_split_tsvs.append(current_split_tsvs)
+            current_L = 0
+            current_split_tsvs = []
+
+    assert sum(map(lambda x: len(x), train_split_tsvs)) == len(candidates_tsv)
+    train_sets = []
+    none_counts = []
+    var_counts = []
+    none_indices_ = []
+    var_indices_ = []
+    samplers = []
+    for split_i, tsvs in enumerate(train_split_tsvs):
+        train_set = NeuSomaticDataset(roots=tsvs,
+                                      max_load_candidates=int(
+                                          max_load_candidates * len(tsvs) / float(len(candidates_tsv))),
+                                      transform=data_transform, is_test=False,
+                                      num_threads=num_threads, coverage_thr=coverage_thr)
+        train_sets.append(train_set)
+        none_indices = train_set.get_none_indices()
+        var_indices = train_set.get_var_indices()
+        if none_indices:
+            none_indices = map(lambda i: none_indices[i],
+                               torch.randperm(len(none_indices)).tolist())
+        logger.info(
+            "Non-somatic candidates is split {}: {}".format(split_i, len(none_indices)))
+        if var_indices:
+            var_indices = map(lambda i: var_indices[i],
+                              torch.randperm(len(var_indices)).tolist())
+        logger.info("Somatic candidates in split {}: {}".format(
+            split_i, len(var_indices)))
+        none_count = max(min(len(none_indices), len(
+            var_indices) * none_count_scale),1)
+        logger.info(
+            "Non-somatic considered in each epoch of split {}: {}".format(split_i, none_count))
+
+        sampler = SubsetNoneSampler(none_indices, var_indices, none_count)
+        samplers.append(sampler)
+        none_counts.append(none_count)
+        var_counts.append(len(var_indices))
+        var_indices_.append(var_indices)
+        none_indices_.append(none_indices)
+    logger.info("# Total Train cadidates: {}".format(
+        sum(map(lambda x: len(x), train_sets))))
 
     if validation_candidates_tsv:
         validation_set = NeuSomaticDataset(roots=validation_candidates_tsv,
@@ -277,8 +318,15 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                                                         num_workers=num_threads, pin_memory=True)
         logger.info("#Validation candidates: {}".format(len(validation_set)))
 
+    count_class_t = [0] * 4
+    count_class_l = [0] * 4
+    for train_set in train_sets:
+        for i in range(4):
+            count_class_t[i] += train_set.count_class_t[i]
+            count_class_l[i] += train_set.count_class_l[i]
+
     weights_type, weights_length = make_weights_for_balanced_classes(
-        train_set.count_class_t, train_set.count_class_l, 4, 4, none_count)
+        count_class_t, count_class_l, 4, 4, sum(none_counts))
 
     weights_type[2] *= boost_none
     weights_length[0] *= boost_none
@@ -299,7 +347,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         net.parameters(), lr=learning_rate, momentum=momentum)
 
     net.train()
-    len_train_set = none_count + len(var_indices)
+    len_train_set = sum(none_counts) + sum(var_counts)
     logger.info("Number of candidater per epoch: {}".format(len_train_set))
     print_freq = max(1, int(len_train_set / float(batch_size) / 4.0))
     curr_epoch = int(round(len(loss_s) / float(len_train_set)
@@ -312,39 +360,48 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     # loop over the dataset multiple times
     for epoch in range(max_epochs - prev_epochs):
         running_loss = 0.0
-        for i, data in enumerate(train_loader, 0):
-            # get the inputs
-            (inputs, labels, var_pos_s, var_len_s, _), _ = data
-            # wrap them in Variable
-            inputs, labels, var_pos_s, var_len_s = Variable(inputs), Variable(
-                labels), Variable(var_pos_s), Variable(var_len_s)
-            if use_cuda:
-                inputs, labels, var_pos_s, var_len_s = inputs.cuda(
-                ), labels.cuda(), var_pos_s.cuda(), var_len_s.cuda()
+        i_ = 0
+        for split_i, train_set in enumerate(train_sets):
+            train_set.open_candidate_tsvs()
+            train_loader = torch.utils.data.DataLoader(train_set,
+                                                       batch_size=batch_size,
+                                                       num_workers=num_threads, pin_memory=True,
+                                                       sampler=samplers[split_i])
+            for i, data in enumerate(train_loader, 0):
+                i_ += 1
+                # get the inputs
+                (inputs, labels, var_pos_s, var_len_s, _), _ = data
+                # wrap them in Variable
+                inputs, labels, var_pos_s, var_len_s = Variable(inputs), Variable(
+                    labels), Variable(var_pos_s), Variable(var_len_s)
+                if use_cuda:
+                    inputs, labels, var_pos_s, var_len_s = inputs.cuda(
+                    ), labels.cuda(), var_pos_s.cuda(), var_len_s.cuda()
 
-            # zero the parameter gradients
-            optimizer.zero_grad()
+                # zero the parameter gradients
+                optimizer.zero_grad()
 
-            outputs, _ = net(inputs)
-            [outputs_classification, outputs_pos, outputs_len] = outputs
-            var_len_labels = Variable(
-                torch.LongTensor(var_len_s.cpu().data.numpy()))
-            if use_cuda:
-                var_len_labels = var_len_labels.cuda()
-            loss = criterion_crossentropy(outputs_classification, labels) + 1 * criterion_smoothl1(
-                outputs_pos, var_pos_s[:, 1]
-            ) + 1 * criterion_crossentropy2(outputs_len, var_len_labels)
+                outputs, _ = net(inputs)
+                [outputs_classification, outputs_pos, outputs_len] = outputs
+                var_len_labels = Variable(
+                    torch.LongTensor(var_len_s.cpu().data.numpy()))
+                if use_cuda:
+                    var_len_labels = var_len_labels.cuda()
+                loss = criterion_crossentropy(outputs_classification, labels) + 1 * criterion_smoothl1(
+                    outputs_pos, var_pos_s[:, 1]
+                ) + 1 * criterion_crossentropy2(outputs_len, var_len_labels)
 
-            loss.backward()
-            optimizer.step()
-            loss_s.append(loss.data[0])
+                loss.backward()
+                optimizer.step()
+                loss_s.append(loss.data[0])
 
-            running_loss += loss.data[0]
-            if i % print_freq == print_freq - 1:
-                logger.info('epoch: {}, i: {:>5}, lr: {}, loss: {:.5f}'.format(
-                            epoch + 1 + prev_epochs, i + 1,
-                            learning_rate, running_loss / print_freq))
-                running_loss = 0.0
+                running_loss += loss.data[0]
+                if i_ % print_freq == print_freq - 1:
+                    logger.info('epoch: {}, i: {:>5}, lr: {}, loss: {:.5f}'.format(
+                                epoch + 1 + prev_epochs, i_ + 1,
+                                learning_rate, running_loss / print_freq))
+                    running_loss = 0.0
+            train_set.close_candidate_tsvs()
 
         curr_epoch = int(
             round(len(loss_s) / float(len_train_set) * batch_size)) + prev_epochs
@@ -407,7 +464,7 @@ if __name__ == '__main__':
     parser.add_argument('--momentum', type=float,
                         help='SGD momentum', default=0.9)
     parser.add_argument('--boost_none', type=float,
-                        help='the amount to boost none-somatic classification weight', default=10)
+                        help='the amount to boost none-somatic classification weight', default=100)
     parser.add_argument('--none_count_scale', type=float,
                         help='ratio of the none/somatic canidates to use in each training epoch \
                         (the none candidate will be subsampled in each epoch based on this ratio',
@@ -417,13 +474,16 @@ if __name__ == '__main__':
     parser.add_argument('--save_freq', type=int,
                         help='the frequency of saving checkpoints in terms of # epochs', default=50)
     parser.add_argument('--merged_candidates_per_tsv', type=int,
-                        help='Maximum number of candidates in each merged tsv file ', default=40000000)
+                        help='Maximum number of candidates in each merged tsv file ', default=10000000)
     parser.add_argument('--merged_max_num_tsvs', type=int,
                         help='Maximum number of merged tsv files \
                         (higher priority than merged_candidates_per_tsv)', default=10)
     parser.add_argument('--overwrite_merged_tsvs',
                         help='if OUT/merged_tsvs/ folder exists overwrite the merged tsvs',
                         action="store_true")
+    parser.add_argument('--trian_split_len', type=int,
+                        help='Maximum number of candidates used in each split of training (>=merged_candidates_per_tsv)',
+                        default=10000000)
     parser.add_argument('--coverage_thr', type=int,
                         help='maximum coverage threshold to be used for network input \
                               normalization. \
@@ -446,7 +506,7 @@ if __name__ == '__main__':
                                       args.max_load_candidates, args.coverage_thr, args.save_freq,
                                       args.ensemble,
                                       args.merged_candidates_per_tsv, args.merged_max_num_tsvs,
-                                      args.overwrite_merged_tsvs,
+                                      args.overwrite_merged_tsvs, args.trian_split_len,
                                       use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())

@@ -16,7 +16,7 @@ import numpy as np
 
 def merge_tsvs(input_tsvs, out,
                candidates_per_tsv, max_num_tsvs, overwrite_merged_tsvs,
-               keep_none_types):
+               keep_none_types, max_dp=40000):
     logger = logging.getLogger(merge_tsvs.__name__)
     logger.info("----------------Merging Candidate tsvs-------------------")
     if not os.path.exists(out):
@@ -26,10 +26,11 @@ def merge_tsvs(input_tsvs, out,
         if overwrite_merged_tsvs:
             shutil.rmtree(out_mreged_folder)
         else:
-            i=1
+            i = 1
             while os.path.exists(out_mreged_folder):
-                out_mreged_folder = os.path.join(out, "merged_tsvs_{}".format(i))
-                i+=1
+                out_mreged_folder = os.path.join(
+                    out, "merged_tsvs_{}".format(i))
+                i += 1
     os.mkdir(out_mreged_folder)
     n_var_file = 0
     var_file = os.path.join(
@@ -52,10 +53,17 @@ def merge_tsvs(input_tsvs, out,
         totla_L / float(max_num_tsvs)) + 1)
 
     for tsv in input_tsvs:
+        logger.info("tsv:{}, merge_id: {}".format(tsv, len(merged_tsvs)))
         with open(tsv, "r") as i_f:
             for line in i_f:
                 fields = line.strip().split()
                 tag = fields[2]
+                _, _, _, _, _, _, _, tumor_cov, normal_cov = tag.split(".")
+                tumor_cov = int(tumor_cov)
+                normal_cov = int(normal_cov)
+                if tumor_cov > max_dp:
+                    logger.info("Ignore {}".format(tag))
+                    continue
                 is_none_type = "NONE" in tag
                 if not keep_none_types and is_none_type:
                     fields[0] = str(len(none_idx))
@@ -66,6 +74,8 @@ def merge_tsvs(input_tsvs, out,
                         none_idx.append(none_f.tell())
                         pickle.dump(none_idx, open(none_file + ".idx", "w"))
                         none_f.close()
+                        logger.info(
+                            "Done with merge_id: {}".format(len(merged_tsvs)))
                         merged_tsvs.append(none_file)
                         n_none_file += 1
                         none_file = os.path.join(
@@ -81,6 +91,8 @@ def merge_tsvs(input_tsvs, out,
                         var_idx.append(var_f.tell())
                         pickle.dump(var_idx, open(var_file + ".idx", "w"))
                         var_f.close()
+                        logger.info(
+                            "Done with merge_id: {}".format(len(merged_tsvs)))
                         merged_tsvs.append(var_file)
                         n_var_file += 1
                         var_file = os.path.join(
@@ -91,11 +103,13 @@ def merge_tsvs(input_tsvs, out,
         var_idx.append(var_f.tell())
         pickle.dump(var_idx, open(var_file + ".idx", "w"))
         var_f.close()
+        logger.info("Done with merge_id: {}".format(len(merged_tsvs)))
         merged_tsvs.append(var_file)
     if not keep_none_types and not none_f.closed:
         none_idx.append(none_f.tell())
         pickle.dump(none_idx, open(none_file + ".idx", "w"))
         none_f.close()
+        logger.info("Done with merge_id: {}".format(len(merged_tsvs)))
         merged_tsvs.append(none_file)
 
     logger.info("Merged input tsvs to: {}".format(merged_tsvs))
