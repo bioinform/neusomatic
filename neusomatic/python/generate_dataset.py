@@ -1391,13 +1391,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
         work, region_bed_file, num_splits, shuffle_intervals=True)
 
     fasta_file = pysam.Fastafile(ref_file)
-    lens = []
-    for length in fasta_file.lengths:
-        lens.append(length)
-    chroms = []
-    for chrom in fasta_file.references:
-        chroms.append(chrom)
-    chrom_lengths = dict(zip(chroms, lens))
+    chrom_lengths = dict(zip(fasta_file.references, fasta_file.lengths))
 
     pool = multiprocessing.Pool(num_threads)
     map_args = []
