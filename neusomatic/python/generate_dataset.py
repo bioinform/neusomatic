@@ -40,17 +40,17 @@ def get_type(ref, alt):
         return "SNP"
 
 
-def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad):
+def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad, chrom_lengths):
     logger = logging.getLogger(get_variant_matrix_tabix.__name__)
     chrom, pos, ref, alt = record[0:4]
     fasta_file = pysam.Fastafile(ref_file)
     try:
         tb = pysam.TabixFile(count_bed, parser=pysam.asTuple())
         tabix_records = tb.fetch(
-            chrom, pos - matrix_base_pad, pos + matrix_base_pad)
+            chrom, max(pos - matrix_base_pad, 0), min(pos + matrix_base_pad, chrom_lengths[chrom] - 2))
     except:
         logger.warning("No count information at {}:{}-{} for {}".format(chrom,
-                     pos - matrix_base_pad, pos + matrix_base_pad, count_bed))
+                                                                        pos - matrix_base_pad, pos + matrix_base_pad, count_bed))
         tabix_records = []
 
     NUC_to_NUM_tabix = {"A": 1, "C": 2, "G": 3, "T": 4, "-": 0}
@@ -128,10 +128,12 @@ def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad):
         cnt += 1
         curr_pos = pos_ + 1
 
+    end_pos = min(pos + matrix_base_pad, chrom_lengths[chrom] - 2)
+
     if curr_pos < pos + matrix_base_pad + 1:
         refs = fasta_file.fetch(
-            chrom, curr_pos - 1, pos + matrix_base_pad).upper().replace("N", "-")
-        for i in range(curr_pos, pos + matrix_base_pad + 1):
+            chrom, curr_pos - 1, end_pos).upper().replace("N", "-")
+        for i in range(curr_pos, end_pos + 1):
             ref_base_ = refs[i - curr_pos]
             if ref_base_.upper() not in "ACGT-":
                 ref_base_ = "-"
@@ -148,7 +150,7 @@ def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad):
             if i not in col_pos_map:
                 col_pos_map[i] = cnt
             cnt += 1
-        curr_pos = pos + matrix_base_pad + 1
+        curr_pos = end_pos + 1
 
     matrix_ = np.array(matrix_).transpose()
     bq_matrix_ = np.array(bq_matrix_).transpose()
@@ -294,15 +296,16 @@ def align_tumor_normal_matrices(record, tumor_matrix_, bq_tumor_matrix_, mq_tumo
             new_tumor_col_pos_map]
 
 
-def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, record, rlen, rcenter, matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov):
+def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, record, rlen, rcenter,
+                                matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, chrom_lengths):
     logger = logging.getLogger(prepare_info_matrices_tabix.__name__)
 
     chrom, pos, ref, alt = record[0:4]
 
     tumor_matrix_, bq_tumor_matrix_, mq_tumor_matrix_, st_tumor_matrix_, lsc_tumor_matrix_, rsc_tumor_matrix_, tag_tumor_matrices_, tumor_ref_array, tumor_col_pos_map = get_variant_matrix_tabix(
-        ref_file, tumor_count_bed, record, matrix_base_pad)
+        ref_file, tumor_count_bed, record, matrix_base_pad, chrom_lengths)
     normal_matrix_, bq_normal_matrix_, mq_normal_matrix_, st_normal_matrix_, lsc_normal_matrix_, rsc_normal_matrix_, tag_normal_matrices_, normal_ref_array, normal_col_pos_map = get_variant_matrix_tabix(
-        ref_file, normal_count_bed, record, matrix_base_pad)
+        ref_file, normal_count_bed, record, matrix_base_pad, chrom_lengths)
 
     if not tumor_col_pos_map:
         logger.warning("Skip {} for all N reference".format(record))
@@ -565,7 +568,7 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
 
 
 def prep_data_single_tabix((ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order,
-                            matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann)):
+                            matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths)):
     thread_logger = logging.getLogger(
         "{} ({})".format(prep_data_single_tabix.__name__, multiprocessing.current_process().name))
     try:
@@ -576,7 +579,8 @@ def prep_data_single_tabix((ref_file, tumor_count_bed, normal_count_bed, record,
                                                     normal_count_bed=normal_count_bed, record=record, rlen=rlen, rcenter=rcenter,
                                                     matrix_base_pad=matrix_base_pad, matrix_width=matrix_width,
                                                     min_ev_frac_per_col=min_ev_frac_per_col,
-                                                    min_cov=min_cov)
+                                                    min_cov=min_cov,
+                                                    chrom_lengths=chrom_lengths)
         if matrices_info:
             tumor_matrix_, tumor_matrix, normal_matrix_, normal_matrix, ref_count_matrix, tumor_count_matrix, \
                 bq_tumor_count_matrix, mq_tumor_count_matrix, st_tumor_count_matrix, lsc_tumor_count_matrix, rsc_tumor_count_matrix, \
@@ -1386,6 +1390,15 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     split_region_files = split_region(
         work, region_bed_file, num_splits, shuffle_intervals=True)
 
+    fasta_file = pysam.Fastafile(ref_file)
+    lens = []
+    for length in fasta_file.lengths:
+        lens.append(length)
+    chroms = []
+    for chrom in fasta_file.references:
+        chroms.append(chrom)
+    chrom_lengths = dict(zip(chroms, lens))
+
     pool = multiprocessing.Pool(num_threads)
     map_args = []
     for i, split_region_file in enumerate(split_region_files):
@@ -1446,7 +1459,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                             ann = anns[
                                 int(record[-1])] if ensemble_bed else []
                             map_args_records.append((ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order,
-                                                     matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann))
+                                                     matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths))
                         if cnt >= is_end:
                             break
                     if cnt >= is_end:
@@ -1466,7 +1479,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                                 int(record[-1])] if ensemble_bed else []
                             map_args_nones.append((ref_file, tumor_count_bed, normal_count_bed, record, "NONE",
                                                    0, rcenter, ch_order,
-                                                   matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann))
+                                                   matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths))
                         if cnt >= is_end:
                             break
                     if cnt >= is_end:
