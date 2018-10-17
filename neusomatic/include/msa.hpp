@@ -44,8 +44,11 @@ class GappedSeq {
 public:
   GappedSeq(unsigned rlen): bases_(rlen), gaps_(rlen) {}
   
-  GappedSeq(const std::string& rseq, const GInv& ginv): bases_(rseq.begin(), rseq.end()), gaps_(rseq.length()), ginv_(ginv) {}
-
+  GappedSeq(const std::string& rseq, const GInv& ginv): bases_(rseq.begin(), rseq.end()), gaps_(rseq.length()), ginv_(ginv) {
+    if (rseq.size() + ginv.left()  != ginv.right()) {
+      throw std::runtime_error("seq length does not match the interval length");
+    }
+  }
   void SetGap(const size_t i, const int32_t pos, const int32_t len) {
     if (gaps_[i].IsNull()) {
       gaps_[i].Set(pos, len);
@@ -147,6 +150,7 @@ public:
     for (size_t i = refgap.left(); i < record_begin; ++i) {
       bases_[i - refgap.left()] = missing_chr_;
     }
+
     for (size_t i = record_end; i < refgap.right(); ++i) {
       bases_[i - refgap.left()] = missing_chr_;
     }

@@ -101,10 +101,10 @@ int main(int argc, char **argv) {
   while (capture_layout.NextRegion(opts.fully_contained())) {
     // a map from genomic interval -> a vector of alignReadIds
     for (auto targeted_region : capture_layout.ginv_records()) {
-      const auto& ginv = targeted_region.first; 
+      auto ginv = targeted_region.first;
       auto& records = targeted_region.second;
       GInvStdString ginvstr(bam_header.IDtoName(ginv.contig()), ginv.left(), ginv.right());
-      if (cnt_region % 100 == 0){
+      if (opts.verbosity() > 2 || cnt_region % 100 == 0){
         std::cerr<<"#On region "<<ginvstr<<"\n";
         std::cerr<<"#Aligned read number: "<<records.size()<<std::endl;
       }
@@ -113,7 +113,11 @@ int main(int argc, char **argv) {
       if (records.size() > opts.max_depth()) {
         records.resize(opts.max_depth());
       }
-      MSA msa(ginv, records, ref_seqs.QueryRegion(ginvstr.contig(), ginvstr.left(), ginvstr.right() - 1));
+      const auto non_gapped_ref = ref_seqs.QueryRegion(ginvstr.contig(), ginvstr.left(), ginvstr.right() - 1);
+      if (ginv.length() > non_gapped_ref.size())  {
+        ginv.right() = ginv.left() + non_gapped_ref.size();
+      }
+      MSA msa(ginv, records, non_gapped_ref);
       std::vector<std::string> msa_, bqual_, lscs_, rscs_;
       std::vector<int> mqual_;
       std::vector<bool> strand_;
