@@ -142,11 +142,6 @@ std::vector<neusomatic::bio::Variant<std::string, Contig>> GetSNVs(const BamReco
 
   MDTags md(mdstr);
   std::pair<MDType, std::string> unit;
-  //std::cerr << mdstr << std::endl;
-  //while (md.Next(unit)) {
-    //std::cerr<<unit.first << ":" <<unit.second << std::endl;
-  //}
-
 
   std::vector<neusomatic::bio::Variant<std::string, Contig>> snvs_MDTags;
   int sum_M_len_before_D = 0;
@@ -202,7 +197,7 @@ std::vector<neusomatic::bio::Variant<std::string, Contig>> GetSNVs(const BamReco
   read_pos = bam.AlignmentPosition();
   auto b = cigar.begin();
   for (const auto& t : snvs_MDTags) {
-    int32_t ref_consume_goal = t.left() -  ref_pos; 
+    const int32_t ref_consume_goal = t.left() -  ref_pos;
     int32_t ref_consume = 0;
     int32_t read_consume = 0;
     while (ref_consume < ref_consume_goal) {
