@@ -12,7 +12,7 @@ Sayed Mohammad Ebrahim Sahraeian, Ruolin Liu, Bayo Lau, Marghoob Mohiyuddin, Hug
 doi: https://doi.org/10.1101/393801](https://doi.org/10.1101/393801)
 
 ## Example Input Matrix
-![Example input](toy_example.png)
+![Example input](resources/toy_example.png)
 
 ## Table of Contents
 **[Availability](#availability)**<br>
@@ -94,6 +94,8 @@ Reads in input `.bam` file should be sorted, indexed and have MD tags. If you ar
 samtools calmd -@ num_threads -b alignment.bam reference.fasta  > alignment.md.bam 
 samtools index alignment.md.bam
 ```
+
+For the region `.bed` files, if you don't have any preferred target regions for training/calling, you can use the whole genome as the target region. Example bed files of major chromosomes for human hg38, hg19, and b37 references can be found at [resources](resources).
 
 ## Quick Test
 Testing the preprocessing, calling, and postprocessing steps:
