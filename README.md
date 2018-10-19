@@ -195,32 +195,32 @@ There are two alternative ways to prepare this file:
 
 2. Alternartively, if you don't want to use docker and already have the output of all somatic callers, you can prepare the `.tsv` file using the `SomaticSeq.Wrapper.sh` script [here](https://github.com/bioinform/somaticseq/blob/master/SomaticSeq.Wrapper.sh) (you may need to install the necessary dependencies for this script, explained [here](https://github.com/bioinform/somaticseq)).
 
-For instance:
-```
-SomaticSeq.Wrapper.sh \
---output-dir output \
---genome-reference GRCh38.fa \
---tumor-bam tumor.bam \
---normal-bam normal.bam \
- -mutect2 MuTect2.vcf \
---varscan-snv VarScan2.snp.vcf \
---varscan-indel VarScan2.indel.vcf \
- -sniper SomaticSniper.vcf \
---vardict VarDict.vcf \
---muse MuSE.vcf \
---strelka-snv somatic.snvs.vcf.gz \
---strelka-indel somatic.indels.vcf.gz \
---inclusion-region region.bed \
- -dbsnp dbsnp.GRCh38.vcf \
- -gatk GenomeAnalysisTK.jar
-```
+	For instance:
+	```
+	SomaticSeq.Wrapper.sh \
+	--output-dir output \
+	--genome-reference GRCh38.fa \
+	--tumor-bam tumor.bam \
+	--normal-bam normal.bam \
+	 -mutect2 MuTect2.vcf \
+	--varscan-snv VarScan2.snp.vcf \
+	--varscan-indel VarScan2.indel.vcf \
+	 -sniper SomaticSniper.vcf \
+	--vardict VarDict.vcf \
+	--muse MuSE.vcf \
+	--strelka-snv somatic.snvs.vcf.gz \
+	--strelka-indel somatic.indels.vcf.gz \
+	--inclusion-region region.bed \
+	 -dbsnp dbsnp.GRCh38.vcf \
+	 -gatk GenomeAnalysisTK.jar
+	```
 
-Then, in the output directory, do:
-```
-cat <(cat Ensemble.s*.tsv |grep CHROM|head -1) \
-    <(cat Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
-```
-and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
+	Then, in the output directory, do:
+	```
+	cat <(cat Ensemble.s*.tsv |grep CHROM|head -1) \
+	    <(cat Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
+	```
+	and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
 
 
 ### NOTE: 
