@@ -356,7 +356,7 @@ if __name__ == '__main__':
     parser.add_argument('--truth_vcf', type=str,
                         help='truth vcf (required for train mode)', default=None)
     parser.add_argument('--tsv_batch_size', type=int,
-                        help='output files batch size', default=40000)
+                        help='output files batch size', default=50000)
     parser.add_argument('--matrix_width', type=int,
                         help='target window width', default=32)
     parser.add_argument('--matrix_base_pad', type=int,
