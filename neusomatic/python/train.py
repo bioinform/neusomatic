@@ -295,7 +295,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         logger.info("Somatic candidates in split {}: {}".format(
             split_i, len(var_indices)))
         none_count = max(min(len(none_indices), len(
-            var_indices) * none_count_scale),1)
+            var_indices) * none_count_scale), 1)
         logger.info(
             "Non-somatic considered in each epoch of split {}: {}".format(split_i, none_count))
 
@@ -358,7 +358,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "coverage_thr": coverage_thr},
                '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
 
-    if len(train_sets)==1:
+    if len(train_sets) == 1:
         train_sets[0].open_candidate_tsvs()
         train_loader = torch.utils.data.DataLoader(train_sets[0],
                                                    batch_size=batch_size,
@@ -369,7 +369,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         running_loss = 0.0
         i_ = 0
         for split_i, train_set in enumerate(train_sets):
-            if len(train_sets)>1:
+            if len(train_sets) > 1:
                 train_set.open_candidate_tsvs()
                 train_loader = torch.utils.data.DataLoader(train_set,
                                                            batch_size=batch_size,
@@ -409,7 +409,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                                 epoch + 1 + prev_epochs, i_ + 1,
                                 learning_rate, running_loss / print_freq))
                     running_loss = 0.0
-            if len(train_sets)>1:
+            if len(train_sets) > 1:
                 train_set.close_candidate_tsvs()
 
         curr_epoch = int(
@@ -428,7 +428,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 net.parameters(), lr=learning_rate, momentum=momentum)
     logger.info('Finished Training')
 
-    if len(train_sets)==1:
+    if len(train_sets) == 1:
         train_sets[0].close_candidate_tsvs()
 
     curr_epoch = int(round(len(loss_s) / float(len_train_set)

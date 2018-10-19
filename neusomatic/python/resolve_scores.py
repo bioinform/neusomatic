@@ -13,6 +13,7 @@ import numpy as np
 
 from utils import get_chromosomes_order
 
+
 def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
     logger = logging.getLogger(resolve_scores.__name__)
 

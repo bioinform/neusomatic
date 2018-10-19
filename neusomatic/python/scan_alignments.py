@@ -113,7 +113,7 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
         if restart or not os.path.exists(os.path.join(work, "work.{}".format(i), "region.bed")) \
                 or not os.path.exists(os.path.join(work, "work.{}".format(i), "candidates.vcf")) \
                 or not os.path.exists(os.path.join(work, "work.{}".format(i), "count.bed.gz")):
-            work_=os.path.join(work, "work.{}".format(i))
+            work_ = os.path.join(work, "work.{}".format(i))
             if os.path.exists(work_):
                 shutil.rmtree(work_)
             map_args.append((os.path.join(work, "work.{}".format(i)),

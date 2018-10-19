@@ -217,7 +217,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         self.coverage_thr = coverage_thr
 
     def open_candidate_tsvs(self):
-        for i,tsv in enumerate(self.tsvs):
+        for i, tsv in enumerate(self.tsvs):
             for t in range(self.num_threads):
                 if len(self.opened_tsvs) < self.max_opended_tsv - 1:
                     self.open_tsvs[t][i] = open(tsv)
