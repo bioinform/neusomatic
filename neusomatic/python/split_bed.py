@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # split_bed.py
 # split bed file to multiple sub-regions

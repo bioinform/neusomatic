@@ -12,7 +12,7 @@ Sayed Mohammad Ebrahim Sahraeian, Ruolin Liu, Bayo Lau, Marghoob Mohiyuddin, Hug
 doi: https://doi.org/10.1101/393801](https://doi.org/10.1101/393801)
 
 ## Example Input Matrix
-![Example input](toy_example.png)
+![Example input](resources/toy_example.png)
 
 ## Table of Contents
 **[Availability](#availability)**<br>
@@ -57,6 +57,11 @@ conda install pytorch=0.3.1 torchvision=0.2.0 cuda80=1.0 -c pytorch
 conda install cmake=3.12.1 -c conda-forge
 conda install pysam=0.14.1 pybedtools=0.7.10 samtools=1.7 tabix=0.2.5 bedtools=2.27.1 biopython=1.68 -c bioconda
 ```
+Then you can export the conda paths as:
+```
+export PATH="/PATH/TO/CONDA/bin:$PATH"
+export LD_LIBRARY_PATH="/PATH/TO/CONDA/lib:$LD_LIBRARY_PATH"
+```
 g++ 5.4.0 can also be obained as `sudo apt-get install gcc-5 g++-5`.
 
 ## NeuSomatic Docker Image
@@ -83,12 +88,14 @@ For calling mode, the following inputs are required:
 * call region `.bed` file
 * trained model `.pth` file
 
-Reads in input .bam file should be sorted, indexed and have MD tags. If you are not sure about the MD tag, you should run:
+Reads in input `.bam` file should be sorted, indexed and have MD tags. If you are not sure that all you reads have MD tags, you should run the following command for both tumor and normal alignments:
 
 ```
 samtools calmd -@ num_threads -b alignment.bam reference.fasta  > alignment.md.bam 
 samtools index alignment.md.bam
 ```
+
+For the region `.bed` files, if you don't have any preferred target regions for training/calling, you can use the whole genome as the target region. Example bed files of major chromosomes for human hg38, hg19, and b37 references can be found at [resources](resources).
 
 ## Quick Test
 Testing the preprocessing, calling, and postprocessing steps:
@@ -181,36 +188,40 @@ To run in CPU mode you can disable accessing to GPU by exporting `CUDA_VISIBLE_D
 
 ## Ensemble mode
 NeuSomatic can be used universally as a stand-alone somatic mutation detection method or with an ensemble of existing methods. NeuSomatic currently supports outputs from MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2. For ensemble mode, the ensembled outputs of different somatic callers (as a single `.tsv` file) should be prepared and inputed using `--ensemble_tsv` argument in `preprocess.py`. 
-This `.tsv` file can be prepared using the SomaticSeq script at https://github.com/bioinform/somaticseq/blob/master/SomaticSeq.Wrapper.sh .
 
-For instance:
-```
-SomaticSeq.Wrapper.sh \
---output-dir output \
---genome-reference GRCh38.fa \
---tumor-bam tumor.bam \
---normal-bam normal.bam \
- -mutect2 MuTect2.vcf \
---varscan-snv VarScan2.snp.vcf \
---varscan-indel VarScan2.indel.vcf \
- -sniper SomaticSniper.vcf \
---vardict VarDict.vcf \
---muse MuSE.vcf \
---strelka-snv somatic.snvs.vcf.gz \
---strelka-indel somatic.indels.vcf.gz \
---inclusion-region region.bed \
- -dbsnp dbsnp.GRCh38.vcf \
- -gatk GenomeAnalysisTK.jar
-```
+There are two alternative ways to prepare this file:
 
-Then, in the output directory, do:
-```
-cat <(cat Ensemble.s*.tsv |grep CHROM|head -1) \
-    <(cat Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
-```
-and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
+1. **Dockerized solution** for running all of the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), and a wrapper that combines their output is explained at [ensemble_docker_pipelines](https://github.com/bioinform/neusomatic/tree/master/ensemble_docker_pipelines).
 
-**Dockerized solution** for running all of the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), and the above wrapper that combines their output is explained at [ensemble_docker_pipelines](https://github.com/bioinform/neusomatic/tree/master/ensemble_docker_pipelines).
+2. Alternartively, if you don't want to use docker and already have the output of all somatic callers, you can prepare the `.tsv` file using the `SomaticSeq.Wrapper.sh` script [here](https://github.com/bioinform/somaticseq/blob/master/SomaticSeq.Wrapper.sh) (you may need to install the necessary dependencies for this script, explained [here](https://github.com/bioinform/somaticseq)).
+
+	For instance:
+	```
+	SomaticSeq.Wrapper.sh \
+	--output-dir output \
+	--genome-reference GRCh38.fa \
+	--tumor-bam tumor.bam \
+	--normal-bam normal.bam \
+	 -mutect2 MuTect2.vcf \
+	--varscan-snv VarScan2.snp.vcf \
+	--varscan-indel VarScan2.indel.vcf \
+	 -sniper SomaticSniper.vcf \
+	--vardict VarDict.vcf \
+	--muse MuSE.vcf \
+	--strelka-snv somatic.snvs.vcf.gz \
+	--strelka-indel somatic.indels.vcf.gz \
+	--inclusion-region region.bed \
+	 -dbsnp dbsnp.GRCh38.vcf \
+	 -gatk GenomeAnalysisTK.jar
+	```
+
+	Then, in the output directory, do:
+	```
+	cat <(cat Ensemble.s*.tsv |grep CHROM|head -1) \
+	    <(cat Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
+	```
+	and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
+
 
 ### NOTE: 
 

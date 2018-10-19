@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # extract_postprocess_targets.py
 # Extract variants that need postprocessing (like larege INDELs)

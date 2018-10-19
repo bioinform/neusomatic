@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # generate_dataset.py
 # Use the input filtered candidates to prepare and extracted features to generate datasets to
@@ -1539,6 +1540,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     with open(done_flag, "w") as d_f:
         d_f.write("Done")
 
+    logger.info("Generating dataset is Done.")
 
 if __name__ == '__main__':
     FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
