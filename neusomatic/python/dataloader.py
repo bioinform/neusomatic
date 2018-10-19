@@ -69,6 +69,7 @@ def extract_info_tsv((i_b, tsv, idx, L, max_load_candidates, nclasses_t, nclasse
         cnt_none = 0
         cnt_var = 0
         with open(tsv, "r") as i_f:
+            i = -1
             for i, line in enumerate(i_f):
                 fields = line.strip().split()
                 ii = int(fields[0])
