@@ -50,11 +50,13 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
     loader_ = call_loader
 
     iii = 0
+    j = 0
     for data in loader_:
         (matrices, labels, var_pos_s, var_len_s,
          non_transformed_matrices), (paths) = data
         matrices = Variable(matrices)
         iii += 1
+        j += len(paths[0])
         if use_cuda:
             matrices = matrices.cuda()
 
@@ -95,6 +97,9 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
                                         outputs1.data.cpu()[i].numpy()),
                                     map(lambda x: round(x, 4),
                                         outputs3.data.cpu()[i].numpy())]
+        if (iii % 10 == 0):
+            logger.info("Called {} candidates in this batch.".format(j))
+    logger.info("Called {} candidates in this batch.".format(j))
     return final_preds, none_preds, true_path
 
 
@@ -283,6 +288,7 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, 
 
 def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, num_threads):
     logger = logging.getLogger(pred_vcf_records.__name__)
+    logger.info("Prepare VCF records for predicted somatic variants in this batch.")
     map_args = []
     for path in final_preds.keys():
         map_args.append([path, true_path[path], final_preds[path],
@@ -309,6 +315,7 @@ def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, 
 
 def pred_vcf_records_none(none_preds, chroms):
     logger = logging.getLogger(pred_vcf_records_none.__name__)
+    logger.info("Prepare VCF records for predicted non-somatic variants in this batch.")
     all_vcf_records = {}
     for path in none_preds.keys():
         pred = none_preds[path]
