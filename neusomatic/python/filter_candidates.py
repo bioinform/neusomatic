@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # filter_candidates.py
 # filter raw candidates extracted by 'scan_alignments.py' using min_af and other cut-offs

@@ -121,7 +121,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         logger.info(resource.getrlimit(resource.RLIMIT_NOFILE))
         new_soft = max(soft, hard / 2)
-        resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
+        resource.setrlimit(resource.RLIMIT_NOFILE, (new_soft, hard))
         logger.info(resource.getrlimit(resource.RLIMIT_NOFILE))
         if max_opended_tsv == -1:
             max_opended_tsv = new_soft

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # resolve_score.py
 # resolve prediction scores for realigned variants

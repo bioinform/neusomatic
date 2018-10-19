@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # call.py
 # Call variants using model trained by NeuSomatic network

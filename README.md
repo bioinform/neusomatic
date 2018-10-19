@@ -88,7 +88,7 @@ For calling mode, the following inputs are required:
 * call region `.bed` file
 * trained model `.pth` file
 
-Reads in input .bam file should be sorted, indexed and have MD tags. If you are not sure about the MD tag, you should run:
+Reads in input `.bam` file should be sorted, indexed and have MD tags. If you are not sure that all you reads have MD tags, you should run the following command for both tumor and normal alignments:
 
 ```
 samtools calmd -@ num_threads -b alignment.bam reference.fasta  > alignment.md.bam 
@@ -186,7 +186,10 @@ To run in CPU mode you can disable accessing to GPU by exporting `CUDA_VISIBLE_D
 
 ## Ensemble mode
 NeuSomatic can be used universally as a stand-alone somatic mutation detection method or with an ensemble of existing methods. NeuSomatic currently supports outputs from MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2. For ensemble mode, the ensembled outputs of different somatic callers (as a single `.tsv` file) should be prepared and inputed using `--ensemble_tsv` argument in `preprocess.py`. 
-This `.tsv` file can be prepared using the SomaticSeq script at https://github.com/bioinform/somaticseq/blob/master/SomaticSeq.Wrapper.sh .
+
+**Dockerized solution** for running all of the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), and the above wrapper that combines their output is explained at [ensemble_docker_pipelines](https://github.com/bioinform/neusomatic/tree/master/ensemble_docker_pipelines).
+
+Alternartively, if you have the output of all somatic callers, you can prepare  the `.tsv` file using the SomaticSeq script at https://github.com/bioinform/somaticseq/blob/master/SomaticSeq.Wrapper.sh .
 
 For instance:
 ```
@@ -215,7 +218,6 @@ cat <(cat Ensemble.s*.tsv |grep CHROM|head -1) \
 ```
 and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
 
-**Dockerized solution** for running all of the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), and the above wrapper that combines their output is explained at [ensemble_docker_pipelines](https://github.com/bioinform/neusomatic/tree/master/ensemble_docker_pipelines).
 
 ### NOTE: 
 

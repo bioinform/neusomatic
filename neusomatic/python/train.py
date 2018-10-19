@@ -357,16 +357,24 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "epoch": curr_epoch,
                 "coverage_thr": coverage_thr},
                '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
+
+    if len(train_sets)==1:
+        train_sets[0].open_candidate_tsvs()
+        train_loader = torch.utils.data.DataLoader(train_sets[0],
+                                                   batch_size=batch_size,
+                                                   num_workers=num_threads, pin_memory=True,
+                                                   sampler=samplers[0])
     # loop over the dataset multiple times
     for epoch in range(max_epochs - prev_epochs):
         running_loss = 0.0
         i_ = 0
         for split_i, train_set in enumerate(train_sets):
-            train_set.open_candidate_tsvs()
-            train_loader = torch.utils.data.DataLoader(train_set,
-                                                       batch_size=batch_size,
-                                                       num_workers=num_threads, pin_memory=True,
-                                                       sampler=samplers[split_i])
+            if len(train_sets)>1:
+                train_set.open_candidate_tsvs()
+                train_loader = torch.utils.data.DataLoader(train_set,
+                                                           batch_size=batch_size,
+                                                           num_workers=num_threads, pin_memory=True,
+                                                           sampler=samplers[split_i])
             for i, data in enumerate(train_loader, 0):
                 i_ += 1
                 # get the inputs
@@ -401,7 +409,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                                 epoch + 1 + prev_epochs, i_ + 1,
                                 learning_rate, running_loss / print_freq))
                     running_loss = 0.0
-            train_set.close_candidate_tsvs()
+            if len(train_sets)>1:
+                train_set.close_candidate_tsvs()
 
         curr_epoch = int(
             round(len(loss_s) / float(len_train_set) * batch_size)) + prev_epochs
@@ -418,6 +427,9 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
             optimizer = optim.SGD(
                 net.parameters(), lr=learning_rate, momentum=momentum)
     logger.info('Finished Training')
+
+    if len(train_sets)==1:
+        train_sets[0].close_candidate_tsvs()
 
     curr_epoch = int(round(len(loss_s) / float(len_train_set)
                            * batch_size)) + prev_epochs

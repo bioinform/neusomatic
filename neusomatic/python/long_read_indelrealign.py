@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # long_read_indelrealign.py
 # Resolve variants (e.g. exact INDEL sequences) for long high-error rate

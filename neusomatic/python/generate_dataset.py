@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # generate_dataset.py
 # Use the input filtered candidates to prepare and extracted features to generate datasets to

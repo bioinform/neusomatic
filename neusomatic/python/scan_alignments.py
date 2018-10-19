@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # scan_alignments.py
 # Scan the alignment .bam file, extract A/C/G/T/- counts on augmented alignment,
