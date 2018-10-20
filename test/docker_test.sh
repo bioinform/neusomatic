@@ -9,16 +9,16 @@ if [ ! -f Homo_sapiens.GRCh37.75.dna.chromosome.22.fa ]
 then
 	if [ ! -f Homo_sapiens.GRCh37.75.dna.chromosome.22.fa.gz ]
 	then
-		docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.1 /bin/bash -c \
+		docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.2 /bin/bash -c \
 		"cd /mnt/example/ && wget ftp://ftp.ensembl.org/pub/release-75//fasta/homo_sapiens/dna/Homo_sapiens.GRCh37.75.dna.chromosome.22.fa.gz"
 	fi
-	docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.1 /bin/bash -c \
+	docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.2 /bin/bash -c \
 	"cd /mnt/example/ && gunzip -f Homo_sapiens.GRCh37.75.dna.chromosome.22.fa.gz"
 	
 fi
 if [ ! -f Homo_sapiens.GRCh37.75.dna.chromosome.22.fa.fai ]
 then
-	docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.1 /bin/bash -c \
+	docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.2 /bin/bash -c \
 	"samtools faidx /mnt/example/Homo_sapiens.GRCh37.75.dna.chromosome.22.fa"
 fi
 rm -rf work_standalone
@@ -26,7 +26,7 @@ rm -rf work_standalone
 
 
 #Stand-alone NeuSomatic test 
-docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.1 /bin/bash -c \
+docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.2 /bin/bash -c \
 "python /opt/neusomatic/neusomatic/python/preprocess.py \
 	--mode call \
 	--reference /mnt/example/Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
@@ -44,7 +44,7 @@ docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.1
 	--num_threads 1 \
 	--scan_alignments_binary /opt/neusomatic/neusomatic/bin/scan_alignments"
 
-docker run -v ${test_dir}:/mnt -u $UID --memory 30G --shm-size 8G msahraeian/neusomatic:0.1.1 /bin/bash -c \
+docker run -v ${test_dir}:/mnt -u $UID --memory 30G --shm-size 8G msahraeian/neusomatic:0.1.2 /bin/bash -c \
 "CUDA_VISIBLE_DEVICES= python /opt/neusomatic/neusomatic/python/call.py \
 		--candidates_tsv /mnt/example/work_standalone/dataset/*/candidates*.tsv \
 		--reference /mnt/example/Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
@@ -53,7 +53,7 @@ docker run -v ${test_dir}:/mnt -u $UID --memory 30G --shm-size 8G msahraeian/neu
 		--num_threads 1 \
 		--batch_size 100"
 
-docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.1 /bin/bash -c \
+docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.2 /bin/bash -c \
 "python /opt/neusomatic/neusomatic/python/postprocess.py \
 		--reference /mnt/example/Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
 		--tumor_bam /mnt/tumor.bam \
@@ -65,7 +65,7 @@ docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.1
 
 rm -rf /mnt/example/work_ensemble
 #Ensemble NeuSomatic test 
-docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.1 /bin/bash -c \
+docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.2 /bin/bash -c \
 "python /opt/neusomatic/neusomatic/python/preprocess.py \
 	--mode call \
 	--reference /mnt/example/Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
@@ -84,7 +84,7 @@ docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.1
 	--ensemble_tsv /mnt/ensemble.tsv \
 	--scan_alignments_binary /opt/neusomatic/neusomatic/bin/scan_alignments"
 
-docker run -v ${test_dir}:/mnt -u $UID --memory 30G --shm-size 8G msahraeian/neusomatic:0.1.1 /bin/bash -c \
+docker run -v ${test_dir}:/mnt -u $UID --memory 30G --shm-size 8G msahraeian/neusomatic:0.1.2 /bin/bash -c \
 "CUDA_VISIBLE_DEVICES= python /opt/neusomatic/neusomatic/python/call.py \
 		--candidates_tsv /mnt/example/work_ensemble/dataset/*/candidates*.tsv \
 		--reference /mnt/example/Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
@@ -94,7 +94,7 @@ docker run -v ${test_dir}:/mnt -u $UID --memory 30G --shm-size 8G msahraeian/neu
 		--ensemble \
 		--batch_size 100"
 
-docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.1 /bin/bash -c \
+docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.2 /bin/bash -c \
 "python /opt/neusomatic/neusomatic/python/postprocess.py \
 		--reference /mnt/example/Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
 		--tumor_bam /mnt/tumor.bam \
@@ -116,4 +116,4 @@ file1=work_ensemble/NeuSomatic_ensemble.vcf
 file2=../NeuSomatic_ensemble.vcf
 
 cmp --silent $file1 $file2 && echo '### NeuSomatic ensemble: SUCCESS! ###' \
-|| echo '### NeuSomatic ensemble FAILED: Files test/NeuSomatic_ensemble.vcf and test/example//mnt/example/work_ensemble/NeuSomatic_ensemble.vcf Are Different! ###'
+|| echo '### NeuSomatic ensemble FAILED: Files test/NeuSomatic_ensemble.vcf and test/example/work_ensemble/NeuSomatic_ensemble.vcf Are Different! ###'
