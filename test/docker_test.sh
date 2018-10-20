@@ -116,4 +116,4 @@ file1=work_ensemble/NeuSomatic_ensemble.vcf
 file2=../NeuSomatic_ensemble.vcf
 
 cmp --silent $file1 $file2 && echo '### NeuSomatic ensemble: SUCCESS! ###' \
-|| echo '### NeuSomatic ensemble FAILED: Files test/NeuSomatic_ensemble.vcf and test/example//mnt/example/work_ensemble/NeuSomatic_ensemble.vcf Are Different! ###'
+|| echo '### NeuSomatic ensemble FAILED: Files test/NeuSomatic_ensemble.vcf and test/example/work_ensemble/NeuSomatic_ensemble.vcf Are Different! ###'
