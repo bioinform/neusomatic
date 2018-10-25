@@ -1166,6 +1166,8 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
     logger = logging.getLogger(long_read_indelrealign.__name__)
 
     logger.info("-----------Resolve variants for INDELS (long-read)---------")
+    if not os.path.exists(work):
+        os.mkdir(work)
 
     if not output_bam and not output_vcf:
         logger.error(

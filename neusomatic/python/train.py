@@ -182,6 +182,9 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
 
     logger.info("----------------Train NeuSomatic Network-------------------")
 
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+
     if not use_cuda:
         torch.set_num_threads(num_threads)
 

@@ -34,6 +34,8 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumo
     logger = logging.getLogger(postprocess.__name__)
 
     logger.info("----------------------Postprocessing-----------------------")
+    if not os.path.exists(work):
+        os.mkdir(work)
 
     candidates_preds = os.path.join(work, "candidates_preds.vcf")
     ensembled_preds = os.path.join(work, "ensembled_preds.vcf")
