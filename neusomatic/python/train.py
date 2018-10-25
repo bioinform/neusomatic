@@ -353,8 +353,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     len_train_set = sum(none_counts) + sum(var_counts)
     logger.info("Number of candidater per epoch: {}".format(len_train_set))
     print_freq = max(1, int(len_train_set / float(batch_size) / 4.0))
-    curr_epoch = int(round(len(loss_s) / float(len_train_set)
-                           * batch_size)) + prev_epochs
+    curr_epoch = prev_epochs
     torch.save({"state_dict": net.state_dict(),
                 "tag": tag,
                 "epoch": curr_epoch,
@@ -368,7 +367,9 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                                                    num_workers=num_threads, pin_memory=True,
                                                    sampler=samplers[0])
     # loop over the dataset multiple times
+    n_epoch = 0
     for epoch in range(max_epochs - prev_epochs):
+        n_epoch +=1
         running_loss = 0.0
         i_ = 0
         for split_i, train_set in enumerate(train_sets):
@@ -408,15 +409,14 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
 
                 running_loss += loss.data[0]
                 if i_ % print_freq == print_freq - 1:
-                    logger.info('epoch: {}, i: {:>5}, lr: {}, loss: {:.5f}'.format(
-                                epoch + 1 + prev_epochs, i_ + 1,
+                    logger.info('epoch: {}, i: {:>5}, iter: {:>7}, lr: {}, loss: {:.5f}'.format(
+                                n_epoch + prev_epochs, i_ + 1, len(loss_s),
                                 learning_rate, running_loss / print_freq))
                     running_loss = 0.0
             if len(train_sets) > 1:
                 train_set.close_candidate_tsvs()
 
-        curr_epoch = int(
-            round(len(loss_s) / float(len_train_set) * batch_size)) + prev_epochs
+        curr_epoch = n_epoch + prev_epochs
         if curr_epoch % save_freq == 0:
             torch.save({"state_dict": net.state_dict(),
                         "tag": tag,
@@ -434,8 +434,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     if len(train_sets) == 1:
         train_sets[0].close_candidate_tsvs()
 
-    curr_epoch = int(round(len(loss_s) / float(len_train_set)
-                           * batch_size)) + prev_epochs
+    curr_epoch = n_epoch + prev_epochs
     torch.save({"state_dict": net.state_dict(),
                 "tag": tag,
                 "epoch": curr_epoch,
