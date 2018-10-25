@@ -409,8 +409,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
 
                 running_loss += loss.data[0]
                 if i_ % print_freq == print_freq - 1:
-                    logger.info('epoch: {}, i: {:>5}, iter: {:>7}, lr: {}, loss: {:.5f}'.format(
-                                n_epoch + prev_epochs, i_ + 1, len(loss_s),
+                    logger.info('epoch: {}, iter: {:>7}, lr: {}, loss: {:.5f}'.format(
+                                n_epoch + prev_epochs, len(loss_s),
                                 learning_rate, running_loss / print_freq))
                     running_loss = 0.0
             if len(train_sets) > 1:
