@@ -149,9 +149,11 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, 
             if type_pred != "INS" and center_ in zref_pos:
                 if center in nzref_pos:
                     center_ = center
-                else:
+                elif nzref_pos:
                     center_ = nzref_pos[
                         np.argmin(abs(nzref_pos - center_pred))]
+                else:
+                    break
             elif type_pred == "INS" and center_ in nzref_pos:
                 if len(zref_pos) == 0:
                     if len(alt) < len(ref) + neigh_bases:
