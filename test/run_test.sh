@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+test_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+neusomatic_dir="$( dirname ${test_dir} )"
+
+cd ${test_dir}
 mkdir -p example
 cd example
 if [ ! -f Homo_sapiens.GRCh37.75.dna.chromosome.22.fa ]
@@ -17,12 +21,12 @@ then
 fi
 rm -rf work_standalone
 #Stand-alone NeuSomatic test 
-python ../../neusomatic/python/preprocess.py \
+python ${neusomatic_dir}/neusomatic/python/preprocess.py \
 	--mode call \
 	--reference Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
-	--region_bed ../region.bed \
-	--tumor_bam ../tumor.bam \
-	--normal_bam ../normal.bam \
+	--region_bed ${test_dir}/region.bed \
+	--tumor_bam ${test_dir}/tumor.bam \
+	--normal_bam ${test_dir}/normal.bam \
 	--work work_standalone \
 	--scan_maf 0.05 \
 	--min_mapq 10 \
@@ -32,19 +36,19 @@ python ../../neusomatic/python/preprocess.py \
 	--ins_min_af 0.05 \
 	--del_min_af 0.05 \
 	--num_threads 1 \
-	--scan_alignments_binary ../../neusomatic/bin/scan_alignments
+	--scan_alignments_binary ${neusomatic_dir}/neusomatic/bin/scan_alignments
 
-CUDA_VISIBLE_DEVICES= python ../../neusomatic/python/call.py \
+CUDA_VISIBLE_DEVICES= python ${neusomatic_dir}/neusomatic/python/call.py \
 		--candidates_tsv work_standalone/dataset/*/candidates*.tsv \
 		--reference Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
 		--out work_standalone \
-		--checkpoint ../../neusomatic/models/NeuSomatic_v0.1.0_standalone_Dream3_70purity.pth \
+		--checkpoint ${neusomatic_dir}/neusomatic/models/NeuSomatic_v0.1.0_standalone_Dream3_70purity.pth \
 		--num_threads 1 \
 		--batch_size 100
 
-python ../../neusomatic/python/postprocess.py \
+python ${neusomatic_dir}/neusomatic/python/postprocess.py \
 		--reference Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
-		--tumor_bam ../tumor.bam \
+		--tumor_bam ${test_dir}/tumor.bam \
 		--pred_vcf work_standalone/pred.vcf \
 		--candidates_vcf work_standalone/work_tumor/filtered_candidates.vcf \
 		--output_vcf work_standalone/NeuSomatic_standalone.vcf \
@@ -53,12 +57,12 @@ python ../../neusomatic/python/postprocess.py \
 
 rm -rf work_ensemble
 #Ensemble NeuSomatic test 
-python ../../neusomatic/python/preprocess.py \
+python ${neusomatic_dir}/neusomatic/python/preprocess.py \
 	--mode call \
 	--reference Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
-	--region_bed ../region.bed \
-	--tumor_bam ../tumor.bam \
-	--normal_bam ../normal.bam \
+	--region_bed ${test_dir}/region.bed \
+	--tumor_bam ${test_dir}/tumor.bam \
+	--normal_bam ${test_dir}/normal.bam \
 	--work work_ensemble \
 	--scan_maf 0.05 \
 	--min_mapq 10 \
@@ -68,37 +72,38 @@ python ../../neusomatic/python/preprocess.py \
 	--ins_min_af 0.05 \
 	--del_min_af 0.05 \
 	--num_threads 1 \
-	--ensemble_tsv ../ensemble.tsv \
-	--scan_alignments_binary ../../neusomatic/bin/scan_alignments
+	--ensemble_tsv ${test_dir}/ensemble.tsv \
+	--scan_alignments_binary ${neusomatic_dir}/neusomatic/bin/scan_alignments
 
-CUDA_VISIBLE_DEVICES= python ../../neusomatic/python/call.py \
+CUDA_VISIBLE_DEVICES= python ${neusomatic_dir}/neusomatic/python/call.py \
 		--candidates_tsv work_ensemble/dataset/*/candidates*.tsv \
 		--reference Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
 		--out work_ensemble \
-		--checkpoint ../../neusomatic/models/NeuSomatic_v0.1.0_ensemble_Dream3_70purity.pth \
+		--checkpoint ${neusomatic_dir}/neusomatic/models/NeuSomatic_v0.1.0_ensemble_Dream3_70purity.pth \
 		--num_threads 1 \
 		--ensemble \
 		--batch_size 100
 
-python ../../neusomatic/python/postprocess.py \
+python ${neusomatic_dir}/neusomatic/python/postprocess.py \
 		--reference Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
-		--tumor_bam ../tumor.bam \
+		--tumor_bam ${test_dir}/tumor.bam \
 		--pred_vcf work_ensemble/pred.vcf \
 		--candidates_vcf work_ensemble/work_tumor/filtered_candidates.vcf \
 		--output_vcf work_ensemble/NeuSomatic_ensemble.vcf \
 		--work work_ensemble 
 
 
+cd ..
 
-file1=work_standalone/NeuSomatic_standalone.vcf
-file2=../NeuSomatic_standalone.vcf
+file1=${test_dir}/example/work_standalone/NeuSomatic_standalone.vcf
+file2=${test_dir}/NeuSomatic_standalone.vcf
 
-cmp --silent $file1 $file2 && echo '### NeuSomatic stand-alone: SUCCESS! ###' \
-|| echo '### NeuSomatic stand-alone FAILED: Files test/NeuSomatic_standalone.vcf and test/example/work_standalone/NeuSomatic_standalone.vcf Are Different! ###'
+cmp --silent $file1 $file2 && echo "### NeuSomatic stand-alone: SUCCESS! ###" \
+|| echo "### NeuSomatic stand-alone FAILED: Files ${file1} and ${file2} Are Different! ###"
 
 
-file1=work_ensemble/NeuSomatic_ensemble.vcf
-file2=../NeuSomatic_ensemble.vcf
+file1=${test_dir}/example/work_ensemble/NeuSomatic_ensemble.vcf
+file2=${test_dir}/NeuSomatic_ensemble.vcf
 
-cmp --silent $file1 $file2 && echo '### NeuSomatic ensemble: SUCCESS! ###' \
-|| echo '### NeuSomatic ensemble FAILED: Files test/NeuSomatic_ensemble.vcf and test/example/work_ensemble/NeuSomatic_ensemble.vcf Are Different! ###'
+cmp --silent $file1 $file2 && echo "### NeuSomatic ensemble: SUCCESS! ###" \
+|| echo "### NeuSomatic ensemble FAILED: Files ${file1} and ${file2} Are Different! ###"
