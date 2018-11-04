@@ -149,7 +149,7 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, 
             if type_pred != "INS" and center_ in zref_pos:
                 if center in nzref_pos:
                     center_ = center
-                elif nzref_pos:
+                elif len(nzref_pos) > 0:
                     center_ = nzref_pos[
                         np.argmin(abs(nzref_pos - center_pred))]
                 else:
@@ -290,7 +290,8 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, 
 
 def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, num_threads):
     logger = logging.getLogger(pred_vcf_records.__name__)
-    logger.info("Prepare VCF records for predicted somatic variants in this batch.")
+    logger.info(
+        "Prepare VCF records for predicted somatic variants in this batch.")
     map_args = []
     for path in final_preds.keys():
         map_args.append([path, true_path[path], final_preds[path],
@@ -317,7 +318,8 @@ def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, 
 
 def pred_vcf_records_none(none_preds, chroms):
     logger = logging.getLogger(pred_vcf_records_none.__name__)
-    logger.info("Prepare VCF records for predicted non-somatic variants in this batch.")
+    logger.info(
+        "Prepare VCF records for predicted non-somatic variants in this batch.")
     all_vcf_records = {}
     for path in none_preds.keys():
         pred = none_preds[path]
