@@ -60,6 +60,7 @@ int main(int argc, char **argv) {
   const bool calculate_qual_stat = opts.calculate_qual_stat(); 
 
   const std::map<char, int> empty_pileup_counts = {{'-', 0}, {'A', 0}, {'C', 0}, {'G', 0}, {'T', 0}};
+  static const std::vector<char> nuc_code_char = {'A', 'C', 'G', 'T', '-', 'N'};
 
   using GInvStdString = neusomatic::bio::GenomicInterval<std::string>;
   using GInvInt = neusomatic::bio::GenomicInterval<int>;
@@ -186,26 +187,25 @@ int main(int argc, char **argv) {
         if (opts.verbosity()>0){
           std::cout<<"col "<<i<<": ";
           std::cout<<"(ref= "<< ref_base << ") ";
-          for (auto const& b_c: cols[i].base_freq_) {
+          for (int base = 0; base < (int) cols[i].base_freq_.size(); ++base) {
             if (calculate_qual_stat){
-              std::cout<<"("<<b_c.first<<"): "<<b_c.second<<","<<int(round(cols_bqual[i].bqual_mean[b_c.first]))<<","<<int(round(cols_mqual[i].mqual_mean[b_c.first]))<< \
-              ","<<int(round(cols_strand[i].strand_mean[b_c.first]))<<"; ";
+              std::cout<<"("<<nuc_code_char[base] <<"): "<< cols[i].base_freq_[base] <<","<<int(round(cols[i].bqual_mean[nuc_code_char[base]]))<<","<<int(round(cols_mqual[i].mqual_mean[nuc_code_char[base]]))<< \
+              ","<<int(round(cols_strand[i].strand_mean[nuc_code_char[base]]))<<"; ";
             }else{
-              std::cout<<"("<<b_c.first<<"): "<<b_c.second<<"; ";
+              std::cout<<"("<<nuc_code_char[base]<<"): "<< cols[i].base_freq_[base] <<"; ";
             }
           }
           std::cout<< std::endl;
         }
 
-        auto nrow = msa_.size()-cols[i].base_freq_['~'];
-        cols[i].base_freq_.erase('~');
-
+        auto nrow = msa_.size()-cols[i].base_freq_[5];
+        cols[i].base_freq_.erase(cols[i].base_freq_.begin() + 5);
 
         std::map<char, int> pileup_counts(empty_pileup_counts);
         int total_count=0;
-        for(auto it = cols[i].base_freq_.cbegin(); it != cols[i].base_freq_.cend(); ++it) {
-          pileup_counts[it->first]=it->second;
-          total_count+=it->second;
+        for (int base = 0; base < (int) cols[i].base_freq_.size(); ++base) {
+          pileup_counts[nuc_code_char[base]] = cols[i].base_freq_[base];
+          total_count+=cols[i].base_freq_[base];
         }
 
 
@@ -220,10 +220,10 @@ int main(int argc, char **argv) {
         }
         if (calculate_qual_stat){ 
           for(auto it = cols_lsc[i].lsc_mean.cbegin(); it != cols_lsc[i].lsc_mean.cend(); ++it) {
-            rsc_counts+=it->second;
+            rsc_counts+=*it;
           }
           for(auto it = cols_rsc[i].rsc_mean.cbegin(); it != cols_rsc[i].rsc_mean.cend(); ++it) {
-            lsc_counts+=it->second;
+            lsc_counts+=*it;
           }
           int sc_counts=lsc_counts+rsc_counts;
           count_out_writer<<bam_header.IDtoName(ginv.contig())<<"\t"<<start_pos<<"\t" \
@@ -258,48 +258,51 @@ int main(int argc, char **argv) {
           <<":"<<pileup_counts['T']<<std::endl;
         }
 
-        std::vector<int> ntcounts;
-        ntcounts.reserve(cols[i].base_freq_.size());
-        for(auto it = cols[i].base_freq_.cbegin(); it != cols[i].base_freq_.cend(); ++it) {
-          ntcounts.push_back(it->second);
+        int major = -1;
+        int major_count = 0;
+        int minor = -1;
+        int minor_count = 0;
+        int minor2 = -1;
+        int minor2_count = 0;
+
+        for (int i = 0;  i < cols[i].base_freq_.size(); ++i) {
+          if (cols[i].base_freq_[i] > major_count) {
+            minor2 = minor;
+            minor2_count = minor_count;
+            minor_count = major_count;
+            minor = major;
+            major_count = cols[i].base_freq_[i];
+            major = i;
+          } else if (cols[i].base_freq_[i] > minor_count) {
+            minor2 = minor;
+            minor2_count = minor_count;
+            minor_count = cols[i].base_freq_[i];
+            minor = i;
+          } else if (cols[i].base_freq_[i] > minor2_count) {
+            minor2_count = cols[i].base_freq_[i];
+            minor2 = i;
+          }
         }
 
-        const auto sorted_indexes = neusomatic::SortedIndices(ntcounts.cbegin(), ntcounts.cend()); 
-        auto maxit = cols[i].base_freq_.cbegin(); 
-        std::advance(maxit, sorted_indexes.back());
-        auto major = maxit->first;
-        int major_count = maxit->second;
-        auto minor=major;
-        auto minor2=major;
-        int minor_count=0;
-        if (cols[i].base_freq_.size()>1){
-          auto minor_idx = sorted_indexes.crbegin() + 1;
-          auto minor_it = cols[i].base_freq_.cbegin(); 
-          std::advance(minor_it, *minor_idx);
-          minor = minor_it->first;
-          minor_count = minor_it->second;
-          if (cols[i].base_freq_.size()>2 and ref_base==major and minor=='-' and ref_base!='-' ){
-            auto minor_2_idx = sorted_indexes.crbegin() + 2;
-            auto minor_2_it = cols[i].base_freq_.cbegin(); 
-            std::advance(minor_2_it, *minor_2_idx);
-            int minor_2_count = minor_2_it->second;
-            if (minor_2_count>0.5*minor_count){
-              minor = minor_2_it->first;
-              minor_count = minor_2_it->second;
+        if (minor != -1 and major != -1){
+          if (minor2 != -1 and ref_base == nuc_code_char[major] and nuc_code_char[minor] =='-' and ref_base!='-' ){
+            if (minor2_count>0.5*minor_count){
+              minor = minor2;
+              minor_count = minor2_count;
             }
           }
         }
-        auto ref_count = cols[i].base_freq_.count(ref_base);
-        if (ref_count > 0) {ref_count = cols[i].base_freq_[ref_base];}
+
+        auto ref_count = cols[i].base_freq_[neusomatic::CondensedArray<GInvInt,std::string>::DnaCharToDnaCode(ref_base)];
         auto var = ref_base;
         int var_count = 0;
-        auto af=minor_count/float(major_count+minor_count);
-        if (major!=ref_base){
+        if (nuc_code_char[major] != ref_base){
           var = major;
           var_count = major_count;
-        }else if (minor!=ref_base and ( (minor=='-' and  af > del_min_af ) or 
-                                        (minor!='-' and ref_base!='-' and af > snp_min_af ) or
-                                        (ref_base=='-' and af > ins_min_af))){
+        }else if (nuc_code_char[minor] != ref_base and ((minor_count/float(major_count+minor_count) > min_af/10.0) or (
+                                       minor!='-' and minor_count/float(major_count+minor_count) > (min_af/10.0) ) or (
+                                       minor!='-' and ref_base!='-' and minor_count/float(major_count+minor_count) > (min_af/14.0) ) or
+                                      (ref_base=='-' and minor_count/float(major_count+minor_count) > (min_af/14.0)))){
           var = minor;
           var_count = minor_count;
         }
@@ -357,8 +360,8 @@ int main(int argc, char **argv) {
             std::cout<<"var: " << i << "," << var_ref_pos << ","<< ref_base << "," << var<<","<<nrow<<":"<<ref_count<<":"<<var_count<<std::endl;
             std::cout<<"col "<<i<<": ";
             std::cout<<"(ref= "<< ref_base << ") ";
-            for (auto const& b_c: cols[i].base_freq_) {
-              std::cout<<"("<<b_c.first<<"): "<<b_c.second<<",";
+            for (size_t row = 0; row < cols[i].base_freq_.size(); ++row) {
+              std::cout<<"("<<row<<"): "<<cols[i][row]<<",";
             }
             std::cout<< std::endl;
           }

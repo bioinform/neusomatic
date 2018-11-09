@@ -26,36 +26,40 @@ auto SortedIndices(const Itr b, const Itr e) {
   return idx;
 }
 
-
-template<typename RefGap, typename Base>
-class CondensedArray{
-public:
-  using Idx = unsigned;
-  //using DnaBase = Base;
-  //static_assert(std::is_integral<Idx>::value, "integer required");
-  static const unsigned char missing_chr_ = '~';
-
-
-  class Col{
+class Col{
   private:
+    using Idx = unsigned;
+    using Base = int;
     float weight_;
     std::vector<Base> bases_;
+    std::vector<int> bquals_;
 
   public:
+    static const int alphabet_size_ = 6; // a, t, c, g, gap and missing_char
     Col() = delete;
-    explicit Col(size_t nbases): weight_(0.0), bases_(nbases) {}
-    std::map<Base, int> base_freq_; 
-    std::map<Base, std::vector<Idx>> base_rids_; 
-    std::map<Base, float> bqual_mean; 
-    std::map<Base, float> mqual_mean; 
-    std::map<Base, float> strand_mean; 
-    std::map<Base, int> lsc_mean; 
-    std::map<Base, int> rsc_mean; 
-    std::map<Base, float> tag_mean; 
+    explicit Col(size_t nbases): weight_(0.0), bases_(nbases), bquals_(nbases), base_freq_(alphabet_size_), base_rids_(alphabet_size_),
+                                 bqual_mean(alphabet_size_), mqual_mean(alphabet_size_), strand_mean(alphabet_size_), lsc_mean(alphabet_size_),
+                                 rsc_mean(alphabet_size_), tag_mean(alphabet_size_) {}
+
+    //std::map<Base, int> base_freq_;
+    std::vector<std::vector<Idx>> base_rids_;
+    std::vector<Base> base_freq_;
+    std::vector<float> bqual_mean;
+    std::vector<float> mqual_mean;
+    std::vector<float> strand_mean;
+    std::vector<int> lsc_mean;
+    std::vector<int> rsc_mean;
+    std::vector<float> tag_mean;
+    //decltype(auto) weight() { return (weight_); }
     decltype(auto) bases() const {return (bases_);}
-    
+    decltype(auto) bquals() const {return (bquals_);}
+
     void emplace(const Idx& id, const Base& b) {
       bases_[id] = b;
+    }
+
+    void emplace_qual(const Idx& id, const int& b) {
+      bquals_[id] = b;
     }
 
     decltype(auto) at(Idx i) const {
@@ -65,7 +69,7 @@ public:
     decltype(auto) size() const {
       return bases_.size();
     }
-    
+
     decltype(auto) operator[](Idx i) {
       return (bases_[i]);
     }
@@ -78,14 +82,43 @@ public:
       return (weight_);
     }
 
-    friend std::ostream& operator<<(std::ostream& dest, Col const& col) {
-      for (auto const& b_c: col.base_freq_) {
-        dest<<"("<<b_c.first<<"): "<<b_c.second<<std::endl;
-      }
-      return dest;
-    }
-  };
+    //friend std::ostream& operator<<(std::ostream& dest, Col const& col) {
+      //for (auto const& b_c: col.base_freq_) {
+        //dest<<"("<<b_c.first<<"): "<<b_c.second<<std::endl;
+      //}
+      //return dest;
+    //}
+};
 
+template<typename RefGap, typename Base>
+class CondensedArray{
+public:
+  using Idx = unsigned;
+  //using DnaBase = Base;
+  //static_assert(std::is_integral<Idx>::value, "integer required");
+  static const unsigned char missing_chr_ = '~';
+
+  static int DnaCharToDnaCode(const char& dna) {
+    switch(dna) {
+      case 'A':
+      case 'a':
+        return 0;
+      case 'C':
+      case 'c':
+        return 1;
+      case 'G':
+      case 'g':
+        return 2;
+      case 'T':
+      case 't':
+        return 3;
+      case '-':
+      case 'N':
+        return 4;
+      default:
+        return 5;
+    }
+  }
 
 public:
   class LinkedCol{
@@ -169,7 +202,7 @@ public:
     _CheckInput(msa); 
     #pragma omp parallel for schedule(dynamic, 256) num_threads(num_thread)
     for (size_t i = 0; i < msa.size(); ++i) {
-      auto dna5qseq = _StringToDna5QSeq(msa[i]);
+      auto dna5qseq = _StringToDnaInt(msa[i]);
       this->row_push(dna5qseq.begin(), dna5qseq.end(), i);
     }
   }
@@ -197,7 +230,7 @@ public:
 
     #pragma omp for schedule(dynamic, 256) 
     for (size_t i = 0; i < msa.size(); ++i) {
-      auto dna5qseq = _StringToDna5QSeq(msa[i]);
+      auto dna5qseq = _StringToDnaInt(msa[i]);
       this->row_push(dna5qseq.begin(), dna5qseq.end(), i);
       this->row_push_bqual(bqual[i].begin(), bqual[i].end(), i);
       this->row_push_lsc(lsc[i].begin(), lsc[i].end(), i);
@@ -286,53 +319,6 @@ public:
     }
   }
 
-  void GetColEntropy(const float MIN_NONGAP_FRAC, const float MIN_ALLELE_FREQ, const float MIN_ENTROPY) {
-    for (size_t i = 0; i < ncol(); ++i) {
-      const auto& col = cspace_[i];
-      std::vector<int> count;
-      for (auto const& b_f: col.base_freq_) {
-        if (!IsGap(b_f.first)) {
-          count.push_back(b_f.second);
-        }
-      }
-      std::sort(count.begin(), count.end(), std::greater<int>());
-      int total_non_gap = std::accumulate(count.begin(), count.end(), 0);
-      if ( (float) total_non_gap < MIN_NONGAP_FRAC * nrow()) {
-        cspace_[i].weight() = 0.0;
-      }
-      if (count.size() > 1) {
-        double second_greatest = count[1];
-        if (second_greatest < total_non_gap * MIN_ALLELE_FREQ) {
-          cspace_[i].weight() = 0.0;
-        } else {
-          double result = 0.0;
-          for (auto const& c: count) {
-            float p = (float) c / total_non_gap;
-            result -= p * log(p);
-          }
-
-          if (result < MIN_ENTROPY) {
-            cspace_[i].weight() = 0.0;
-          } else {
-            cspace_[i].weight() = result;
-          } 
-        }
-      } else {
-        cspace_[i].weight() = 0.0;
-      }
-    }
-
-    SortCols_();
-
-    //TContigSeq contig_seq = store_.contigStore[GetContigId()].seq;
-    std::vector<float> ref_entropy = SlidingWindowEntropy(cc_.RefSeq(), 3);
-    //std::cerr << "\n";
-    auto max_entropy_it = std::max_element(ref_entropy.begin(), ref_entropy.end());
-    ref_nomalized_entropy_.resize(ref_entropy.size(), 1.0);
-    if (*max_entropy_it == 0) return; 
-    std::transform(ref_entropy.begin(), ref_entropy.end(), ref_nomalized_entropy_.begin(), [&](const float e) {return 1 - e / *max_entropy_it;});
-  }
-
   void InitWithAlnMetaData() {
     for (size_t i = 0; i < ncol(); ++i) {
       //column-wise 
@@ -345,8 +331,8 @@ public:
 
       col_major_bases_[i] = ColMajority_(i);// may not be needed
 
-      std::list<Base> bases_list = { 'A', 'C', 'G', 'T', '~', '-' };
-        for (const auto& b : bases_list) {
+      //std::list<Base> bases_list = { 'A', 'C', 'G', 'T', '~', '-' };
+      for (auto b = 0; b < Col::alphabet_size_; ++ b) {
         col_bqual.bqual_mean[b]=0;
         col_mqual.mqual_mean[b]=0;
         col_strand.strand_mean[b]=0;
@@ -362,9 +348,9 @@ public:
         //if (calculate_entropy && col.bases()[j] == missing_chr_) continue;
         col.base_freq_[col.bases()[j]]++;
         col.base_rids_[col.bases()[j]].push_back(j);
-        col_bqual.bqual_mean[col.bases()[j]]+=float(int(col_bqual.bases()[j])-33)/41.0;
-        col_mqual.mqual_mean[col.bases()[j]]+=float(int(col_mqual.bases()[j]))/70.0;
-        col_strand.strand_mean[col.bases()[j]]+=float(int(col_strand.bases()[j]));
+        col.bqual_mean[col.bases()[j]]+=float(int(col_bqual.bases()[j])-33);
+        col.mqual_mean[col.bases()[j]]+=float(int(col_mqual.bases()[j])/70.0);
+        col.strand_mean[col.bases()[j]]+=float(int(col_strand.bases()[j]));
         col_lsc.lsc_mean[col.bases()[j]]+=int(col_lsc.bases()[j]=='1');
         col_rsc.rsc_mean[col.bases()[j]]+=int(col_rsc.bases()[j]=='1');
         for (size_t ii = 0; ii < 5; ++ii) {
@@ -372,16 +358,17 @@ public:
         }
       }
 
-      for(auto it = col.base_freq_.cbegin(); it != col.base_freq_.cend(); ++it) {
-        col_bqual.bqual_mean[it->first]/=col.base_freq_[it->first];
-        col_bqual.bqual_mean[it->first]*=41.0;
-        col_mqual.mqual_mean[it->first]/=col.base_freq_[it->first];
-        col_mqual.mqual_mean[it->first]*=70.0;
-        col_strand.strand_mean[it->first]/=col.base_freq_[it->first];
-        col_strand.strand_mean[it->first]*=100.0;
+      //for(auto it = col.base_freq_.cbegin(); it != col.base_freq_.cend(); ++it) {
+      for (auto s = 0; s < Col::alphabet_size_; ++ s) {
+        //col.bqual_mean[it->first]/=col.base_freq_[it->first];
+        col.bqual_mean[s]/=col.base_freq_[s];
+        col.mqual_mean[s]/=col.base_freq_[s];
+        col.mqual_mean[s]*=70.0;
+        col.strand_mean[s]/=col.base_freq_[s];
+        col.strand_mean[s]*=100.0;
         for (size_t ii = 0; ii < 5; ++ii) {
-          cspace_tag_[ii][i].tag_mean[it->first]/=col.base_freq_[it->first];
-          cspace_tag_[ii][i].tag_mean[it->first]*=100.0;
+          cspace_tag_[ii][i].tag_mean[s]/=col.base_freq_[s];
+          cspace_tag_[ii][i].tag_mean[s]*=100.0;
         }
       }
     }
@@ -447,7 +434,7 @@ private:
     }
   }
 
-  std::vector<Base> _StringToDna5QSeq(const std::string &s) {
+  std::vector<Base> _StringToDnaChar(const std::string &s) {
     std::vector<Base> dna5qseq(s.size());
     for (size_t j = 0; j < s.size(); ++j) {
       switch(s[j]) {
@@ -474,6 +461,14 @@ private:
           dna5qseq[j] = missing_chr_; 
           break;
       }
+    }
+    return dna5qseq;
+  }
+
+  std::vector<Base> _StringToDnaInt(const std::string &s) {
+    std::vector<Base> dna5qseq(s.size());
+    for (size_t j = 0; j < s.size(); ++j) {
+      dna5qseq[j] = DnaCharToDnaCode(j);
     }
     return dna5qseq;
   }
@@ -513,18 +508,18 @@ private:
   }
 
   Base ColMajority_(Idx ci) const {
-    Base result = 'N';
+    Base result = 4;
     int m = 0;
     auto const& col = cspace_[ci];
-    for (auto const& b_f: col.base_freq_) {  
-      if (b_f.second > m) {
-        result = b_f.first;
-        m = b_f.second;
+    //for (auto const& b_f: col.base_freq_) {
+    for (int i = 0; i < (int) col.base_freq_.size(); ++i) {
+      if (col.base_freq_[i] > m) {
+        result = i;
+        m = col.base_freq_[i];
       }
     }
     return result;
   }
-
 
   void SortCols_() { 
     sorted_entropy_cidx_pairs_.clear();
@@ -542,7 +537,7 @@ private:
 
 template<typename RefGap, typename GInv>
 decltype(auto) CreateCondensedArray(const std::vector<std::string>& msa, const int total_cov, const GInv& ginv, const RefGap& refgap, const int num_threads) {
-  using CondensedArray = neusomatic::CondensedArray<RefGap, char>;
+  using CondensedArray = neusomatic::CondensedArray<RefGap, int>;
   CondensedArray condensed_array(msa, total_cov, ginv, refgap, num_threads);
   condensed_array.Init();
   return condensed_array;
@@ -554,7 +549,7 @@ decltype(auto) CreateCondensedArray(const std::vector<std::string>& msa, const s
                               const std::vector<std::string>& lscs, const std::vector<std::string>& rscs,
                               const std::vector<std::vector<int>>& tag,
                               const int total_cov, const GInv& ginv, const RefGap& refgap, const int num_threads) {
-  using CondensedArray = neusomatic::CondensedArray<RefGap, char>; 
+  using CondensedArray = neusomatic::CondensedArray<RefGap, int>; 
   CondensedArray condensed_array(msa, bqual, mqual, strand, lscs, rscs, tag, total_cov, ginv, refgap, num_threads);
   condensed_array.InitWithAlnMetaData();
   return condensed_array;
