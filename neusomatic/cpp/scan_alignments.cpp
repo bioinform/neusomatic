@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
   float snp_min_af=min_af;
   const bool calculate_qual_stat = opts.calculate_qual_stat(); 
 
-  const std::map<char, int> empty_pileup_counts = {{'-', 0}, {'A', 0}, {'C', 0}, {'G', 0}, {'T', 0}};
+  //const std::map<char, int> empty_pileup_counts = {{'-', 0}, {'A', 0}, {'C', 0}, {'G', 0}, {'T', 0}};
   static const std::vector<char> nuc_code_char = {'A', 'C', 'G', 'T', '-', 'N'};
 
   using GInvStdString = neusomatic::bio::GenomicInterval<std::string>;
@@ -119,9 +119,10 @@ int main(int argc, char **argv) {
         ginv.right() = ginv.left() + non_gapped_ref.size();
       }
       MSA msa(ginv, records, non_gapped_ref);
-      std::vector<std::string> msa_, bqual_, lscs_, rscs_;
+      std::vector<std::string> msa_, bqual_; 
+      std::vector<std::vector<int>> lscs_, rscs_;
       std::vector<int> mqual_;
-      std::vector<bool> strand_;
+      std::vector<int> strand_;
       std::vector<std::vector<int>> tag_;
       if (calculate_qual_stat){
         std::tie(msa_,bqual_,mqual_,strand_,lscs_,rscs_,tag_)=msa.GetMSAwithQual();
@@ -137,10 +138,16 @@ int main(int argc, char **argv) {
             std::cout << l << std::endl;
           }
           for (const auto& l : lscs_) {
-            std::cout << l << std::endl;
+            for (const auto& e : l) {
+              std::cout << e;
+            }
+            std::cout << std::endl;
           }
           for (const auto& l : rscs_) {
-            std::cout << l << std::endl;
+            for (const auto& e: l) {
+              std::cout << e;
+            }
+            std::cout << std::endl;
           }
           for (const auto& l : mqual_) {
             std::cout << l << std::endl;
@@ -179,6 +186,7 @@ int main(int argc, char **argv) {
         if (ginv.left() + cc_.RefPos(i) >=ginv.right()){ break;}
         auto ref_base = ref[i];
         ref_base = std::toupper(ref_base);
+        auto ref_code = neusomatic::CondensedArray<GInvInt,std::string>::DnaCharToDnaCode(ref_base);
 
         if (ref_base == 'N') {
           ref_base = '-';
@@ -189,8 +197,8 @@ int main(int argc, char **argv) {
           std::cout<<"(ref= "<< ref_base << ") ";
           for (int base = 0; base < (int) cols[i].base_freq_.size(); ++base) {
             if (calculate_qual_stat){
-              std::cout<<"("<<nuc_code_char[base] <<"): "<< cols[i].base_freq_[base] <<","<<int(round(cols[i].bqual_mean[nuc_code_char[base]]))<<","<<int(round(cols_mqual[i].mqual_mean[nuc_code_char[base]]))<< \
-              ","<<int(round(cols_strand[i].strand_mean[nuc_code_char[base]]))<<"; ";
+              std::cout<<"("<<nuc_code_char[base] <<"): "<< cols[i].base_freq_[base] <<","<<int(round(cols[i].bqual_mean[base]))<<","<<int(round(cols_mqual[i].mqual_mean[base]))<< \
+              ","<<int(round(cols_strand[i].strand_mean[base]))<<"; ";
             }else{
               std::cout<<"("<<nuc_code_char[base]<<"): "<< cols[i].base_freq_[base] <<"; ";
             }
@@ -201,10 +209,10 @@ int main(int argc, char **argv) {
         auto nrow = msa_.size()-cols[i].base_freq_[5];
         cols[i].base_freq_.erase(cols[i].base_freq_.begin() + 5);
 
-        std::map<char, int> pileup_counts(empty_pileup_counts);
+        std::vector<int> pileup_counts(cols[i].base_freq_.size());
         int total_count=0;
         for (int base = 0; base < (int) cols[i].base_freq_.size(); ++base) {
-          pileup_counts[nuc_code_char[base]] = cols[i].base_freq_[base];
+          pileup_counts[base] = cols[i].base_freq_[base];
           total_count+=cols[i].base_freq_[base];
         }
 
@@ -228,34 +236,34 @@ int main(int argc, char **argv) {
           int sc_counts=lsc_counts+rsc_counts;
           count_out_writer<<bam_header.IDtoName(ginv.contig())<<"\t"<<start_pos<<"\t" \
           << start_pos+1<<"\t"  << ref_base << "\t" \
-          <<pileup_counts['-']<<":"<<pileup_counts['A']<<":"<<pileup_counts['C']<<":"<<pileup_counts['G'] \
-          <<":"<<pileup_counts['T'] \
-          <<"\t"<<int(round(cols_bqual[i].bqual_mean['-']))<<":"<<int(round(cols_bqual[i].bqual_mean['A']))<<":"<<int(round(cols_bqual[i].bqual_mean['C'])) \
-          <<":"<<int(round(cols_bqual[i].bqual_mean['G']))<<":"<<int(round(cols_bqual[i].bqual_mean['T'])) \
-          <<"\t"<<int(round(cols_mqual[i].mqual_mean['-']))<<":"<<int(round(cols_mqual[i].mqual_mean['A']))<<":"<<int(round(cols_mqual[i].mqual_mean['C'])) \
-          <<":"<<int(round(cols_mqual[i].mqual_mean['G']))<<":"<<int(round(cols_mqual[i].mqual_mean['T'])) \
-          <<"\t"<<int(round(cols_strand[i].strand_mean['-']))<<":"<<int(round(cols_strand[i].strand_mean['A']))<<":"<<int(round(cols_strand[i].strand_mean['C'])) \
-          <<":"<<int(round(cols_strand[i].strand_mean['G']))<<":"<<int(round(cols_strand[i].strand_mean['T']))\
-          <<"\t"<<int(round(cols_lsc[i].lsc_mean['-']))<<":"<<int(round(cols_lsc[i].lsc_mean['A']))<<":"<<int(round(cols_lsc[i].lsc_mean['C'])) \
-          <<":"<<int(round(cols_lsc[i].lsc_mean['G']))<<":"<<int(round(cols_lsc[i].lsc_mean['T']))\
-          <<"\t"<<int(round(cols_rsc[i].rsc_mean['-']))<<":"<<int(round(cols_rsc[i].rsc_mean['A']))<<":"<<int(round(cols_rsc[i].rsc_mean['C'])) \
-          <<":"<<int(round(cols_rsc[i].rsc_mean['G']))<<":"<<int(round(cols_rsc[i].rsc_mean['T']))\
-          <<"\t"<<int(round(cols_tag[0][i].tag_mean['-']))<<":"<<int(round(cols_tag[0][i].tag_mean['A']))<<":"<<int(round(cols_tag[0][i].tag_mean['C'])) \
-          <<":"<<int(round(cols_tag[0][i].tag_mean['G']))<<":"<<int(round(cols_tag[0][i].tag_mean['T']))\
-          <<"\t"<<int(round(cols_tag[1][i].tag_mean['-']))<<":"<<int(round(cols_tag[1][i].tag_mean['A']))<<":"<<int(round(cols_tag[1][i].tag_mean['C'])) \
-          <<":"<<int(round(cols_tag[1][i].tag_mean['G']))<<":"<<int(round(cols_tag[1][i].tag_mean['T']))\
-          <<"\t"<<int(round(cols_tag[2][i].tag_mean['-']))<<":"<<int(round(cols_tag[2][i].tag_mean['A']))<<":"<<int(round(cols_tag[2][i].tag_mean['C'])) \
-          <<":"<<int(round(cols_tag[2][i].tag_mean['G']))<<":"<<int(round(cols_tag[2][i].tag_mean['T']))\
-          <<"\t"<<int(round(cols_tag[3][i].tag_mean['-']))<<":"<<int(round(cols_tag[3][i].tag_mean['A']))<<":"<<int(round(cols_tag[3][i].tag_mean['C'])) \
-          <<":"<<int(round(cols_tag[3][i].tag_mean['G']))<<":"<<int(round(cols_tag[3][i].tag_mean['T']))\
-          <<"\t"<<int(round(cols_tag[4][i].tag_mean['-']))<<":"<<int(round(cols_tag[4][i].tag_mean['A']))<<":"<<int(round(cols_tag[4][i].tag_mean['C'])) \
-          <<":"<<int(round(cols_tag[4][i].tag_mean['G']))<<":"<<int(round(cols_tag[4][i].tag_mean['T']))\
+          <<pileup_counts[4]<<":"<<pileup_counts[0]<<":"<<pileup_counts[1]<<":"<<pileup_counts[2] \
+          <<":"<<pileup_counts[3] \
+          <<"\t"<<int(round(cols_bqual[i].bqual_mean[4]))<<":"<<int(round(cols_bqual[i].bqual_mean[0]))<<":"<<int(round(cols_bqual[i].bqual_mean[1])) \
+          <<":"<<int(round(cols_bqual[i].bqual_mean[2]))<<":"<<int(round(cols_bqual[i].bqual_mean[3])) \
+          <<"\t"<<int(round(cols_mqual[i].mqual_mean[4]))<<":"<<int(round(cols_mqual[i].mqual_mean[0]))<<":"<<int(round(cols_mqual[i].mqual_mean[1])) \
+          <<":"<<int(round(cols_mqual[i].mqual_mean[2]))<<":"<<int(round(cols_mqual[i].mqual_mean[3])) \
+          <<"\t"<<int(round(cols_strand[i].strand_mean[4]))<<":"<<int(round(cols_strand[i].strand_mean[0]))<<":"<<int(round(cols_strand[i].strand_mean[1])) \
+          <<":"<<int(round(cols_strand[i].strand_mean[2]))<<":"<<int(round(cols_strand[i].strand_mean[3]))\
+          <<"\t"<<int(round(cols_lsc[i].lsc_mean[4]))<<":"<<int(round(cols_lsc[i].lsc_mean[0]))<<":"<<int(round(cols_lsc[i].lsc_mean[1])) \
+          <<":"<<int(round(cols_lsc[i].lsc_mean[2]))<<":"<<int(round(cols_lsc[i].lsc_mean[3]))\
+          <<"\t"<<int(round(cols_rsc[i].rsc_mean[4]))<<":"<<int(round(cols_rsc[i].rsc_mean[0]))<<":"<<int(round(cols_rsc[i].rsc_mean[1])) \
+          <<":"<<int(round(cols_rsc[i].rsc_mean[2]))<<":"<<int(round(cols_rsc[i].rsc_mean[3]))\
+          <<"\t"<<int(round(cols_tag[0][i].tag_mean[4]))<<":"<<int(round(cols_tag[0][i].tag_mean[0]))<<":"<<int(round(cols_tag[0][i].tag_mean[1])) \
+          <<":"<<int(round(cols_tag[0][i].tag_mean[2]))<<":"<<int(round(cols_tag[0][i].tag_mean[3]))\
+          <<"\t"<<int(round(cols_tag[1][i].tag_mean[4]))<<":"<<int(round(cols_tag[1][i].tag_mean[0]))<<":"<<int(round(cols_tag[1][i].tag_mean[1])) \
+          <<":"<<int(round(cols_tag[1][i].tag_mean[2]))<<":"<<int(round(cols_tag[1][i].tag_mean[3]))\
+          <<"\t"<<int(round(cols_tag[2][i].tag_mean[4]))<<":"<<int(round(cols_tag[2][i].tag_mean[0]))<<":"<<int(round(cols_tag[2][i].tag_mean[1])) \
+          <<":"<<int(round(cols_tag[2][i].tag_mean[2]))<<":"<<int(round(cols_tag[2][i].tag_mean[3]))\
+          <<"\t"<<int(round(cols_tag[3][i].tag_mean[4]))<<":"<<int(round(cols_tag[3][i].tag_mean[0]))<<":"<<int(round(cols_tag[3][i].tag_mean[1])) \
+          <<":"<<int(round(cols_tag[3][i].tag_mean[2]))<<":"<<int(round(cols_tag[3][i].tag_mean[3]))\
+          <<"\t"<<int(round(cols_tag[4][i].tag_mean[4]))<<":"<<int(round(cols_tag[4][i].tag_mean[0]))<<":"<<int(round(cols_tag[4][i].tag_mean[1])) \
+          <<":"<<int(round(cols_tag[4][i].tag_mean[2]))<<":"<<int(round(cols_tag[4][i].tag_mean[3]))\
           <<std::endl;
         }else{
           count_out_writer<<bam_header.IDtoName(ginv.contig())<<"\t"<<start_pos<<"\t" \
           << start_pos+1<<"\t"  << ref_base << "\t" \
-          <<pileup_counts['-']<<":"<<pileup_counts['A']<<":"<<pileup_counts['C']<<":"<<pileup_counts['G'] \
-          <<":"<<pileup_counts['T']<<std::endl;
+          <<pileup_counts[4]<<":"<<pileup_counts[0]<<":"<<pileup_counts[1]<<":"<<pileup_counts[2] \
+          <<":"<<pileup_counts[3]<<std::endl;
         }
 
         int major = -1;
@@ -265,45 +273,44 @@ int main(int argc, char **argv) {
         int minor2 = -1;
         int minor2_count = 0;
 
-        for (int i = 0;  i < cols[i].base_freq_.size(); ++i) {
-          if (cols[i].base_freq_[i] > major_count) {
+        for (int row = 0;  row < cols[i].base_freq_.size(); ++row) {
+          if (cols[i].base_freq_[row] > major_count) {
             minor2 = minor;
             minor2_count = minor_count;
             minor_count = major_count;
             minor = major;
-            major_count = cols[i].base_freq_[i];
-            major = i;
-          } else if (cols[i].base_freq_[i] > minor_count) {
+            major_count = cols[i].base_freq_[row];
+            major = row;
+          } else if (cols[i].base_freq_[row] > minor_count) {
             minor2 = minor;
             minor2_count = minor_count;
-            minor_count = cols[i].base_freq_[i];
-            minor = i;
-          } else if (cols[i].base_freq_[i] > minor2_count) {
-            minor2_count = cols[i].base_freq_[i];
-            minor2 = i;
+            minor_count = cols[i].base_freq_[row];
+            minor = row;
+          } else if (cols[i].base_freq_[row] > minor2_count) {
+            minor2_count = cols[i].base_freq_[row];
+            minor2 = row;
           }
         }
 
         if (minor != -1 and major != -1){
-          if (minor2 != -1 and ref_base == nuc_code_char[major] and nuc_code_char[minor] =='-' and ref_base!='-' ){
+          if (minor2 != -1 and ref_code == major and minor == 4 and ref_code != 4 ){
             if (minor2_count>0.5*minor_count){
               minor = minor2;
               minor_count = minor2_count;
             }
           }
         }
-
-        auto ref_count = cols[i].base_freq_[neusomatic::CondensedArray<GInvInt,std::string>::DnaCharToDnaCode(ref_base)];
-        auto var = ref_base;
+        auto ref_count = cols[i].base_freq_[ref_code];
+        auto var_code = ref_code; 
         int var_count = 0;
-        if (nuc_code_char[major] != ref_base){
-          var = major;
+        auto af = minor_count/float(major_count+minor_count);
+        if (major != ref_code){
+          var_code = major;
           var_count = major_count;
-        }else if (nuc_code_char[minor] != ref_base and ((minor_count/float(major_count+minor_count) > min_af/10.0) or (
-                                       minor!='-' and minor_count/float(major_count+minor_count) > (min_af/10.0) ) or (
-                                       minor!='-' and ref_base!='-' and minor_count/float(major_count+minor_count) > (min_af/14.0) ) or
-                                      (ref_base=='-' and minor_count/float(major_count+minor_count) > (min_af/14.0)))){
-          var = minor;
+        } else if (minor != ref_code and ( (minor == 4 and  af > del_min_af ) or
+                                        (minor != 4 and ref_base != '-' and af > snp_min_af ) or
+                                        (ref_base =='-' and af > ins_min_af))){
+          var_code = minor;
           var_count = minor_count;
         }
 
@@ -312,39 +319,39 @@ int main(int argc, char **argv) {
           auto record_info = "AF="+std::to_string((var_count)/float(var_count+ref_count))+";DP="+std::to_string(nrow)+";RO="+std::to_string(ref_count)+";AO="+std::to_string(var_count);
           auto gtinfo = "0/1:"+std::to_string(nrow)+":"+std::to_string(ref_count)+":"+std::to_string(var_count);
           if (calculate_qual_stat){
-            record_info += ";ST="+std::to_string(int(round(ref_count*(cols_strand[i].strand_mean[ref_base]/100))))+ \
-                           ","+std::to_string(int(round(var_count*(cols_strand[i].strand_mean[var]/100))))+ \
+            record_info += ";ST="+std::to_string(int(round(ref_count*(cols_strand[i].strand_mean[ref_code]/100))))+ \
+                           ","+std::to_string(int(round(var_count*(cols_strand[i].strand_mean[var_code]/100))))+ \
                            ";LS="+std::to_string(lsc_counts)+\
                            ";RS="+std::to_string(rsc_counts)+\
-                           ";NM="+std::to_string(int(round(cols_tag[0][i].tag_mean[var])))+\
-                           ";AS="+std::to_string(int(round(cols_tag[1][i].tag_mean[var])))+ \
-                           ";XS="+std::to_string(int(round(cols_tag[2][i].tag_mean[var])))+ \
-                           ";PR="+std::to_string(int(round(cols_tag[3][i].tag_mean[var])))+ \
-                           ";CL="+std::to_string(int(round(cols_tag[4][i].tag_mean[var])))+ \
-                           ";MQ="+std::to_string(int(round(cols_mqual[i].mqual_mean[var])))+ \
-                           ";BQ="+std::to_string(int(round(cols_bqual[i].bqual_mean[var])));
-            gtinfo += ":"+std::to_string(int(round(ref_count*(cols_strand[i].strand_mean[ref_base]/100))))+","+ \
-                      std::to_string(int(round(var_count*(cols_strand[i].strand_mean[var]/100))))+":"+\
+                           ";NM="+std::to_string(int(round(cols_tag[0][i].tag_mean[var_code])))+\
+                           ";AS="+std::to_string(int(round(cols_tag[1][i].tag_mean[var_code])))+ \
+                           ";XS="+std::to_string(int(round(cols_tag[2][i].tag_mean[var_code])))+ \
+                           ";PR="+std::to_string(int(round(cols_tag[3][i].tag_mean[var_code])))+ \
+                           ";CL="+std::to_string(int(round(cols_tag[4][i].tag_mean[var_code])))+ \
+                           ";MQ="+std::to_string(int(round(cols_mqual[i].mqual_mean[var_code])))+ \
+                           ";BQ="+std::to_string(int(round(cols_bqual[i].bqual_mean[var_code])));
+            gtinfo += ":"+std::to_string(int(round(ref_count*(cols_strand[i].strand_mean[ref_code]/100))))+","+ \
+                      std::to_string(int(round(var_count*(cols_strand[i].strand_mean[var_code]/100))))+":"+\
                       std::to_string(lsc_counts)+":"+\
                       std::to_string(rsc_counts)+":"+\
-                      std::to_string(int(round(cols_tag[0][i].tag_mean[var])))+":"+\
-                      std::to_string(int(round(cols_tag[1][i].tag_mean[var])))+":"+\
-                      std::to_string(int(round(cols_tag[2][i].tag_mean[var])))+":"+\
-                      std::to_string(int(round(cols_tag[3][i].tag_mean[var])))+":"+\
-                      std::to_string(int(round(cols_tag[4][i].tag_mean[var])))+":"+\
-                      std::to_string(int(round(cols_mqual[i].mqual_mean[var])))+":"+\
-                      std::to_string(int(round(cols_bqual[i].bqual_mean[var])));
+                      std::to_string(int(round(cols_tag[0][i].tag_mean[var_code])))+":"+\
+                      std::to_string(int(round(cols_tag[1][i].tag_mean[var_code])))+":"+\
+                      std::to_string(int(round(cols_tag[2][i].tag_mean[var_code])))+":"+\
+                      std::to_string(int(round(cols_tag[3][i].tag_mean[var_code])))+":"+\
+                      std::to_string(int(round(cols_tag[4][i].tag_mean[var_code])))+":"+\
+                      std::to_string(int(round(cols_mqual[i].mqual_mean[var_code])))+":"+\
+                      std::to_string(int(round(cols_bqual[i].bqual_mean[var_code])));
           }
-
+          auto var_base = nuc_code_char[var_code];  
           if (ref_base == '-') {ref_base = 'N';}
-          if (var == '-') {var = 'N';}
+          if (var_base == '-') {var_base = 'N';}
           auto var_ref_pos=ginv.left() + cc_.RefPos(i);
           seqan::VcfRecord record;
           record.rID = ginv.contig();
           record.beginPos = var_ref_pos;
           record.id = ".";
           record.ref = ref_base;
-          record.alt = var;
+          record.alt = var_base;
           record.qual = 100;
           record.filter = ".";
           record.info = record_info;
@@ -357,7 +364,7 @@ int main(int argc, char **argv) {
           appendValue(record.genotypeInfos, gtinfo);
           vcf_writer.Write(record);
           if (opts.verbosity()>0){
-            std::cout<<"var: " << i << "," << var_ref_pos << ","<< ref_base << "," << var<<","<<nrow<<":"<<ref_count<<":"<<var_count<<std::endl;
+            std::cout<<"var: " << i << "," << var_ref_pos << ","<< ref_base << "," << var_base<<","<<nrow<<":"<<ref_count<<":"<<var_count<<std::endl;
             std::cout<<"col "<<i<<": ";
             std::cout<<"(ref= "<< ref_base << ") ";
             for (size_t row = 0; row < cols[i].base_freq_.size(); ++row) {

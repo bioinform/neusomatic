@@ -209,8 +209,8 @@ public:
 
   template<typename GInv>
   explicit CondensedArray(const std::vector<std::string>& msa, const std::vector<std::string>& bqual, 
-                    const std::vector<int>& mqual, const std::vector<bool>& strand, 
-                    const std::vector<std::string>& lsc, const std::vector<std::string>& rsc,
+                    const std::vector<int>& mqual, const std::vector<int>& strand, 
+                    const std::vector<std::vector<int>>& lsc, const std::vector<std::vector<int>>& rsc,
                     const std::vector<std::vector<int>>& tag, 
                     const int& total_cov, const GInv& ginv, const RefGap& refgap, const int num_thread = 4): 
       nrow_(msa.size()), cspace_(msa[0].size(), Col(msa.size())), cspace_bqual_(msa[0].size(), Col(msa.size())), cspace_mqual_(msa[0].size(), Col(msa.size())),
@@ -268,9 +268,9 @@ public:
     }
   }
 
-  void row_push_strand(bool strand, const int ncol, const Idx rid) {
+  void row_push_strand(int strand, const int ncol, const Idx rid) {
     for (size_t cid = 0; cid < ncol; cid++) {
-      PushStrand_(rid, cid, (unsigned char) strand);
+      PushStrand_(rid, cid, strand);
     }
   }
 
@@ -348,11 +348,11 @@ public:
         //if (calculate_entropy && col.bases()[j] == missing_chr_) continue;
         col.base_freq_[col.bases()[j]]++;
         col.base_rids_[col.bases()[j]].push_back(j);
-        col.bqual_mean[col.bases()[j]]+=float(int(col_bqual.bases()[j])-33);
-        col.mqual_mean[col.bases()[j]]+=float(int(col_mqual.bases()[j])/70.0);
-        col.strand_mean[col.bases()[j]]+=float(int(col_strand.bases()[j]));
-        col_lsc.lsc_mean[col.bases()[j]]+=int(col_lsc.bases()[j]=='1');
-        col_rsc.rsc_mean[col.bases()[j]]+=int(col_rsc.bases()[j]=='1');
+        col_bqual.bqual_mean[col.bases()[j]]+=float(int(col_bqual.bases()[j])-33);
+        col_mqual.mqual_mean[col.bases()[j]]+=float(int(col_mqual.bases()[j])/70.0);
+        col_strand.strand_mean[col.bases()[j]]+=col_strand.bases()[j];
+        col_lsc.lsc_mean[col.bases()[j]]+=col_lsc.bases()[j];
+        col_rsc.rsc_mean[col.bases()[j]]+=col_rsc.bases()[j];
         for (size_t ii = 0; ii < 5; ++ii) {
           cspace_tag_[ii][i].tag_mean[col.bases()[j]]+=float(int(cspace_tag_[ii][i].bases()[j]))/100.0;
         }
@@ -361,11 +361,12 @@ public:
       //for(auto it = col.base_freq_.cbegin(); it != col.base_freq_.cend(); ++it) {
       for (auto s = 0; s < Col::alphabet_size_; ++ s) {
         //col.bqual_mean[it->first]/=col.base_freq_[it->first];
-        col.bqual_mean[s]/=col.base_freq_[s];
-        col.mqual_mean[s]/=col.base_freq_[s];
-        col.mqual_mean[s]*=70.0;
-        col.strand_mean[s]/=col.base_freq_[s];
-        col.strand_mean[s]*=100.0;
+        if (col.base_freq_[s] == 0) continue;
+        col_bqual.bqual_mean[s]/=col.base_freq_[s];
+        col_mqual.mqual_mean[s]/=col.base_freq_[s];
+        col_mqual.mqual_mean[s]*=70.0;
+        col_strand.strand_mean[s]/=col.base_freq_[s];
+        col_strand.strand_mean[s]*=100.0;
         for (size_t ii = 0; ii < 5; ++ii) {
           cspace_tag_[ii][i].tag_mean[s]/=col.base_freq_[s];
           cspace_tag_[ii][i].tag_mean[s]*=100.0;
@@ -468,7 +469,7 @@ private:
   std::vector<Base> _StringToDnaInt(const std::string &s) {
     std::vector<Base> dna5qseq(s.size());
     for (size_t j = 0; j < s.size(); ++j) {
-      dna5qseq[j] = DnaCharToDnaCode(j);
+      dna5qseq[j] = DnaCharToDnaCode(s[j]);
     }
     return dna5qseq;
   }
@@ -545,8 +546,8 @@ decltype(auto) CreateCondensedArray(const std::vector<std::string>& msa, const i
 
 
 template<typename RefGap, typename GInv>
-decltype(auto) CreateCondensedArray(const std::vector<std::string>& msa, const std::vector<std::string>& bqual,  const std::vector<int>& mqual, const std::vector<bool>& strand,
-                              const std::vector<std::string>& lscs, const std::vector<std::string>& rscs,
+decltype(auto) CreateCondensedArray(const std::vector<std::string>& msa, const std::vector<std::string>& bqual,  const std::vector<int>& mqual, const std::vector<int>& strand,
+                              const std::vector<std::vector<int>>& lscs, const std::vector<std::vector<int>>& rscs,
                               const std::vector<std::vector<int>>& tag,
                               const int total_cov, const GInv& ginv, const RefGap& refgap, const int num_threads) {
   using CondensedArray = neusomatic::CondensedArray<RefGap, int>; 
