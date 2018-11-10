@@ -14,10 +14,10 @@ logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
 
 
-class DSBlock(nn.Module):
+class NSBlock(nn.Module):
 
     def __init__(self, dim, ks_1=3, ks_2=3, dl_1=1, dl_2=1, mp_ks=3, mp_st=1):
-        super(DSBlock, self).__init__()
+        super(NSBlock, self).__init__()
         self.dim = dim
         self.conv_r1 = nn.Conv2d(
             dim, dim, kernel_size=ks_1, dilation=dl_1, padding=(dl_1 * (ks_1 - 1)) / 2)
@@ -53,7 +53,7 @@ class NeuSomaticNet(nn.Module):
         ]
         res_layers = []
         for ks_1, ks_2, dl_1, dl_2, mp_ks, mp_st in self.resblocks:
-            rb = DSBlock(dim, ks_1, ks_2, dl_1, dl_2, mp_ks, mp_st)
+            rb = NSBlock(dim, ks_1, ks_2, dl_1, dl_2, mp_ks, mp_st)
             res_layers.append(rb)
         self.res_layers = nn.Sequential(*res_layers)
         ds = np.prod(map(lambda x: x[5], self.resblocks))
