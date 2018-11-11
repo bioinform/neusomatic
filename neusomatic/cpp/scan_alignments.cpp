@@ -120,15 +120,17 @@ int main(int argc, char **argv) {
       }
       MSA msa(ginv, records, non_gapped_ref);
       std::vector<std::string> msa_, bqual_; 
-      std::vector<std::vector<int>> lscs_, rscs_;
+      
+      std::vector<int> lscs_, rscs_;
       std::vector<int> mqual_;
       std::vector<int> strand_;
       std::vector<std::vector<int>> tag_;
       if (calculate_qual_stat){
         std::tie(msa_,bqual_,mqual_,strand_,lscs_,rscs_,tag_)=msa.GetMSAwithQual();
-      }else{
+      } else{
         msa_ = msa.GetMSA();
       }
+
       if (opts.verbosity()>0){
         for (const auto& l : msa_) {
           std::cout << l << std::endl;
@@ -138,16 +140,10 @@ int main(int argc, char **argv) {
             std::cout << l << std::endl;
           }
           for (const auto& l : lscs_) {
-            for (const auto& e : l) {
-              std::cout << e;
-            }
-            std::cout << std::endl;
+            std::cout << l << std::endl;
           }
           for (const auto& l : rscs_) {
-            for (const auto& e: l) {
-              std::cout << e;
-            }
-            std::cout << std::endl;
+            std::cout << l << std::endl;
           }
           for (const auto& l : mqual_) {
             std::cout << l << std::endl;
@@ -173,14 +169,13 @@ int main(int argc, char **argv) {
       auto condensed_array = calculate_qual_stat ? neusomatic::CreateCondensedArray(msa_, bqual_, mqual_, strand_, lscs_, rscs_, tag_, msa_.size(), ginv, ref, opts.num_threads()) : neusomatic::CreateCondensedArray(msa_, msa_.size(), ginv, ref, opts.num_threads());
 
       auto cols = condensed_array.GetColSpace();
-      auto cols_bqual = condensed_array.GetColSpaceBQual();
       auto cols_mqual = condensed_array.GetColSpaceMQual();
       auto cols_strand = condensed_array.GetColSpaceStrand();
       auto cols_lsc = condensed_array.GetColSpaceLSC();
       auto cols_rsc = condensed_array.GetColSpaceRSC();
       auto cols_tag = condensed_array.GetColSpaceTag();
       auto ncol = cols.size();
-      auto cc_ = condensed_array.GetCC();
+      const auto cc_ = neusomatic::ChangeCoordinates<std::string>(ref);
 
       for (size_t i = 0; i < ncol; i++) {
         if (ginv.left() + cc_.RefPos(i) >=ginv.right()){ break;}
@@ -238,8 +233,8 @@ int main(int argc, char **argv) {
           << start_pos+1<<"\t"  << ref_base << "\t" \
           <<pileup_counts[4]<<":"<<pileup_counts[0]<<":"<<pileup_counts[1]<<":"<<pileup_counts[2] \
           <<":"<<pileup_counts[3] \
-          <<"\t"<<int(round(cols_bqual[i].bqual_mean[4]))<<":"<<int(round(cols_bqual[i].bqual_mean[0]))<<":"<<int(round(cols_bqual[i].bqual_mean[1])) \
-          <<":"<<int(round(cols_bqual[i].bqual_mean[2]))<<":"<<int(round(cols_bqual[i].bqual_mean[3])) \
+          <<"\t"<<int(round(cols[i].bqual_mean[4]))<<":"<<int(round(cols[i].bqual_mean[0]))<<":"<<int(round(cols[i].bqual_mean[1])) \
+          <<":"<<int(round(cols[i].bqual_mean[2]))<<":"<<int(round(cols[i].bqual_mean[3])) \
           <<"\t"<<int(round(cols_mqual[i].mqual_mean[4]))<<":"<<int(round(cols_mqual[i].mqual_mean[0]))<<":"<<int(round(cols_mqual[i].mqual_mean[1])) \
           <<":"<<int(round(cols_mqual[i].mqual_mean[2]))<<":"<<int(round(cols_mqual[i].mqual_mean[3])) \
           <<"\t"<<int(round(cols_strand[i].strand_mean[4]))<<":"<<int(round(cols_strand[i].strand_mean[0]))<<":"<<int(round(cols_strand[i].strand_mean[1])) \
@@ -248,16 +243,16 @@ int main(int argc, char **argv) {
           <<":"<<int(round(cols_lsc[i].lsc_mean[2]))<<":"<<int(round(cols_lsc[i].lsc_mean[3]))\
           <<"\t"<<int(round(cols_rsc[i].rsc_mean[4]))<<":"<<int(round(cols_rsc[i].rsc_mean[0]))<<":"<<int(round(cols_rsc[i].rsc_mean[1])) \
           <<":"<<int(round(cols_rsc[i].rsc_mean[2]))<<":"<<int(round(cols_rsc[i].rsc_mean[3]))\
-          <<"\t"<<int(round(cols_tag[0][i].tag_mean[4]))<<":"<<int(round(cols_tag[0][i].tag_mean[0]))<<":"<<int(round(cols_tag[0][i].tag_mean[1])) \
-          <<":"<<int(round(cols_tag[0][i].tag_mean[2]))<<":"<<int(round(cols_tag[0][i].tag_mean[3]))\
-          <<"\t"<<int(round(cols_tag[1][i].tag_mean[4]))<<":"<<int(round(cols_tag[1][i].tag_mean[0]))<<":"<<int(round(cols_tag[1][i].tag_mean[1])) \
-          <<":"<<int(round(cols_tag[1][i].tag_mean[2]))<<":"<<int(round(cols_tag[1][i].tag_mean[3]))\
-          <<"\t"<<int(round(cols_tag[2][i].tag_mean[4]))<<":"<<int(round(cols_tag[2][i].tag_mean[0]))<<":"<<int(round(cols_tag[2][i].tag_mean[1])) \
-          <<":"<<int(round(cols_tag[2][i].tag_mean[2]))<<":"<<int(round(cols_tag[2][i].tag_mean[3]))\
-          <<"\t"<<int(round(cols_tag[3][i].tag_mean[4]))<<":"<<int(round(cols_tag[3][i].tag_mean[0]))<<":"<<int(round(cols_tag[3][i].tag_mean[1])) \
-          <<":"<<int(round(cols_tag[3][i].tag_mean[2]))<<":"<<int(round(cols_tag[3][i].tag_mean[3]))\
-          <<"\t"<<int(round(cols_tag[4][i].tag_mean[4]))<<":"<<int(round(cols_tag[4][i].tag_mean[0]))<<":"<<int(round(cols_tag[4][i].tag_mean[1])) \
-          <<":"<<int(round(cols_tag[4][i].tag_mean[2]))<<":"<<int(round(cols_tag[4][i].tag_mean[3]))\
+          <<"\t"<<int(round(cols_tag[i].tag_mean[4][0]))<<":"<<int(round(cols_tag[i].tag_mean[0][0]))<<":"<<int(round(cols_tag[i].tag_mean[1][0])) \
+          <<":"<<int(round(cols_tag[i].tag_mean[2][0]))<<":"<<int(round(cols_tag[i].tag_mean[3][0]))\
+          <<"\t"<<int(round(cols_tag[i].tag_mean[4][1]))<<":"<<int(round(cols_tag[i].tag_mean[0][1]))<<":"<<int(round(cols_tag[i].tag_mean[1][1])) \
+          <<":"<<int(round(cols_tag[i].tag_mean[2][1]))<<":"<<int(round(cols_tag[i].tag_mean[3][1]))\
+          <<"\t"<<int(round(cols_tag[i].tag_mean[4][2]))<<":"<<int(round(cols_tag[i].tag_mean[0][2]))<<":"<<int(round(cols_tag[i].tag_mean[1][2])) \
+          <<":"<<int(round(cols_tag[i].tag_mean[2][2]))<<":"<<int(round(cols_tag[i].tag_mean[3][2]))\
+          <<"\t"<<int(round(cols_tag[i].tag_mean[4][3]))<<":"<<int(round(cols_tag[i].tag_mean[0][3]))<<":"<<int(round(cols_tag[i].tag_mean[1][3])) \
+          <<":"<<int(round(cols_tag[i].tag_mean[2][3]))<<":"<<int(round(cols_tag[i].tag_mean[3][3]))\
+          <<"\t"<<int(round(cols_tag[i].tag_mean[4][4]))<<":"<<int(round(cols_tag[i].tag_mean[0][4]))<<":"<<int(round(cols_tag[i].tag_mean[1][4])) \
+          <<":"<<int(round(cols_tag[i].tag_mean[2][4]))<<":"<<int(round(cols_tag[i].tag_mean[3][4]))\
           <<std::endl;
         }else{
           count_out_writer<<bam_header.IDtoName(ginv.contig())<<"\t"<<start_pos<<"\t" \
@@ -323,24 +318,24 @@ int main(int argc, char **argv) {
                            ","+std::to_string(int(round(var_count*(cols_strand[i].strand_mean[var_code]/100))))+ \
                            ";LS="+std::to_string(lsc_counts)+\
                            ";RS="+std::to_string(rsc_counts)+\
-                           ";NM="+std::to_string(int(round(cols_tag[0][i].tag_mean[var_code])))+\
-                           ";AS="+std::to_string(int(round(cols_tag[1][i].tag_mean[var_code])))+ \
-                           ";XS="+std::to_string(int(round(cols_tag[2][i].tag_mean[var_code])))+ \
-                           ";PR="+std::to_string(int(round(cols_tag[3][i].tag_mean[var_code])))+ \
-                           ";CL="+std::to_string(int(round(cols_tag[4][i].tag_mean[var_code])))+ \
+                           ";NM="+std::to_string(int(round(cols_tag[i].tag_mean[var_code][0])))+\
+                           ";AS="+std::to_string(int(round(cols_tag[i].tag_mean[var_code][1])))+ \
+                           ";XS="+std::to_string(int(round(cols_tag[i].tag_mean[var_code][2])))+ \
+                           ";PR="+std::to_string(int(round(cols_tag[i].tag_mean[var_code][3])))+ \
+                           ";CL="+std::to_string(int(round(cols_tag[i].tag_mean[var_code][4])))+ \
                            ";MQ="+std::to_string(int(round(cols_mqual[i].mqual_mean[var_code])))+ \
-                           ";BQ="+std::to_string(int(round(cols_bqual[i].bqual_mean[var_code])));
+                           ";BQ="+std::to_string(int(round(cols[i].bqual_mean[var_code])));
             gtinfo += ":"+std::to_string(int(round(ref_count*(cols_strand[i].strand_mean[ref_code]/100))))+","+ \
                       std::to_string(int(round(var_count*(cols_strand[i].strand_mean[var_code]/100))))+":"+\
                       std::to_string(lsc_counts)+":"+\
                       std::to_string(rsc_counts)+":"+\
-                      std::to_string(int(round(cols_tag[0][i].tag_mean[var_code])))+":"+\
-                      std::to_string(int(round(cols_tag[1][i].tag_mean[var_code])))+":"+\
-                      std::to_string(int(round(cols_tag[2][i].tag_mean[var_code])))+":"+\
-                      std::to_string(int(round(cols_tag[3][i].tag_mean[var_code])))+":"+\
-                      std::to_string(int(round(cols_tag[4][i].tag_mean[var_code])))+":"+\
+                      std::to_string(int(round(cols_tag[i].tag_mean[var_code][0])))+":"+\
+                      std::to_string(int(round(cols_tag[i].tag_mean[var_code][1])))+":"+\
+                      std::to_string(int(round(cols_tag[i].tag_mean[var_code][2])))+":"+\
+                      std::to_string(int(round(cols_tag[i].tag_mean[var_code][3])))+":"+\
+                      std::to_string(int(round(cols_tag[i].tag_mean[var_code][4])))+":"+\
                       std::to_string(int(round(cols_mqual[i].mqual_mean[var_code])))+":"+\
-                      std::to_string(int(round(cols_bqual[i].bqual_mean[var_code])));
+                      std::to_string(int(round(cols[i].bqual_mean[var_code])));
           }
           auto var_base = nuc_code_char[var_code];  
           if (ref_base == '-') {ref_base = 'N';}
