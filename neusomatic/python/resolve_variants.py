@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # resolve_variants.py
 # Resolve variants (e.g. exact INDEL sequences) for target variants

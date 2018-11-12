@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # long_read_indelrealign.py
 # Resolve variants (e.g. exact INDEL sequences) for long high-error rate
@@ -783,7 +784,7 @@ def parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file, realign_be
             pysam.index(output_bam)
 
             for sam in [bam_header] + sams:
-                shutil.rmtree(sam)
+                os.remove(sam)
     else:
         correct_bam_all(work, input_bam, output_bam,
                         ref_fasta_file, realign_bed_file)
@@ -1068,8 +1069,8 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
             chrom, start, end = interval[0:3]
             start, end = int(start), int(end)
             w = 3
-            new_start = start - pad - w
-            new_end = end + pad + w
+            new_start = max(start - pad - w, 1)
+            new_end = min(end + pad + w, chrom_lengths[chrom] - 2)
             ref_seq = ref_fasta.fetch(chrom, new_start, new_end + 1).upper()
             cnt_s = 0
             while check_rep(ref_seq, "left", 2):

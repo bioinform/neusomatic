@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # merge_post_vcfs.py
 # Merge resolved variants and other predicted variants and output the final NeuSomatic .vcf

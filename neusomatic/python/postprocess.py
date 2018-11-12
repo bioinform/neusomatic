@@ -79,7 +79,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, tumo
                     pass_threshold, lowqual_threshold)
 
     logger.info("Output NeuSomatic prediction at {}".format(output_vcf))
-    logger.info("Done.")
+    logger.info("Postprocessing is Done.")
     return output_vcf
 
 if __name__ == '__main__':

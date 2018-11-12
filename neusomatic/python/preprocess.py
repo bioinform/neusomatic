@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # preprocess.py
 # A wrapper that
@@ -37,7 +38,7 @@ def split_dbsnp((restart, dbsnp, region_bed, dbsnp_region_vcf)):
 
 def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp,
                          scan_window_size, scan_maf, min_mapq,
-                         filtered_candidates_vcf, min_dp, good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
+                         filtered_candidates_vcf, min_dp, max_dp, good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
                          ins_min_af, del_min_af, del_merge_min_af,
                          ins_merge_min_af, merge_r,
                          scan_alignments_binary, restart, num_threads, calc_qual, regions=[], dbsnp_regions=[]):
@@ -46,7 +47,7 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
     logger.info("Scan bam.")
     scan_outputs = scan_alignments(work, scan_alignments_binary, alignment_bam,
                                    region, reference, num_threads, scan_window_size, scan_maf,
-                                   min_mapq, restart=restart, split_region_files=regions,
+                                   min_mapq, max_dp, restart=restart, split_region_files=regions,
                                    calc_qual=calc_qual)
     if filtered_candidates_vcf:
         logger.info("Filter candidates.")
@@ -80,7 +81,7 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
                 dbsnp_region_vcf = None
                 if dbsnp:
                     dbsnp_region_vcf = dbsnp_regions[i]
-                map_args.append((raw_vcf, filtered_vcf, reference, dbsnp_region_vcf, min_dp, good_ao,
+                map_args.append((raw_vcf, filtered_vcf, reference, dbsnp_region_vcf, min_dp, max_dp, good_ao,
                                  min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af, del_merge_min_af,
                                  ins_merge_min_af, merge_r))
             try:
@@ -193,7 +194,7 @@ def extract_candidate_split_regions(
 
 def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                scan_window_size, scan_maf, min_mapq,
-               min_dp, good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
+               min_dp, max_dp, good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
                ins_min_af, del_min_af, del_merge_min_af,
                ins_merge_min_af, merge_r, truth_vcf, tsv_batch_size,
                matrix_width, matrix_base_pad, min_ev_frac_per_col,
@@ -226,7 +227,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
 
         tumor_outputs_without_q = process_split_region("tumor", work_tumor_without_q, region_bed, reference, mode,
                                                        tumor_bam, dbsnp, scan_window_size, scan_maf, min_mapq,
-                                                       filtered_candidates_vcf_without_q, min_dp, good_ao, min_ao,
+                                                       filtered_candidates_vcf_without_q, min_dp, max_dp, good_ao, min_ao,
                                                        snp_min_af, -10000, snp_min_ao,
                                                        ins_min_af, del_min_af, del_merge_min_af,
                                                        ins_merge_min_af, merge_r,
@@ -249,7 +250,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     logger.info("Scan tumor bam (and extracting quality scores).")
     tumor_outputs = process_split_region("tumor", work_tumor, region_bed, reference, mode,
                                          tumor_bam, dbsnp, scan_window_size, scan_maf, min_mapq,
-                                         filtered_candidates_vcf, min_dp, good_ao, min_ao,
+                                         filtered_candidates_vcf, min_dp, max_dp, good_ao, min_ao,
                                          snp_min_af, snp_min_bq, snp_min_ao,
                                          ins_min_af, del_min_af, del_merge_min_af,
                                          ins_merge_min_af, merge_r,
@@ -276,7 +277,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     logger.info("Scan normal bam (and extracting quality scores).")
     normal_counts, _, _, _ = process_split_region("normal", work_normal, region_bed, reference, mode, normal_bam,
                                                   None, scan_window_size, 0.2, min_mapq,
-                                                  None, min_dp, good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
+                                                  None, min_dp, max_dp, good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
                                                   ins_min_af, del_min_af, del_merge_min_af,
                                                   ins_merge_min_af, merge_r,
                                                   scan_alignments_binary, restart, num_threads,
@@ -300,6 +301,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                     matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, num_threads,
                                     ensemble_beds[i] if ensemble_tsv else None, tsv_batch_size)
 
+    logger.info("Preprocessing is Done.")
 
 if __name__ == '__main__':
     FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
@@ -329,6 +331,8 @@ if __name__ == '__main__':
     parser.add_argument('--min_mapq', type=int,
                         help='minimum mapping quality', default=1)
     parser.add_argument('--min_dp', type=float, help='min depth', default=5)
+    parser.add_argument('--max_dp', type=float,
+                        help='max depth', default=40000)
     parser.add_argument('--good_ao', type=float,
                         help='good alternate count (ignores maf)', default=10)
     parser.add_argument('--min_ao', type=float,
@@ -381,7 +385,7 @@ if __name__ == '__main__':
         preprocess(args.work, args.mode, args.reference, args.region_bed, args.tumor_bam, args.normal_bam,
                    args.dbsnp_to_filter,
                    args.scan_window_size, args.scan_maf, args.min_mapq,
-                   args.min_dp, args.good_ao, args.min_ao, args.snp_min_af, args.snp_min_bq, args.snp_min_ao,
+                   args.min_dp, args.max_dp, args.good_ao, args.min_ao, args.snp_min_af, args.snp_min_bq, args.snp_min_ao,
                    args.ins_min_af, args.del_min_af, args.del_merge_min_af,
                    args.ins_merge_min_af, args.merge_r,
                    args.truth_vcf, args.tsv_batch_size, args.matrix_width, args.matrix_base_pad, args.min_ev_frac_per_col,

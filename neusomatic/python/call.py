@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # call.py
 # Call variants using model trained by NeuSomatic network
@@ -49,11 +50,13 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
     loader_ = call_loader
 
     iii = 0
+    j = 0
     for data in loader_:
         (matrices, labels, var_pos_s, var_len_s,
          non_transformed_matrices), (paths) = data
         matrices = Variable(matrices)
         iii += 1
+        j += len(paths[0])
         if use_cuda:
             matrices = matrices.cuda()
 
@@ -94,6 +97,9 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
                                         outputs1.data.cpu()[i].numpy()),
                                     map(lambda x: round(x, 4),
                                         outputs3.data.cpu()[i].numpy())]
+        if (iii % 10 == 0):
+            logger.info("Called {} candidates in this batch.".format(j))
+    logger.info("Called {} candidates in this batch.".format(j))
     return final_preds, none_preds, true_path
 
 
@@ -282,6 +288,7 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, 
 
 def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, num_threads):
     logger = logging.getLogger(pred_vcf_records.__name__)
+    logger.info("Prepare VCF records for predicted somatic variants in this batch.")
     map_args = []
     for path in final_preds.keys():
         map_args.append([path, true_path[path], final_preds[path],
@@ -308,6 +315,7 @@ def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, 
 
 def pred_vcf_records_none(none_preds, chroms):
     logger = logging.getLogger(pred_vcf_records_none.__name__)
+    logger.info("Prepare VCF records for predicted non-somatic variants in this batch.")
     all_vcf_records = {}
     for path in none_preds.keys():
         pred = none_preds[path]
@@ -360,6 +368,7 @@ def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_thr
 
 def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     batch_size, max_load_candidates, pass_threshold, lowqual_threshold,
+                    ensemble,
                     use_cuda):
     logger = logging.getLogger(call_neusomatic.__name__)
 
@@ -376,7 +385,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     data_transform = transforms.Compose(
         [transforms.ToTensor(),
          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-    num_channels = 119 if args.ensemble else 26
+    num_channels = 119 if ensemble else 26
     net = NeuSomaticNet(num_channels)
     if use_cuda:
         net.cuda()
@@ -516,6 +525,7 @@ if __name__ == '__main__':
                                      args.checkpoint,
                                      args.num_threads, args.batch_size, args.max_load_candidates,
                                      args.pass_threshold, args.lowqual_threshold,
+                                     args.ensemble,
                                      use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())
