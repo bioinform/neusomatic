@@ -75,7 +75,7 @@ public:
       case 't':
         return 3;
       case '-':
-      case 'N':
+      //case 'N': // do not want N to count
         return 4;
       default:
         return 5;
