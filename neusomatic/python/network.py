@@ -51,11 +51,11 @@ class NeuSomaticNet(nn.Module):
             [3, 5, 2, 1, 3, 2],
             [3, 5, 4, 2, 3, 2],
         ]
-        ns_layers = []
+        res_layers = []
         for ks_1, ks_2, dl_1, dl_2, mp_ks, mp_st in self.nsblocks:
             rb = NSBlock(dim, ks_1, ks_2, dl_1, dl_2, mp_ks, mp_st)
-            ns_layers.append(rb)
-        self.ns_layers = nn.Sequential(*ns_layers)
+            res_layers.append(rb)
+        self.res_layers = nn.Sequential(*res_layers)
         ds = np.prod(map(lambda x: x[5], self.nsblocks))
         self.fc_dim = dim * 32 * 5 / ds
         self.fc1 = nn.Linear(self.fc_dim, 240)
@@ -67,7 +67,7 @@ class NeuSomaticNet(nn.Module):
         x = self.pool1(F.relu(self.bn1(self.conv1(x))))
         internal_outs = [x]
 
-        x = self.ns_layers(x)
+        x = self.res_layers(x)
         internal_outs.append(x)
         x2 = x.view(-1, self.fc_dim)
         x3 = F.relu(self.fc1(x2))
