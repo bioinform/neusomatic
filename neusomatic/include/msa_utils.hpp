@@ -227,7 +227,6 @@ public:
     for (size_t i = 0; i < ncol(); ++i) {
       auto& col = cspace_[i];
       for (size_t j = 0; j < nrow(); ++j) {
-        if (col.bases()[j] == missing_chr_) continue;
         col.base_freq_[col.bases()[j]]++;
       }
     }
