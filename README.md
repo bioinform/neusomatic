@@ -187,7 +187,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python call.py ...
 To run in CPU mode you can disable accessing to GPU by exporting `CUDA_VISIBLE_DEVICES=`.
 
 ## Ensemble mode
-NeuSomatic can be used universally as a stand-alone somatic mutation detection method or with an ensemble of existing methods. NeuSomatic currently supports outputs from MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2. For ensemble mode, the ensembled outputs of different somatic callers (as a single `.tsv` file) should be prepared and inputed using `--ensemble_tsv` argument in `preprocess.py`. 
+NeuSomatic can be used universally as a stand-alone somatic mutation detection method or with an ensemble of existing methods. NeuSomatic currently supports outputs from MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2. For ensemble mode, the ensembled outputs of different somatic callers (as a single `.tsv` file) should be prepared and inputed using `--ensemble_tsv` argument in `preprocess.py` and `postprocess.py` . 
 
 There are two alternative ways to prepare this file:
 
@@ -220,7 +220,7 @@ There are two alternative ways to prepare this file:
 	cat <(cat Ensemble.s*.tsv |grep CHROM|head -1) \
 	    <(cat Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
 	```
-	and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
+	and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py` and `postprocess.py`.
 
 
 ### NOTE: 

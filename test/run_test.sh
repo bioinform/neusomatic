@@ -89,6 +89,7 @@ python ${neusomatic_dir}/neusomatic/python/postprocess.py \
 		--tumor_bam ${test_dir}/tumor.bam \
 		--pred_vcf work_ensemble/pred.vcf \
 		--candidates_vcf work_ensemble/work_tumor/filtered_candidates.vcf \
+		--ensemble_tsv ${test_dir}/ensemble.tsv \
 		--output_vcf work_ensemble/NeuSomatic_ensemble.vcf \
 		--work work_ensemble 
 

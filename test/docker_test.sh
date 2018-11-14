@@ -101,6 +101,7 @@ docker run -v ${test_dir}:/mnt -u $UID --memory 30G  msahraeian/neusomatic:0.1.2
 		--tumor_bam /mnt/tumor.bam \
 		--pred_vcf /mnt/example/work_ensemble/pred.vcf \
 		--candidates_vcf /mnt/example/work_ensemble/work_tumor/filtered_candidates.vcf \
+		--ensemble_tsv /mnt/ensemble.tsv \
 		--output_vcf /mnt/example/work_ensemble/NeuSomatic_ensemble.vcf \
 		--work /mnt/example/work_ensemble" 
 

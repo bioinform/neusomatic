@@ -4,12 +4,17 @@
 ##FILTER=<ID=PASS,Description="Accept as a higher confidence somatic mutation calls with probability score value at least 0.7">
 ##FILTER=<ID=LowQual,Description="Less confident somatic mutation calls with probability score value at least 0.4">
 ##FILTER=<ID=REJECT,Description="Rejected as a confident somatic mutation with probability score value below 0.4">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth in the tumor">
+##FORMAT=<ID=RO,Number=1,Type=Integer,Description="Reference allele observation count in the tumor">
+##FORMAT=<ID=AO,Number=A,Type=Integer,Description="Alternate allele observation count in the tumor">
+##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele fractions of alternate alleles in the tumor">
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE
-22	21330787	.	C	T	35.2291	PASS	SCORE=0.9997	GT	0/1
-22	21332122	.	G	A	36.9897	PASS	SCORE=0.9998	GT	0/1
-22	21334924	.	G	C	4.5474	LowQual	SCORE=0.6490	GT	0/1
-22	21335259	.	C	A	25.8517	PASS	SCORE=0.9974	GT	0/1
-22	21384516	.	C	T	8.3387	PASS	SCORE=0.8534	GT	0/1
-22	21982892	.	C	T	30.0011	PASS	SCORE=0.9990	GT	0/1
-22	21983260	.	A	G	30.9699	PASS	SCORE=0.9992	GT	0/1
-22	21989959	.	AAG	A	40.0000	PASS	SCORE=0.9999	GT	0/1
+22	21330787	.	C	T	35.2291	PASS	SCORE=0.9997;DP=320;RO=231;AO=87;AF=0.2736;	GT:DP:RO:AO:AF	0/1:320:231:87:0.2736
+22	21332122	.	G	A	36.9897	PASS	SCORE=0.9998;DP=210;RO=152;AO=58;AF=0.2762;	GT:DP:RO:AO:AF	0/1:210:152:58:0.2762
+22	21334924	.	G	C	4.5474	LowQual	SCORE=0.6490;DP=78;RO=58;AO=20;AF=0.2564;	GT:DP:RO:AO:AF	0/1:78:58:20:0.2564
+22	21335259	.	C	A	25.8517	PASS	SCORE=0.9974;DP=205;RO=158;AO=47;AF=0.2293;	GT:DP:RO:AO:AF	0/1:205:158:47:0.2293
+22	21384516	.	C	T	8.3387	PASS	SCORE=0.8534;DP=78;RO=51;AO=27;AF=0.3462;	GT:DP:RO:AO:AF	0/1:78:51:27:0.3462
+22	21982892	.	C	T	30.0011	PASS	SCORE=0.9990;DP=131;RO=86;AO=45;AF=0.3435;	GT:DP:RO:AO:AF	0/1:131:86:45:0.3435
+22	21983260	.	A	G	30.9699	PASS	SCORE=0.9992;DP=85;RO=41;AO=44;AF=0.5176;	GT:DP:RO:AO:AF	0/1:85:41:44:0.5176
+22	21989959	.	AAG	A	40.0000	PASS	SCORE=0.9999;DP=100;RO=69;AO=29;AF=0.2959;	GT:DP:RO:AO:AF	0/1:100:69:29:0.2959
