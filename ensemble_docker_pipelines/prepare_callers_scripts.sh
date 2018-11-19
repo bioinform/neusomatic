@@ -219,17 +219,17 @@ do
     if [[ $mutect2 -eq 1 ]]
     then
     
-        mutect2_arguments=''
+        input_mutect2_arguments=''
         input_mutect2_filter_arguments=''
     
         if [[ ${mutect2_arguments} ]]
         then
-            input_mutect2_arguments="--extra-arguments ${mutect2_arguments}"
+            input_mutect2_arguments="${mutect2_arguments}"
         fi
         
         if [[ ${mutect2_filter_arguments} ]]
         then
-            input_mutect2_filter_arguments="--extra-filter-arguments ${mutect2_filter_arguments}"
+            input_mutect2_filter_arguments="${mutect2_filter_arguments}"
         fi
     
         $MYDIR/mutation_callers/submit_MuTect2.sh \
@@ -240,8 +240,8 @@ do
         --selector ${outdir}/${ith_split}/${ith_split}.bed \
         --human-reference ${HUMAN_REFERENCE} \
         --dbsnp ${dbsnp} \
-        ${input_mutect2_arguments} \
-        ${input_mutect2_filter_arguments} \
+        --extra-arguments "${input_mutect2_arguments}" \
+        --extra-filter-arguments "${input_mutect2_filter_arguments}" \
         --action $action
     
         mutect2_input="--mutect2 ${outdir}/${ith_split}/MuTect2.vcf"
@@ -250,15 +250,18 @@ do
 
     if [[ $varscan2 -eq 1 ]]
     then
+
+        input_varscan_pileup_arguments=''
+        input_varscan_arguments=''
     
         if [[ ${varscan_pileup_arguments} ]]
         then
-            input_varscan_pileup_arguments="--extra-pileup-arguments ${varscan_pileup_arguments}"
+            input_varscan_pileup_arguments="${varscan_pileup_arguments}"
         fi
         
         if [[ ${varscan_arguments} ]]
         then
-            input_varscan_arguments="--extra-arguments ${varscan_arguments}"
+            input_varscan_arguments="${varscan_arguments}"
         fi
     
         $MYDIR/mutation_callers/submit_VarScan2.sh \
@@ -268,8 +271,8 @@ do
         --out-vcf VarScan2.vcf \
         --selector ${outdir}/${ith_split}/${ith_split}.bed \
         --human-reference ${HUMAN_REFERENCE} \
-        ${input_varscan_pileup_arguments} \
-        ${input_varscan_arguments} \
+        --extra-pileup-arguments "${input_varscan_pileup_arguments}" \
+        --extra-arguments "${input_varscan_arguments}" \
         --action $action
     
         varscan_snv_input="--varscan-snv ${outdir}/${ith_split}/VarScan2.snp.vcf"
@@ -281,9 +284,11 @@ do
     if [[ $vardict -eq 1 ]]
     then
     
+        input_vardict_arguments=''
+
         if [[ ${vardict_arguments} ]]
         then
-            input_vardict_arguments="--extra-arguments ${vardict_arguments}"
+            input_vardict_arguments="${vardict_arguments}"
         fi
     
         $MYDIR/mutation_callers/submit_VarDictJava.sh \
@@ -294,7 +299,7 @@ do
         --out-vcf VarDict.vcf \
         --human-reference ${HUMAN_REFERENCE} \
         --VAF ${min_vaf} \
-        ${input_vardict_arguments} \
+        --extra-arguments "${input_vardict_arguments}" \
         --action $action
         
         vardict_input="--vardict ${outdir}/${ith_split}/VarDict.vcf"
@@ -367,6 +372,8 @@ do
     # Wrapper
     if [[ $wrapper -eq 1 ]]
     then
+        input_wrapper_arguments=''
+
         if [[ $EXCLUSION ]];        then exclusion_text="--exclude ${EXCLUSION}"                            ; fi
 
         if [[ ${dbsnp} ]];          then dbsnp_input="--dbsnp ${dbsnp}"                                     ; fi
@@ -374,7 +381,7 @@ do
         
         if [[ ${wrapper_arguments} ]]
         then
-            input_wrapper_arguments="--extra-arguments ${wrapper_arguments}"
+            input_wrapper_arguments="${wrapper_arguments}"
         fi
         
         $MYDIR/mutation_callers/submit_Wrapper.sh \
@@ -394,7 +401,7 @@ do
         $muse_input \
         $strelka_snv_input \
         $strelka_indel_input \
-        ${input_wrapper_arguments} \
+        --extra-arguments "${input_wrapper_arguments}" \
         --action ${action}
     fi
         
@@ -407,9 +414,10 @@ done
 if [[ $somaticsniper -eq 1 ]]
 then
 
+    input_somaticsniper_arguments=''
     if [[ ${somaticsniper_arguments} ]]
     then
-        input_somaticsniper_arguments="--extra-arguments ${somaticsniper_arguments}"
+        input_somaticsniper_arguments="${somaticsniper_arguments}"
     fi
 
     $MYDIR/mutation_callers/submit_SomaticSniper.sh \
@@ -419,6 +427,6 @@ then
     --out-vcf SomaticSniper.vcf \
     --human-reference ${HUMAN_REFERENCE} \
     --split $splits \
-    ${input_somaticsniper_arguments} \
+    --extra-arguments "${input_somaticsniper_arguments}" \
     --action $action
 fi
