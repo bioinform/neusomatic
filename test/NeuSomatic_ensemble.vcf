@@ -5,7 +5,7 @@
 ##FILTER=<ID=LowQual,Description="Less confident somatic mutation calls with probability score value at least 0.4">
 ##FILTER=<ID=REJECT,Description="Rejected as a confident somatic mutation with probability score value below 0.4">
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE
-22	21330787	.	C	T	27.2132	PASS	SCORE=0.9981	GT	0/1
+22	21330787	.	C	T	26.9905	PASS	SCORE=0.9980	GT	0/1
 22	21332122	.	G	A	40.0000	PASS	SCORE=0.9999	GT	0/1
 22	21334924	.	G	C	22.2248	PASS	SCORE=0.9940	GT	0/1
 22	21335259	.	C	A	29.2086	PASS	SCORE=0.9988	GT	0/1
