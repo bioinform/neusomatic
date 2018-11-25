@@ -231,29 +231,18 @@ int main(int argc, char **argv) {
           int sc_counts=lsc_counts+rsc_counts;
           count_out_writer<<bam_header.IDtoName(ginv.contig())<<"\t"<<start_pos<<"\t" \
           << start_pos+1<<"\t"  << ref_base << "\t" \
-          <<pileup_counts[4]<<":"<<pileup_counts[0]<<":"<<pileup_counts[1]<<":"<<pileup_counts[2] \
-          <<":"<<pileup_counts[3] \
-          <<"\t"<<int(round(cols[i].bqual_mean[4]))<<":"<<int(round(cols[i].bqual_mean[0]))<<":"<<int(round(cols[i].bqual_mean[1])) \
-          <<":"<<int(round(cols[i].bqual_mean[2]))<<":"<<int(round(cols[i].bqual_mean[3])) \
-          <<"\t"<<int(round(cols_mqual[i].mqual_mean[4]))<<":"<<int(round(cols_mqual[i].mqual_mean[0]))<<":"<<int(round(cols_mqual[i].mqual_mean[1])) \
-          <<":"<<int(round(cols_mqual[i].mqual_mean[2]))<<":"<<int(round(cols_mqual[i].mqual_mean[3])) \
-          <<"\t"<<int(round(cols_strand[i].strand_mean[4]))<<":"<<int(round(cols_strand[i].strand_mean[0]))<<":"<<int(round(cols_strand[i].strand_mean[1])) \
-          <<":"<<int(round(cols_strand[i].strand_mean[2]))<<":"<<int(round(cols_strand[i].strand_mean[3]))\
-          <<"\t"<<int(round(cols_lsc[i].lsc_mean[4]))<<":"<<int(round(cols_lsc[i].lsc_mean[0]))<<":"<<int(round(cols_lsc[i].lsc_mean[1])) \
-          <<":"<<int(round(cols_lsc[i].lsc_mean[2]))<<":"<<int(round(cols_lsc[i].lsc_mean[3]))\
-          <<"\t"<<int(round(cols_rsc[i].rsc_mean[4]))<<":"<<int(round(cols_rsc[i].rsc_mean[0]))<<":"<<int(round(cols_rsc[i].rsc_mean[1])) \
-          <<":"<<int(round(cols_rsc[i].rsc_mean[2]))<<":"<<int(round(cols_rsc[i].rsc_mean[3]))\
-          <<"\t"<<int(round(cols_tag[i].tag_mean[4][0]))<<":"<<int(round(cols_tag[i].tag_mean[0][0]))<<":"<<int(round(cols_tag[i].tag_mean[1][0])) \
-          <<":"<<int(round(cols_tag[i].tag_mean[2][0]))<<":"<<int(round(cols_tag[i].tag_mean[3][0]))\
-          <<"\t"<<int(round(cols_tag[i].tag_mean[4][1]))<<":"<<int(round(cols_tag[i].tag_mean[0][1]))<<":"<<int(round(cols_tag[i].tag_mean[1][1])) \
-          <<":"<<int(round(cols_tag[i].tag_mean[2][1]))<<":"<<int(round(cols_tag[i].tag_mean[3][1]))\
-          <<"\t"<<int(round(cols_tag[i].tag_mean[4][2]))<<":"<<int(round(cols_tag[i].tag_mean[0][2]))<<":"<<int(round(cols_tag[i].tag_mean[1][2])) \
-          <<":"<<int(round(cols_tag[i].tag_mean[2][2]))<<":"<<int(round(cols_tag[i].tag_mean[3][2]))\
-          <<"\t"<<int(round(cols_tag[i].tag_mean[4][3]))<<":"<<int(round(cols_tag[i].tag_mean[0][3]))<<":"<<int(round(cols_tag[i].tag_mean[1][3])) \
-          <<":"<<int(round(cols_tag[i].tag_mean[2][3]))<<":"<<int(round(cols_tag[i].tag_mean[3][3]))\
-          <<"\t"<<int(round(cols_tag[i].tag_mean[4][4]))<<":"<<int(round(cols_tag[i].tag_mean[0][4]))<<":"<<int(round(cols_tag[i].tag_mean[1][4])) \
-          <<":"<<int(round(cols_tag[i].tag_mean[2][4]))<<":"<<int(round(cols_tag[i].tag_mean[3][4]))\
-          <<std::endl;
+          << neusomatic::add_qual_col(pileup_counts, true)<<"\t" \
+          << neusomatic::add_qual_col(cols[i].bqual_mean)<<"\t" \
+          << neusomatic::add_qual_col(cols_mqual[i].mqual_mean)<<"\t" \
+          << neusomatic::add_qual_col(cols_strand[i].strand_mean)<<"\t" \
+          << neusomatic::add_qual_col(cols_lsc[i].lsc_mean)<<"\t" \
+          << neusomatic::add_qual_col(cols_rsc[i].rsc_mean)<<"\t" \
+          << neusomatic::add_tag_col(cols_tag[i].tag_mean, false, 0)<<"\t" \
+          << neusomatic::add_tag_col(cols_tag[i].tag_mean, false, 1)<<"\t" \
+          << neusomatic::add_tag_col(cols_tag[i].tag_mean, false, 2)<<"\t" \
+          << neusomatic::add_tag_col(cols_tag[i].tag_mean, false, 3)<<"\t" \
+          << neusomatic::add_tag_col(cols_tag[i].tag_mean, false, 4) \
+          << std::endl;
         }else{
           count_out_writer<<bam_header.IDtoName(ginv.contig())<<"\t"<<start_pos<<"\t" \
           << start_pos+1<<"\t"  << ref_base << "\t" \

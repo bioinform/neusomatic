@@ -388,6 +388,46 @@ decltype(auto) CreateCondensedArray(const std::vector<std::string>& msa, const s
   condensed_array.InitWithAlnMetaData(num_threads);
   return condensed_array;
 }
+
+
+std::string add_qual_col(auto  & data_array, bool is_int=false){
+  auto sep = ":";
+  int order [5] = { 4, 0, 1, 2, 3 }; 
+  std::string ret = "";
+  for ( int n=0 ; n<5 ; ++n )
+  {
+    if (is_int){
+      ret += std::to_string(data_array[order[n]]);
+    }else{
+      ret += std::to_string(int(round(data_array[order[n]])));
+    }
+    if (n < 4){
+      ret+=":";
+    }
+  }
+  return ret;
+}
+
+std::string add_tag_col(auto  & data_array, bool is_int=false, int idx=0){
+  auto sep = ":";
+  int order [5] = { 4, 0, 1, 2, 3 }; 
+  std::string ret = "";
+  for ( int n=0 ; n<5 ; ++n )
+  {
+    if (is_int){
+      ret += std::to_string(data_array[order[n]][idx]);
+    }else{
+      ret += std::to_string(int(round(data_array[order[n]][idx])));
+    }
+    if (n < 4){
+      ret+=":";
+    }
+  }
+  return ret;
+}
+
+
 }// end neusomatic
+
 
 #endif
