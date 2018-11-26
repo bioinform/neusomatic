@@ -196,15 +196,15 @@ std::vector<neusomatic::bio::Variant<std::string, Contig>> GetSNVs(const BamReco
   ref_pos = bam.Position();
   read_pos = bam.AlignmentPosition();
   auto b = cigar.begin();
+  if (b->Type() == 'H') {
+    if (b == cigar.begin()){
+    read_pos -= b->Length();
+    }
+  }
   for (const auto& t : snvs_MDTags) {
     const int32_t ref_consume_goal = t.left() -  ref_pos;
     int32_t ref_consume = 0;
     int32_t read_consume = 0;
-    if (b->Type() == 'H') {
-      if (b == cigar.begin()){
-      read_consume -= b->Length();
-      }
-    }
     while (ref_consume < ref_consume_goal) {
       if (b->Type() == 'M') {
         ref_consume += b->Length();
