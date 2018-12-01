@@ -1,5 +1,5 @@
 ##fileformat=VCFv4.2
-##NeuSomatic Version=0.1.2
+##NeuSomatic Version=0.1.3
 ##FORMAT=<ID=SCORE,Number=1,Type=Float,Description="Prediction probability score">
 ##FILTER=<ID=PASS,Description="Accept as a higher confidence somatic mutation calls with probability score value at least 0.7">
 ##FILTER=<ID=LowQual,Description="Less confident somatic mutation calls with probability score value at least 0.4">
