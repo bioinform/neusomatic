@@ -14,10 +14,10 @@ logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
 
 
-class DSBlock(nn.Module):
+class NSBlock(nn.Module):
 
     def __init__(self, dim, ks_1=3, ks_2=3, dl_1=1, dl_2=1, mp_ks=3, mp_st=1):
-        super(DSBlock, self).__init__()
+        super(NSBlock, self).__init__()
         self.dim = dim
         self.conv_r1 = nn.Conv2d(
             dim, dim, kernel_size=ks_1, dilation=dl_1, padding=(dl_1 * (ks_1 - 1)) / 2)
@@ -45,18 +45,18 @@ class NeuSomaticNet(nn.Module):
             1, 3), padding=(0, 1), stride=1)
         self.bn1 = nn.BatchNorm2d(dim)
         self.pool1 = nn.MaxPool2d((1, 3), padding=(0, 1), stride=(1, 1))
-        self.resblocks = [
+        self.nsblocks = [
             [3, 5, 1, 1, 3, 1],
             [3, 5, 1, 1, 3, 2],
             [3, 5, 2, 1, 3, 2],
             [3, 5, 4, 2, 3, 2],
         ]
         res_layers = []
-        for ks_1, ks_2, dl_1, dl_2, mp_ks, mp_st in self.resblocks:
-            rb = DSBlock(dim, ks_1, ks_2, dl_1, dl_2, mp_ks, mp_st)
+        for ks_1, ks_2, dl_1, dl_2, mp_ks, mp_st in self.nsblocks:
+            rb = NSBlock(dim, ks_1, ks_2, dl_1, dl_2, mp_ks, mp_st)
             res_layers.append(rb)
         self.res_layers = nn.Sequential(*res_layers)
-        ds = np.prod(map(lambda x: x[5], self.resblocks))
+        ds = np.prod(map(lambda x: x[5], self.nsblocks))
         self.fc_dim = dim * 32 * 5 / ds
         self.fc1 = nn.Linear(self.fc_dim, 240)
         self.fc2 = nn.Linear(240, 4)
