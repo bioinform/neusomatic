@@ -198,7 +198,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                ins_min_af, del_min_af, del_merge_min_af,
                ins_merge_min_af, merge_r, truth_vcf, tsv_batch_size,
                matrix_width, matrix_base_pad, min_ev_frac_per_col,
-               ensemble_tsv, long_read, restart, skip_without_qual, num_threads,
+               ensemble_tsv, long_read, restart, first_do_without_qual, num_threads,
                scan_alignments_binary,):
     logger = logging.getLogger(preprocess.__name__)
 
@@ -217,7 +217,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     candidates_split_regions = []
     dbsnp_regions_q = []
     ensemble_beds = []
-    if not long_read and not skip_without_qual:
+    if not long_read and first_do_without_qual:
         logger.info("Scan tumor bam (first without quality scores).")
         work_tumor_without_q = os.path.join(work, "work_tumor_without_q")
         if restart or not os.path.exists(work_tumor_without_q):
@@ -264,7 +264,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         ensemble_beds = get_ensemble_beds(
             work, reference, ensemble_bed, split_regions, matrix_base_pad, num_threads)
 
-    if (not long_read) and skip_without_qual:
+    if (not long_read):
         candidates_split_regions = extract_candidate_split_regions(
             work_tumor, filtered_candidates_vcfs, split_regions, ensemble_beds,
             reference, matrix_base_pad, merge_d_for_short_read)
@@ -371,8 +371,8 @@ if __name__ == '__main__':
     parser.add_argument('--restart',
                         help='Restart the process. (instead of continuing from where we left)',
                         action="store_true")
-    parser.add_argument('--skip_without_qual',
-                        help='Skip initial scan without calculating the quality stats',
+    parser.add_argument('--first_do_without_qual',
+                        help='Perform initial scan without calculating the quality stats',
                         action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
@@ -389,7 +389,7 @@ if __name__ == '__main__':
                    args.ins_min_af, args.del_min_af, args.del_merge_min_af,
                    args.ins_merge_min_af, args.merge_r,
                    args.truth_vcf, args.tsv_batch_size, args.matrix_width, args.matrix_base_pad, args.min_ev_frac_per_col,
-                   args.ensemble_tsv, args.long_read, args.restart, args.skip_without_qual, args.num_threads,
+                   args.ensemble_tsv, args.long_read, args.restart, args.first_do_without_qual, args.num_threads,
                    args.scan_alignments_binary)
     except Exception as e:
         logger.error(traceback.format_exc())
