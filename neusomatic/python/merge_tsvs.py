@@ -17,7 +17,7 @@ import numpy as np
 
 def merge_tsvs(input_tsvs, out,
                candidates_per_tsv, max_num_tsvs, overwrite_merged_tsvs,
-               keep_none_types, max_dp=1000000):
+               keep_none_types, max_dp=40000):
     logger = logging.getLogger(merge_tsvs.__name__)
     logger.info("----------------Merging Candidate tsvs-------------------")
     if not os.path.exists(out):
