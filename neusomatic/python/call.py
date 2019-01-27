@@ -383,8 +383,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
     vartype_classes = ['DEL', 'INS', 'NONE', 'SNP']
     data_transform = transforms.Compose(
-        [transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     num_channels = 119 if ensemble else 26
     net = NeuSomaticNet(num_channels)
     if use_cuda:

@@ -101,7 +101,7 @@ def test(net, epoch, validation_loader, use_cuda):
 
         for i in range(len(labels)):
             label = labels[i]
-            class_correct[label] += compare_labels[i]
+            class_correct[label] += compare_labels[i].data.cpu().numpy()
             class_total[label] += 1
         for i in range(len(predicted)):
             label = predicted[i]
@@ -110,7 +110,7 @@ def test(net, epoch, validation_loader, use_cuda):
         compare_len = (len_pred == var_len_s).squeeze()
         for i in range(len(var_len_s)):
             len_ = var_len_s[i]
-            len_class_correct[len_] += compare_len[i]
+            len_class_correct[len_] += compare_len[i].data.cpu().numpy()
             len_class_total[len_] += 1
         for i in range(len(len_pred)):
             len_ = len_pred[i]
@@ -186,8 +186,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         torch.set_num_threads(num_threads)
 
     data_transform = transforms.Compose(
-        [transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+        [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
     )
     num_channels = 119 if ensemble else 26
     net = NeuSomaticNet(num_channels)
@@ -396,14 +395,14 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 if use_cuda:
                     var_len_labels = var_len_labels.cuda()
                 loss = criterion_crossentropy(outputs_classification, labels) + 1 * criterion_smoothl1(
-                    outputs_pos, var_pos_s[:, 1]
+                    outputs_pos.squeeze(1), var_pos_s[:, 1]
                 ) + 1 * criterion_crossentropy2(outputs_len, var_len_labels)
 
                 loss.backward()
                 optimizer.step()
-                loss_s.append(loss.data[0])
+                loss_s.append(loss.data)
 
-                running_loss += loss.data[0]
+                running_loss += loss.data
                 if i_ % print_freq == print_freq - 1:
                     logger.info('epoch: {}, i: {:>5}, lr: {}, loss: {:.5f}'.format(
                                 epoch + 1 + prev_epochs, i_ + 1,

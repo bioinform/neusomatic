@@ -388,9 +388,11 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             non_transformed_matrix = np.array(orig_matrix).astype(np.uint8)
         else:
             non_transformed_matrix = []
-
+            
+        matrix = torch.from_numpy(matrix.transpose((2, 0, 1)))
+        matrix = matrix.float().div(255)
         if self.transform is not None:
-            matrix = self.transform(matrix)
+             matrix = self.transform(matrix)
 
         var_pos = [length, center]
         var_pos = torch.Tensor(var_pos)
