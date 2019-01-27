@@ -12,8 +12,6 @@ import numpy as np
 
 from utils import get_chromosomes_order
 
-from _version import __version__
-
 
 def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, out_vcf,
                     pass_threshold, lowqual_threshold):
@@ -34,15 +32,6 @@ def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, out_vcf,
 
     with open(out_vcf, "w") as o_f:
         o_f.write("##fileformat=VCFv4.2\n")
-        o_f.write("##NeuSomatic Version={}\n".format(__version__))
-        o_f.write(
-            "##FORMAT=<ID=SCORE,Number=1,Type=Float,Description=\"Prediction probability score\">\n")
-        o_f.write("##FILTER=<ID=PASS,Description=\"Accept as a higher confidence somatic mutation calls with probability score value at least {}\">\n".format(
-            pass_threshold))
-        o_f.write("##FILTER=<ID=LowQual,Description=\"Less confident somatic mutation calls with probability score value at least {}\">\n".format(
-            lowqual_threshold))
-        o_f.write("##FILTER=<ID=REJECT,Description=\"Rejected as a confident somatic mutation with probability score value below {}\">\n".format(
-            lowqual_threshold))
         o_f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
         for record in sorted(good_records, key=lambda x: [chroms_order[x[0]], x[1]]):
             chrom, pos, ref, alt, gt, score = record

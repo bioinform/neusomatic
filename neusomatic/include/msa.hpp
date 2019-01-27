@@ -200,41 +200,6 @@ public:
     std::string bquals_str(bquals_.begin(), bquals_.end());
     return bquals_str;
   }
-  std::string get_lsc(const GappedSeq<char, Gap, typename Variant::TInv>& refgap, int pos_lsc) const {
-    std::vector<unsigned char> lsc(bquals_.size(),'0');
-    if (refgap.left() <= pos_lsc && pos_lsc<refgap.right()){
-      int c=0;
-      for (size_t i = 0; i < bases_.size(); ++i) {
-        if (i !=0) {
-          c += gapstrs_[i].size();
-        } 
-        if ((refgap.left()+i)==pos_lsc){
-          lsc[c]='1';  
-          break;
-        }
-        c += 1;
-      }
-    }
-    std::string lsc_str(lsc.begin(), lsc.end());
-    return lsc_str;
-  }
-  std::string get_rsc(const GappedSeq<char, Gap, typename Variant::TInv>& refgap, int pos_rsc) const {
-    std::vector<unsigned char> rsc(bquals_.size(),'0');
-    if (refgap.left() <= pos_rsc && pos_rsc<refgap.right()){
-      int c=0;
-      for (size_t i = 0; i < bases_.size(); ++i) {
-        if (i !=0) {
-          c += gapstrs_[i].size();
-        } 
-        if ((refgap.left()+i)==pos_rsc){
-          rsc[c]='1';  
-        }
-        c += 1;
-      }
-    }
-    std::string rsc_str(rsc.begin(), rsc.end());
-    return rsc_str;
-  }
 
   std::string to_string() const {
     std::string result;
@@ -299,12 +264,23 @@ public:
   } 
 
   auto GetMSAwithQual() const { 
+
+    std::vector<int> gap_positions(ref_gaps_.bases().size());
+    int c=0;
+    for (size_t i = 0; i < ref_gaps_.bases().size(); ++i) {
+      if (i !=0) {
+        c += ref_gaps_.gaps()[i].len();
+      } 
+      gap_positions[i] = c;
+      c += 1;
+    }
+
     std::vector<std::string> result(bam_records_.size());
     std::vector<std::string> bquals(bam_records_.size());
-    std::vector<std::string> lscs(bam_records_.size());
-    std::vector<std::string> rscs(bam_records_.size());
+    std::vector<int> lscs(bam_records_.size(), -1);
+    std::vector<int> rscs(bam_records_.size(), -1);
     std::vector<int> mquals(bam_records_.size());
-    std::vector<bool> strands(bam_records_.size());
+    std::vector<int> strands(bam_records_.size());
     std::vector<std::vector<int>> tags(bam_records_.size(),std::vector<int>(5,0));
     for (size_t i = 0; i < bam_records_.size(); ++i) {
       auto const& r = bam_records_[i];
@@ -398,10 +374,15 @@ public:
       int pos_lsc = ((front_cigar=='H')||(front_cigar=='S')) ? r.Position() : -1;
       int pos_rsc = ((end_cigar=='H')||(end_cigar=='S')) ? r.PositionEnd()-1 : -1;
 
-      lscs[i] = row.get_lsc(ref_gaps_, pos_lsc);
-      rscs[i] = row.get_rsc(ref_gaps_, pos_rsc);
+      if (ref_gaps_.left() <= pos_lsc && pos_lsc<ref_gaps_.right()){
+        lscs[i] = gap_positions[pos_lsc - ref_gaps_.left()];
+      }
+      if (ref_gaps_.left() <= pos_rsc && pos_rsc<ref_gaps_.right()) {
+        rscs[i] = gap_positions[pos_rsc - ref_gaps_.left()];
+      }   
+
       mquals[i] = r.MapQuality();
-      strands[i] = !r.ReverseFlag();
+      strands[i] = (int) !r.ReverseFlag();
 
       auto length=r.Sequence().size();
       int32_t nm=0;
@@ -427,7 +408,7 @@ public:
 
     }
     return std::tuple< std::vector<std::string>, std::vector<std::string>, std::vector<int>, 
-                       std::vector<bool>, std::vector<std::string>, std::vector<std::string>,
+                       std::vector<int>, std::vector<int>, std::vector<int>,
                        std::vector<std::vector<int>> > (result,bquals,mquals,strands,lscs,rscs,tags);
   } 
 
