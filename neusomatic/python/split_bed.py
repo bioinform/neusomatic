@@ -30,10 +30,10 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
             intervals.append(region)
     if shuffle_intervals:
         shuffle(intervals)
-    regions_bed = pybedtools.BedTool(intervals)
+    regions_bed = pybedtools.BedTool(intervals).saveas()
     total_len = sum(map(lambda x: int(x[2]) - int(x[1]) + 1, regions_bed))
     logger.info("Total length: {}".format(total_len))
-    split_len = total_len / num_splits
+    split_len = total_len // num_splits
     split_regions = []
     current_regions = []
     sofar_len = 0

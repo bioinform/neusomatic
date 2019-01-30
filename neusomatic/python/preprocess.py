@@ -22,7 +22,8 @@ from scan_alignments import scan_alignments
 from utils import concatenate_vcfs
 
 
-def split_dbsnp((restart, dbsnp, region_bed, dbsnp_region_vcf)):
+def split_dbsnp(record):
+    restart, dbsnp, region_bed, dbsnp_region_vcf = record
     thread_logger = logging.getLogger(
         "{} ({})".format(split_dbsnp.__name__, multiprocessing.current_process().name))
     try:
@@ -115,7 +116,7 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
                     dbsnp_regions.append(dbsnp_region_vcf)
     else:
         filtered_candidates_vcfs = None
-    return map(lambda x: x[1], scan_outputs), map(lambda x: x[2], scan_outputs), filtered_candidates_vcfs, dbsnp_regions
+    return list(map(lambda x: x[1], scan_outputs)), list(map(lambda x: x[2], scan_outputs)), filtered_candidates_vcfs, dbsnp_regions
 
 
 def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
@@ -126,7 +127,8 @@ def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, regi
                      tsv_batch_size)
 
 
-def get_ensemble_region((reference, ensemble_bed, region, ensemble_bed_region_file, matrix_base_pad)):
+def get_ensemble_region(record):
+    reference, ensemble_bed, region, ensemble_bed_region_file, matrix_base_pad = record
     thread_logger = logging.getLogger(
         "{} ({})".format(get_ensemble_region.__name__, multiprocessing.current_process().name))
     try:

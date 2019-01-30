@@ -48,7 +48,7 @@ def merge_tsvs(input_tsvs, out,
 
     totla_L = 0
     for tsv in input_tsvs:
-        totla_L += len(pickle.load(open(tsv + ".idx"))) - 1
+        totla_L += len(pickle.load(open(tsv + ".idx", "rb"))) - 1
     totla_L = max(0, totla_L)
     candidates_per_tsv = max(candidates_per_tsv, np.ceil(
         totla_L / float(max_num_tsvs)) + 1)
@@ -73,7 +73,7 @@ def merge_tsvs(input_tsvs, out,
                     none_f.write(line)
                     if len(none_idx) >= candidates_per_tsv:
                         none_idx.append(none_f.tell())
-                        pickle.dump(none_idx, open(none_file + ".idx", "w"))
+                        pickle.dump(none_idx, open(none_file + ".idx", "wb"))
                         none_f.close()
                         logger.info(
                             "Done with merge_id: {}".format(len(merged_tsvs)))
@@ -90,7 +90,7 @@ def merge_tsvs(input_tsvs, out,
                     var_f.write(line)
                     if len(var_idx) >= candidates_per_tsv:
                         var_idx.append(var_f.tell())
-                        pickle.dump(var_idx, open(var_file + ".idx", "w"))
+                        pickle.dump(var_idx, open(var_file + ".idx", "wb"))
                         var_f.close()
                         logger.info(
                             "Done with merge_id: {}".format(len(merged_tsvs)))
@@ -102,13 +102,13 @@ def merge_tsvs(input_tsvs, out,
                         var_idx = []
     if not var_f.closed:
         var_idx.append(var_f.tell())
-        pickle.dump(var_idx, open(var_file + ".idx", "w"))
+        pickle.dump(var_idx, open(var_file + ".idx", "wb"))
         var_f.close()
         logger.info("Done with merge_id: {}".format(len(merged_tsvs)))
         merged_tsvs.append(var_file)
     if not keep_none_types and not none_f.closed:
         none_idx.append(none_f.tell())
-        pickle.dump(none_idx, open(none_file + ".idx", "w"))
+        pickle.dump(none_idx, open(none_file + ".idx", "wb"))
         none_f.close()
         logger.info("Done with merge_id: {}".format(len(merged_tsvs)))
         merged_tsvs.append(none_file)

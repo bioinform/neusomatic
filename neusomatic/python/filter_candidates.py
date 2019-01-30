@@ -15,9 +15,10 @@ import numpy as np
 from utils import safe_read_info_dict
 
 
-def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp, min_dp, max_dp, good_ao,
-                       min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af,
-                       del_merge_min_af, ins_merge_min_af, merge_r)):
+def filter_candidates(candidate_record):
+    candidates_vcf, filtered_candidates_vcf, reference, dbsnp, min_dp, max_dp, good_ao, \
+     min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af,  \
+     del_merge_min_af, ins_merge_min_af, merge_r = candidate_record
     thread_logger = logging.getLogger(
         "{} ({})".format(filter_candidates.__name__, multiprocessing.current_process().name))
     try:
@@ -35,7 +36,7 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
                 chrom, pos, _, ref, alt, _, _, info_, _, info = line.strip().split()
                 pos = int(pos)
                 loc = "{}.{}".format(chrom, pos)
-                dp, ro, ao = map(int, info.split(":")[1:4])
+                dp, ro, ao = list(map(int, info.split(":")[1:4]))
                 info_dict = dict(map(lambda x: x.split(
                     "="), filter(None, info_.split(";"))))
                 mq_ = safe_read_info_dict(info_dict, "MQ", int, -100)
@@ -71,15 +72,15 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
         fasta_file = pysam.Fastafile(reference)
         good_records = []
         dels = []
-        for loc, rs in sorted(records.iteritems(), key=lambda x: x[1][0:2]) + \
+        for loc, rs in sorted(records.items(), key=lambda x: x[1][0:2]) + \
                 [["", [["", 0, "", "", 0, 0, 0, ""]]]]:
-            ins = filter(lambda x: x[2] == "N", rs)
+            ins = list(filter(lambda x: x[2] == "N", rs))
             if len(ins) > 1:
                 # emit ins
-                afs = map(lambda x: x[6] / float(x[5] + x[6]), ins)
+                afs = list(map(lambda x: x[6] / float(x[5] + x[6]), ins))
                 max_af = max(afs)
-                ins = filter(lambda x: x[6] / float(x[5] +
-                                                    x[6]) >= (max_af * merge_r), ins)
+                ins = list(filter(lambda x: x[6] / float(x[5] +
+                                                    x[6]) >= (max_af * merge_r), ins))
                 chrom, pos, ref = ins[0][0:3]
                 dp = max(map(lambda x: x[4], ins))
                 ro = max(map(lambda x: x[5], ins))
@@ -109,7 +110,7 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
                 else:
                     ins = [ins[0][:-1]]
             good_records.extend(ins)
-            if dels and (ins or filter(lambda x: x[3] != "N" and x[2] != "N", rs)):
+            if dels and (ins or list(filter(lambda x: x[3] != "N" and x[2] != "N", rs))):
                 # emit del
                 if len(dels) == 1:
                     ro = dels[0][5]
@@ -119,11 +120,11 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
                         good_records.extend(dels)
 
                 else:
-                    afs = map(lambda x: x[6] / float(x[5] + x[6]), dels)
+                    afs = list(map(lambda x: x[6] / float(x[5] + x[6]), dels))
                     max_af = max(afs)
                     merge_r_thr = merge_r * max_af
-                    dels = filter(
-                        lambda x: x[6] / float(x[5] + x[6]) >= merge_r_thr, dels)
+                    dels = list(filter(
+                        lambda x: x[6] / float(x[5] + x[6]) >= merge_r_thr, dels))
                     chrom, pos = dels[0][0:2]
                     dp = max(map(lambda x: x[4], dels))
                     ro = max(map(lambda x: x[5], dels))
@@ -172,12 +173,12 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
                                 if ao / float(ro + ao) >= ((del_min_af)):
                                     good_records.extend(dels)
                             else:
-                                afs = map(lambda x: x[6] /
-                                          float(x[5] + x[6]), dels)
+                                afs = list(map(lambda x: x[6] /
+                                          float(x[5] + x[6]), dels))
                                 max_af = max(afs)
                                 merge_r_thr = merge_r * max_af
-                                dels = filter(
-                                    lambda x: x[6] / float(x[5] + x[6]) >= merge_r_thr, dels)
+                                dels = list(filter(
+                                    lambda x: x[6] / float(x[5] + x[6]) >= merge_r_thr, dels))
                                 chrom, pos = dels[0][0:2]
                                 dp = max(map(lambda x: x[4], dels))
                                 ro = max(map(lambda x: x[5], dels))
@@ -277,8 +278,8 @@ def filter_candidates((candidates_vcf, filtered_candidates_vcf, reference, dbsnp
                 non_in_dbsnp_ids.append(int(x[5]))
             for x in non_in_dbsnp_2:
                 non_in_dbsnp_ids.append(int(x[5]))
-            final_records = map(lambda x: x[1], filter(
-                lambda x: x[0] in non_in_dbsnp_ids, enumerate(final_records)))
+            final_records = list(map(lambda x: x[1], filter(
+                lambda x: x[0] in non_in_dbsnp_ids, enumerate(final_records))))
         with open(filtered_candidates_vcf, "w") as o_f:
             o_f.write("##fileformat=VCFv4.2\n")
             o_f.write(

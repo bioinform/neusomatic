@@ -48,8 +48,8 @@ def concatenate_files(infiles, outfile, check_file_existence=True):
 def concatenate_vcfs(infiles, outfile, check_file_existence=True, header_string="#"):
     with open(outfile, "w") as out_fd:
         # Only keep files which exist
-        files_to_process = filter(lambda f: f and (
-            not check_file_existence or os.path.isfile(f)), infiles)
+        files_to_process = list(filter(lambda f: f and (
+            not check_file_existence or os.path.isfile(f)), infiles))
 
         for index, infile in enumerate(files_to_process):
             with open(infile) as in_fd:

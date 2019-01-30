@@ -79,31 +79,32 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
                     imsave(file_name, non_transformed_matrices[i, :, :, 0:3])
                 true_path[path] = file_name
                 final_preds[path] = [vartype_classes[predicted[i]], pos_pred[i], len_pred[i],
-                                     map(lambda x: round(x, 4), F.softmax(
-                                         outputs1[i, :], 0).data.cpu().numpy()),
-                                     map(lambda x: round(x, 4), F.softmax(
-                                         outputs3[i, :], 0).data.cpu().numpy()),
-                                     map(lambda x: round(x, 4),
-                                         outputs1.data.cpu()[i].numpy()),
-                                     map(lambda x: round(x, 4),
-                                         outputs3.data.cpu()[i].numpy())]
+                                     list(map(lambda x: round(x, 4), F.softmax(
+                                         outputs1[i, :], 0).data.cpu().numpy())),
+                                     list(map(lambda x: round(x, 4), F.softmax(
+                                         outputs3[i, :], 0).data.cpu().numpy())),
+                                     list(map(lambda x: round(x, 4),
+                                         outputs1.data.cpu()[i].numpy())),
+                                     list(map(lambda x: round(x, 4),
+                                         outputs3.data.cpu()[i].numpy()))]
             else:
                 none_preds[path] = [vartype_classes[predicted[i]], pos_pred[i], len_pred[i],
-                                    map(lambda x: round(x, 4), F.softmax(
-                                        outputs1[i, :], 0).data.cpu().numpy()),
-                                    map(lambda x: round(x, 4), F.softmax(
-                                        outputs3[i, :], 0).data.cpu().numpy()),
-                                    map(lambda x: round(x, 4),
-                                        outputs1.data.cpu()[i].numpy()),
-                                    map(lambda x: round(x, 4),
-                                        outputs3.data.cpu()[i].numpy())]
+                                    list(map(lambda x: round(x, 4), F.softmax(
+                                        outputs1[i, :], 0).data.cpu().numpy())),
+                                    list(map(lambda x: round(x, 4), F.softmax(
+                                        outputs3[i, :], 0).data.cpu().numpy())),
+                                    list(map(lambda x: round(x, 4),
+                                        outputs1.data.cpu()[i].numpy())),
+                                    list(map(lambda x: round(x, 4),
+                                        outputs3.data.cpu()[i].numpy()))]
         if (iii % 10 == 0):
             logger.info("Called {} candidates in this batch.".format(j))
     logger.info("Called {} candidates in this batch.".format(j))
     return final_preds, none_preds, true_path
 
 
-def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, ref_file)):
+def pred_vcf_records_path(record):
+    path, true_path_, pred_all, chroms, vartype_classes, ref_file = record
     thread_logger = logging.getLogger(
         "{} ({})".format(pred_vcf_records_path.__name__, multiprocessing.current_process().name))
     try:
@@ -196,7 +197,7 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, 
         b = (anchor[0] - col_2_pos[anchor[1]])
         for i in nzref_pos:
             col_2_pos[i] += b
-        pos_2_col = {v: k for k, v in col_2_pos.iteritems()}
+        pos_2_col = {v: k for k, v in col_2_pos.items()}
 
         if abs(center_pred - center) < too_far_center:
             if type_pred == "SNP":
@@ -311,7 +312,7 @@ def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, 
         if o is None:
             raise Exception("pred_vcf_records_path failed!")
 
-    all_vcf_records = filter(None, all_vcf_records)
+    all_vcf_records = list(filter(None, all_vcf_records))
 
     return all_vcf_records
 
@@ -348,7 +349,7 @@ def get_vcf_records(all_vcf_records):
 
 def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_threshold):
     logger = logging.getLogger(write_vcf.__name__)
-    vcf_records = filter(lambda x: len(x) > 0, vcf_records)
+    vcf_records = list(filter(lambda x: len(x) > 0, vcf_records))
     vcf_records = sorted(vcf_records, key=lambda x: [chroms_order[x[0]], x[1]])
     lines = []
     with open(output_vcf, "w") as ov:
@@ -417,10 +418,10 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     # 1. filter out unnecessary keys
     # pretrained_state_dict = {
     #     k: v for k, v in pretrained_state_dict.items() if k in model_dict}
-    if "module." in pretrained_state_dict.keys()[0] and "module." not in model_dict.keys()[0]:
+    if "module." in list(pretrained_state_dict.keys())[0] and "module." not in list(model_dict.keys())[0]:
         pretrained_state_dict = {k.split("module.")[1]: v for k, v in pretrained_state_dict.items(
         ) if k.split("module.")[1] in model_dict}
-    elif "module." not in pretrained_state_dict.keys()[0] and "module." in model_dict.keys()[0]:
+    elif "module." not in list(pretrained_state_dict.keys())[0] and "module." in list(model_dict.keys())[0]:
         pretrained_state_dict = {
             ("module." + k): v for k, v in pretrained_state_dict.items()
             if ("module." + k) in model_dict}
@@ -434,7 +435,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
     Ls = []
     for candidate_file in candidates_tsv:
-        idx = pickle.load(open(candidate_file + ".idx"))
+        idx = pickle.load(open(candidate_file + ".idx", "rb"))
         Ls.append(len(idx) - 1)
 
     current_L = 0

@@ -36,7 +36,7 @@ def candidate_loader_tsv(tsv, open_tsv, idx, i):
     tag = fields[2]
     im = extract_zlib(base64.b64decode(fields[3]))
     if len(fields) > 4:
-        anns = map(float, fields[4:])
+        anns = list(map(float, fields[4:]))
     else:
         anns = []
     label = type_class_dict[tag.split(".")[4]]
@@ -45,7 +45,8 @@ def candidate_loader_tsv(tsv, open_tsv, idx, i):
     return tag, im, anns, label
 
 
-def extract_info_tsv((i_b, tsv, idx, L, max_load_candidates, nclasses_t, nclasses_l)):
+def extract_info_tsv(record):
+    i_b, tsv, idx, L, max_load_candidates, nclasses_t, nclasses_l = record
     thread_logger = logging.getLogger(
         "{} ({})".format(extract_info_tsv.__name__, multiprocessing.current_process().name))
     try:
@@ -89,7 +90,7 @@ def extract_info_tsv((i_b, tsv, idx, L, max_load_candidates, nclasses_t, nclasse
                     im = extract_zlib(base64.b64decode(fields[3]))
                     label = type_class_dict[tag.split(".")[4]]
                     if len(fields) > 4:
-                        anns = map(float, fields[4:])
+                        anns = list(map(float, fields[4:]))
                     else:
                         anns = []
                     data.append([tag, im, anns, label])
@@ -147,7 +148,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                 self.tsvs.append(tsv)
                 for t in range(num_threads):
                     self.open_tsvs[t].append("")
-                idx = pickle.load(open(tsv + ".idx"))
+                idx = pickle.load(open(tsv + ".idx", "rb"))
                 self.idxs.append(idx)
                 self.Ls.append(len(idx) - 1)
         self.data = []
@@ -167,7 +168,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             Ls_ = []
             for i_b, _ in batch:
                 tsv = self.tsvs[i_b]
-                max_load_ = self.Ls[i_b] * max_load_candidates / \
+                max_load_ = self.Ls[i_b] * max_load_candidates // \
                     total_L if total_L > 0 else 0
                 map_args.append([i_b, tsv, self.idxs[i_b], self.Ls[i_b],
                                  max_load_, nclasses_t, nclasses_l])
@@ -198,8 +199,8 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             for matrices, data, none_ids, var_ids, count_class_t, count_class_l in records_:
                 self.matrices += matrices
                 self.data += data
-                self.none_ids += map(lambda x: x + j, none_ids)
-                self.var_ids += map(lambda x: x + j, var_ids)
+                self.none_ids += list(map(lambda x: x + j, none_ids))
+                self.var_ids += list(map(lambda x: x + j, var_ids))
                 for k in range(nclasses_t):
                     self.count_class_t[k] += count_class_t[k]
                 for k in range(nclasses_l):
@@ -271,12 +272,12 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             h, w, c = matrix.shape
             r = random.rand()
             if r < 0.6:
-                x_left = random.randint((center - 2) * 2 / 3, center - 2)
+                x_left = random.randint((center - 2) * 2 // 3, center - 2)
             else:
                 x_left = 0
             if r > 0.4:
                 x_right = random.randint(
-                    (w - center - 2) * 2 / 3, w - center - 2)
+                    (w - center - 2) * 2 // 3, w - center - 2)
             else:
                 x_right = 0
             if x_left > 0:

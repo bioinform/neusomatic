@@ -26,8 +26,8 @@ NUC_to_NUM_hp = {"A": 1, "C": 2, "G": 3, "T": 4, "N": 5}
 NUC_to_NUM = {"a": 1, "c": 2, "g": 3, "t": 4, "-": 5, " ": 0, "A": 1, "C": 2, "G": 3, "T": 4, "N": 5,
               "b": 1, "d": 2, "h": 3, "u": 4}
 snp = {"a": "b", "c": "d", "g": "h", "t": "u"}
-NUM_to_NUC = {v: k for k, v in NUC_to_NUM.iteritems()}
-NUM_to_NUC_hp = {v: k for k, v in NUC_to_NUM_hp.iteritems()}
+NUM_to_NUC = {v: k for k, v in NUC_to_NUM.items()}
+NUM_to_NUC_hp = {v: k for k, v in NUC_to_NUM_hp.items()}
 
 
 def get_type(ref, alt):
@@ -115,14 +115,14 @@ def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad, chrom
                 col_pos_map[pos_] = cnt
                 cnt += 1
             curr_pos = pos_ + 1
-        matrix_.append(map(int, rec[4].split(":")))
-        bq_matrix_.append(map(int, rec[5].split(":")))
-        mq_matrix_.append(map(int, rec[6].split(":")))
-        st_matrix_.append(map(int, rec[7].split(":")))
-        lsc_matrix_.append(map(int, rec[8].split(":")))
-        rsc_matrix_.append(map(int, rec[9].split(":")))
+        matrix_.append(list(map(int, rec[4].split(":"))))
+        bq_matrix_.append(list(map(int, rec[5].split(":"))))
+        mq_matrix_.append(list(map(int, rec[6].split(":"))))
+        st_matrix_.append(list(map(int, rec[7].split(":"))))
+        lsc_matrix_.append(list(map(int, rec[8].split(":"))))
+        rsc_matrix_.append(list(map(int, rec[9].split(":"))))
         for iii in range(len(tag_matrices_)):
-            tag_matrices_[iii].append(map(int, rec[10 + iii].split(":")))
+            tag_matrices_[iii].append(list(map(int, rec[10 + iii].split(":"))))
         ref_array.append(NUC_to_NUM_tabix[ref_base])
         if ref_base != "-" and pos_ not in col_pos_map:
             col_pos_map[pos_] = cnt
@@ -189,9 +189,9 @@ def align_tumor_normal_matrices(record, tumor_matrix_, bq_tumor_matrix_, mq_tumo
         raise(RuntimeError(
             "tumor_col_pos_map  and normal_col_pos_map have different keys."))
 
-    pT = map(lambda x: tumor_col_pos_map[x], sorted(tumor_col_pos_map.keys()))
-    pN = map(lambda x: normal_col_pos_map[
-             x], sorted(normal_col_pos_map.keys()))
+    pT = list(map(lambda x: tumor_col_pos_map[x], sorted(tumor_col_pos_map.keys())))
+    pN = list(map(lambda x: normal_col_pos_map[
+             x], sorted(normal_col_pos_map.keys())))
 
     if pT[0] != pN[0]:
         logger.error("record: {}".format(record))
@@ -275,9 +275,9 @@ def align_tumor_normal_matrices(record, tumor_matrix_, bq_tumor_matrix_, mq_tumo
     new_normal_ref_array[map_N] = normal_ref_array
 
     new_tumor_col_pos_map = {k: map_T[v]
-                             for k, v in tumor_col_pos_map.iteritems()}
+                             for k, v in tumor_col_pos_map.items()}
     new_normal_col_pos_map = {k: map_N[v]
-                              for k, v in normal_col_pos_map.iteritems()}
+                              for k, v in normal_col_pos_map.items()}
 
     if sum(new_normal_ref_array - new_tumor_ref_array) != 0:
         logger.error("record: {}".format(record))
@@ -382,8 +382,8 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
             a = [-1000] + sorted(np.where((ref_array == 0))[0]) + [1000]
             b = np.diff((np.diff(a) == 1).astype(int))
             a = a[1:-1]
-            blocks = map(lambda x: [a[x[0]], a[x[1]]], zip(
-                np.where(b == 1)[0], np.where(b == -1)[0]))
+            blocks = list(map(lambda x: [a[x[0]], a[x[1]]], zip(
+                np.where(b == 1)[0], np.where(b == -1)[0])))
             if blocks:
                 largest_block = sorted(
                     blocks, key=lambda x: x[1] - x[0] + 1)[-1]
@@ -398,19 +398,19 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
                                   ) - set(cols_not_to_del)))
     if n_col - len(cols_to_del) > tw:
         mn = min(count_column[np.argsort(count_column)][
-                 n_col - tw - 1], max(n_row / 5, min_ev_frac_per_col * n_row))
+                 n_col - tw - 1], max(n_row // 5, min_ev_frac_per_col * n_row))
         new_cols_to_del = set(np.where(np.logical_and(count_column <= mn, (ref_array == 0)))[
                               0]) - set(cols_to_del) - set(cols_not_to_del)
         if n_col - (len(cols_to_del) + len(new_cols_to_del)) < tw and len(new_cols_to_del) > 3 and len(alt) > len(ref):
-            new_cols_to_del = map(
-                lambda x: [count_column[x], x], new_cols_to_del)
+            new_cols_to_del = list(map(
+                lambda x: [count_column[x], x], new_cols_to_del))
             new_cols_to_del = sorted(new_cols_to_del, key=lambda x: [x[0], x[1]])[
                 0:len(new_cols_to_del) - 4]
-            new_cols_to_del = map(lambda x: x[1], new_cols_to_del)
+            new_cols_to_del = list(map(lambda x: x[1], new_cols_to_del))
         cols_to_del = sorted(set(list(new_cols_to_del) + list(cols_to_del)))
     cols_to_del = list(set(cols_to_del))
     if n_col - len(cols_to_del) > tw:
-        for i in range(n_col / 10):
+        for i in range(n_col // 10):
             if i not in cols_to_del and sum(rcenter) > -3:
                 ref_b = ref_array[i]
                 if tumor_matrix_[ref_b, i] > .8 * n_row:
@@ -434,7 +434,7 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
                                                           set(range(largest_block[0], largest_block[1] + 1)))))
 
     cols_to_del.sort()
-    for i, v in col_pos_map.iteritems():
+    for i, v in col_pos_map.items():
         col_pos_map[i] -= sum(np.array(cols_to_del) < v)
 
     tumor_matrix = np.delete(tumor_matrix_, cols_to_del, 1)
@@ -464,60 +464,60 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
 
     ncols = tumor_matrix.shape[1]
     if matrix_width >= ncols:
-        col_pos_map = {i: v + (matrix_width - ncols) /
-                       2 for i, v in col_pos_map.iteritems()}
+        col_pos_map = {i: v + (matrix_width - ncols) //
+                       2 for i, v in col_pos_map.items()}
         tumor_count_matrix = np.zeros((5, matrix_width))
-        tumor_count_matrix[:, (matrix_width - ncols) /
-                           2:(matrix_width - ncols) / 2 + ncols] = tumor_matrix
+        tumor_count_matrix[:, (matrix_width - ncols) //
+                           2:(matrix_width - ncols) // 2 + ncols] = tumor_matrix
         bq_tumor_count_matrix = np.zeros((5, matrix_width))
         bq_tumor_count_matrix[
-            :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = bq_tumor_matrix
+            :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = bq_tumor_matrix
         mq_tumor_count_matrix = np.zeros((5, matrix_width))
         mq_tumor_count_matrix[
-            :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = mq_tumor_matrix
+            :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = mq_tumor_matrix
         st_tumor_count_matrix = np.zeros((5, matrix_width))
         st_tumor_count_matrix[
-            :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = st_tumor_matrix
+            :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = st_tumor_matrix
         lsc_tumor_count_matrix = np.zeros((5, matrix_width))
         lsc_tumor_count_matrix[
-            :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = lsc_tumor_matrix
+            :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = lsc_tumor_matrix
         rsc_tumor_count_matrix = np.zeros((5, matrix_width))
         rsc_tumor_count_matrix[
-            :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = rsc_tumor_matrix
+            :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = rsc_tumor_matrix
         tag_tumor_count_matrices = []
         for iii in range(len(tag_tumor_matrices)):
             tag_tumor_count_matrices.append(np.zeros((5, matrix_width)))
             tag_tumor_count_matrices[iii][
-                :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = tag_tumor_matrices[iii]
+                :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = tag_tumor_matrices[iii]
         normal_count_matrix = np.zeros((5, matrix_width))
         normal_count_matrix[
-            :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = normal_matrix
+            :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = normal_matrix
         bq_normal_count_matrix = np.zeros((5, matrix_width))
         bq_normal_count_matrix[
-            :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = bq_normal_matrix
+            :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = bq_normal_matrix
         mq_normal_count_matrix = np.zeros((5, matrix_width))
         mq_normal_count_matrix[
-            :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = mq_normal_matrix
+            :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = mq_normal_matrix
         st_normal_count_matrix = np.zeros((5, matrix_width))
         st_normal_count_matrix[
-            :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = st_normal_matrix
+            :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = st_normal_matrix
         lsc_normal_count_matrix = np.zeros((5, matrix_width))
         lsc_normal_count_matrix[
-            :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = lsc_normal_matrix
+            :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = lsc_normal_matrix
         rsc_normal_count_matrix = np.zeros((5, matrix_width))
         rsc_normal_count_matrix[
-            :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = rsc_normal_matrix
+            :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = rsc_normal_matrix
         tag_normal_count_matrices = []
         for iii in range(len(tag_normal_matrices)):
             tag_normal_count_matrices.append(np.zeros((5, matrix_width)))
             tag_normal_count_matrices[iii][
-                :, (matrix_width - ncols) / 2:(matrix_width - ncols) / 2 + ncols] = tag_normal_matrices[iii]
+                :, (matrix_width - ncols) // 2:(matrix_width - ncols) // 2 + ncols] = tag_normal_matrices[iii]
         ref_count_matrix = np.zeros((5, matrix_width))
-        ref_count_matrix[:, (matrix_width - ncols) /
-                         2:(matrix_width - ncols) / 2 + ncols] = ref_matrix
+        ref_count_matrix[:, (matrix_width - ncols) //
+                         2:(matrix_width - ncols) // 2 + ncols] = ref_matrix
     else:
         col_pos_map = {i: int(round(v / float(ncols) * matrix_width))
-                       for i, v in col_pos_map.iteritems()}
+                       for i, v in col_pos_map.items()}
         tumor_count_matrix = imresize(
             tumor_matrix, (5, matrix_width)).astype(int)
         bq_tumor_count_matrix = imresize(
@@ -568,8 +568,11 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
             tag_normal_count_matrices, center, rlen, col_pos_map]
 
 
-def prep_data_single_tabix((ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order,
-                            matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths)):
+def prep_data_single_tabix(input_record):
+
+    ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order, \
+    matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths = input_record
+
     thread_logger = logging.getLogger(
         "{} ({})".format(prep_data_single_tabix.__name__, multiprocessing.current_process().name))
     try:
@@ -648,7 +651,7 @@ def prep_data_single_tabix((ref_file, tumor_count_bed, normal_count_bed, record,
             candidate_mat, 255)).astype(np.uint8)
         tag = "{}.{}.{}.{}.{}.{}.{}.{}.{}".format(ch_order, pos, ref[0:55], alt[
                                                   0:55], vartype, center, rlen, tumor_cov, normal_cov)
-        candidate_mat = base64.b64encode(zlib.compress(candidate_mat))
+        candidate_mat = base64.b64encode(zlib.compress(candidate_mat)).decode('ascii')
         return tag, candidate_mat, record[0:4], ann
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
@@ -714,8 +717,8 @@ def push_lr(fasta_file, record, left_right_both):
                                 new_ref, new_alt] + record[4:])
             record = [chrom, new_pos -
                       len(new_ref), new_ref, new_alt] + record[4:]
-        eqs = map(lambda x: eqs[x], dict(
-            map(lambda x: ["_".join(map(str, x[1])), x[0]], enumerate(eqs))).values())
+        eqs = list(map(lambda x: eqs[x], dict(
+            map(lambda x: ["_".join(map(str, x[1])), x[0]], enumerate(eqs))).values()))
 
         for eq in eqs:
             c, p, r, a = eq[0:4]
@@ -731,7 +734,7 @@ def merge_records(fasta_file, records):
     if len(records) == 1:
         return records[0][0:4]
     chrom = records[0][0]
-    pos_s = map(lambda x: x[1], records)
+    pos_s = list(map(lambda x: x[1], records))
     pos_m = min(pos_s) - 1
     b = pos_m
     ref2_ = ""
@@ -821,7 +824,8 @@ def find_len(ref, alt):
     return max(len(ref_), len(alt_))
 
 
-def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, work_index)):
+def find_records(input_record):
+    work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, work_index = input_record
     thread_logger = logging.getLogger(
         "{} ({})".format(find_records.__name__, multiprocessing.current_process().name))
     try:
@@ -850,12 +854,13 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
             pybedtools.BedTool(ensemble_bed).intersect(
                 split_bed, u=True).saveas(split_ensemble_bed_file)
             pybedtools.BedTool(split_ensemble_bed_file).window(split_pred_vcf_file, w=5, v=True).each(
-                lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[1]) + 1, x[3], x[4], ".", otherfields=[".", ".", ".", "."])).saveas(split_missed_ensemble_bed_file)
+                lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[1]) + 1, x[3], x[4], 
+                ".", otherfields=[".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8')])).saveas(split_missed_ensemble_bed_file)
             concatenate_vcfs(
                 [split_pred_vcf_file, split_missed_ensemble_bed_file], split_pred_with_missed_file)
             pred_with_missed = pybedtools.BedTool(split_pred_with_missed_file).each(
                 lambda x: pybedtools.create_interval_from_list(
-                    [x[0], str(x[1]), ".", x[3], x[4], ".", ".", ".", ".", "."])).sort().saveas(
+                    [x[0], str(x[1]), ".", x[3], x[4], ".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8')])).sort().saveas(
                 split_pred_with_missed_file)
             not_in_ensemble_bed = pybedtools.BedTool(
                 pred_with_missed).window(split_ensemble_bed_file, w=1, v=True)
@@ -933,11 +938,11 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
                                             len(record_[14]) > len(record_[4]) and record_[14][0:len(record_[4])] == record_[4]):
                                         ann = record_[15:]
                             if ann:
-                                ann = map(float, ann)
+                                ann = list(map(float, ann))
                             rrs.append([r_, ann])
                         max_ann = max(map(lambda x: sum(x[1]), rrs))
                         if max_ann > 0:
-                            rrs = filter(lambda x: sum(x[1]) > 0, rrs)
+                            rrs = list(filter(lambda x: sum(x[1]) > 0, rrs))
                         elif max_ann == 0:
                             rrs = rrs[0:1]
                         for r_, ann in rrs:
@@ -970,7 +975,7 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
                         records.append(rr + [str(i)])
                         i += 1
         records_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
-            x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), records))
+            x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), records)).saveas()
 
         truth_records = []
         i = 0
@@ -984,9 +989,9 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
                 i += 1
 
         truth_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
-            x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), truth_records))
+            x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), truth_records)).saveas()
         none_records_0 = records_bed.window(truth_bed, w=5, v=True)
-        none_records_ids = map(lambda x: int(x[5]), none_records_0)
+        none_records_ids = list(map(lambda x: int(x[5]), none_records_0))
         other_records = records_bed.window(truth_bed, w=5)
         map_pred_2_truth = {}
         map_truth_2_pred = {}
@@ -1008,7 +1013,7 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
         good_records = {"INS": [], "DEL": [], "SNP": []}
         vtype = {}
         record_len = {}
-        for i, js in map_truth_2_pred.iteritems():
+        for i, js in map_truth_2_pred.items():
             truth_record = truth_records[i]
             for j in js:
                 record = records[j]
@@ -1022,11 +1027,11 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
                         good_records[vartype].append(j)
                         vtype[j] = vartype
 
-        good_records_idx = [i for w in good_records.values() for i in w]
+        good_records_idx = [i for w in list(good_records.values()) for i in w]
         remained_idx = sorted(set(range(len(records))) -
                               (set(good_records_idx) | set(none_records_ids)))
         done_js = list(good_records_idx)
-        for i, js in map_truth_2_pred.iteritems():
+        for i, js in map_truth_2_pred.items():
             truth_record = truth_records[i]
             if set(js) & set(good_records_idx) or set(js) & set(done_js):
                 continue
@@ -1045,7 +1050,7 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
                     mt = merge_records(fasta_file, t_)
                     if mt:
                         mt2, eqs2 = push_lr(fasta_file, mt, 2)
-                        eqs2 = map(lambda x: "_".join(map(str, x[0:4])), eqs2)
+                        eqs2 = list(map(lambda x: "_".join(map(str, x[0:4])), eqs2))
                         for idx_jj, jj in enumerate(js):
                             for n_merge_j in range(0, len(js) - idx_jj):
                                 r_j = js[idx_jj:idx_jj + n_merge_j + 1]
@@ -1073,8 +1078,8 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
                                         if not set(js) - set(done_js_):
                                             done = True
 
-        perfect_idx = [i for w in good_records.values() for i in w]
-        good_records_idx = [i for w in good_records.values() for i in w]
+        perfect_idx = [i for w in list(good_records.values()) for i in w]
+        good_records_idx = [i for w in list(good_records.values()) for i in w]
         remained_idx = sorted(set(range(len(records))) -
                               (set(good_records_idx) | set(none_records_ids)))
         for j in remained_idx:
@@ -1115,10 +1120,10 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
                     if done:
                         break
 
-        good_records_idx = [i for w in good_records.values() for i in w]
+        good_records_idx = [i for w in list(good_records.values()) for i in w]
         remained_idx = sorted(set(range(len(records))) -
                               (set(good_records_idx) | set(none_records_ids)))
-        for i, js in map_truth_2_pred.iteritems():
+        for i, js in map_truth_2_pred.items():
             truth_record = truth_records[i]
             if set(js) & set(good_records_idx):
                 continue
@@ -1138,10 +1143,10 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
                         good_records[vartype].append(j)
                         vtype[j] = vartype
 
-        good_records_idx = [i for w in good_records.values() for i in w]
+        good_records_idx = [i for w in list(good_records.values()) for i in w]
         remained_idx = sorted(set(range(len(records))) -
                               (set(good_records_idx) | set(none_records_ids)))
-        for i, js in map_truth_2_pred.iteritems():
+        for i, js in map_truth_2_pred.items():
             truth_record = truth_records[i]
             if set(js) & set(good_records_idx):
                 continue
@@ -1159,10 +1164,10 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
                     record_len[j] = find_len(ref_t, alt_t)
                     record_center[j] = rc
 
-        good_records_idx = [i for w in good_records.values() for i in w]
+        good_records_idx = [i for w in list(good_records.values()) for i in w]
         remained_idx = sorted(set(range(len(records))) -
                               (set(good_records_idx) | set(none_records_ids)))
-        for i, js in map_truth_2_pred.iteritems():
+        for i, js in map_truth_2_pred.items():
             truth_record = truth_records[i]
 
             if set(js) & set(good_records_idx):
@@ -1184,10 +1189,10 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
                         record_len[j] = find_len(ref_t, alt_t)
                         record_center[j] = rc
 
-        good_records_idx = [i for w in good_records.values() for i in w]
+        good_records_idx = [i for w in list(good_records.values()) for i in w]
         remained_idx = sorted(set(range(len(records))) -
                               (set(good_records_idx) | set(none_records_ids)))
-        for i, js in map_truth_2_pred.iteritems():
+        for i, js in map_truth_2_pred.items():
             truth_record = truth_records[i]
             if set(js) & set(good_records_idx):
                 continue
@@ -1203,16 +1208,16 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
                     record_center[j] = find_i_center(ref, alt)
                     record_len[j] = find_len(ref_t, alt_t)
 
-        good_records_idx = [i for w in good_records.values() for i in w]
+        good_records_idx = [i for w in list(good_records.values()) for i in w]
         remained_idx = sorted(set(range(len(records))) -
                               (set(good_records_idx) | set(none_records_ids)))
-        for i, js in map_truth_2_pred.iteritems():
+        for i, js in map_truth_2_pred.items():
             truth_record = truth_records[i]
 
             if set(js) & set(good_records_idx):
                 continue
 
-        good_records_idx = [i for w in good_records.values() for i in w]
+        good_records_idx = [i for w in list(good_records.values()) for i in w]
         remained_idx = sorted(set(range(len(records))) -
                               (set(good_records_idx) | set(none_records_ids)))
         for j in remained_idx:
@@ -1225,15 +1230,15 @@ def find_records((work, split_region_file, truth_vcf_file, pred_vcf_file, ref_fi
             vtype[j] = "NONE"
             record_len[j] = 0
 
-        good_records_idx = [i for w in good_records.values() for i in w]
+        good_records_idx = [i for w in list(good_records.values()) for i in w]
 
         records_r = [records[x] for k, w in good_records.items() for x in w]
         records_r_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
-            x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), records_r))
+            x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), records_r)).saveas()
 
         N_none = len(none_records_ids)
         thread_logger.info("N_none: {} ".format(N_none))
-        none_records = map(lambda x: records[x], none_records_ids)
+        none_records = list(map(lambda x: records[x], none_records_ids))
         none_records = sorted(none_records, key=lambda x: [x[0], int(x[1])])
 
         return records_r, none_records, vtype, record_len, record_center, chroms_order, anns
@@ -1259,11 +1264,11 @@ def extract_ensemble(work, ensemble_tsv):
             fields = line.strip().split()
             fields[2] = str(int(fields[1]) + len(fields[3]))
             ensemble_pos.append(fields[0:5])
-            ensemble_data.append(map(lambda x: float(
-                x.replace("False", "0").replace("True", "1")), fields[5:105]))
+            ensemble_data.append(list(map(lambda x: float(
+                x.replace("False", "0").replace("True", "1")), fields[5:105])))
     ensemble_data = np.array(ensemble_data)
 
-    cov_features = map(lambda x: x[0], filter(lambda x: x[1] in [
+    cov_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
         "Consistent_Mates", "Inconsistent_Mates", "N_DP",
         "nBAM_REF_NM", "nBAM_ALT_NM", "nBAM_REF_Concordant", "nBAM_REF_Discordant", "nBAM_ALT_Concordant", "nBAM_ALT_Discordant",
         "N_REF_FOR", "N_REF_REV", "N_ALT_FOR", "N_ALT_REV", "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads",  "nBAM_MQ0", "nBAM_Other_Reads", "nBAM_Poor_Reads",
@@ -1274,48 +1279,48 @@ def extract_ensemble(work, ensemble_tsv):
         "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads",
         "tBAM_MQ0", "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
         "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
-    ], enumerate(header)))
-    mq_features = map(lambda x: x[0], filter(lambda x: x[1] in [
-                      "nBAM_REF_MQ", "nBAM_ALT_MQ", "tBAM_REF_MQ", "tBAM_ALT_MQ"], enumerate(header)))
-    bq_features = map(lambda x: x[0], filter(lambda x: x[1] in [
-                      "nBAM_REF_BQ", "nBAM_ALT_BQ", "tBAM_REF_BQ", "tBAM_ALT_BQ"], enumerate(header)))
-    nm_diff_features = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["nBAM_NM_Diff", "tBAM_NM_Diff"], enumerate(header)))
-    ranksum_features = map(lambda x: x[0], filter(lambda x: x[1] in ["nBAM_Z_Ranksums_MQ", "nBAM_Z_Ranksums_BQ",
-                                                                     "nBAM_Z_Ranksums_EndPos", "tBAM_Z_Ranksums_BQ",  "tBAM_Z_Ranksums_MQ", "tBAM_Z_Ranksums_EndPos", ], enumerate(header)))
-    zero_to_one_features = map(lambda x: x[0], filter(lambda x: x[1] in ["if_MuTect", "if_VarScan2", "if_SomaticSniper", "if_VarDict",
+    ], enumerate(header))))
+    mq_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
+                      "nBAM_REF_MQ", "nBAM_ALT_MQ", "tBAM_REF_MQ", "tBAM_ALT_MQ"], enumerate(header))))
+    bq_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
+                      "nBAM_REF_BQ", "nBAM_ALT_BQ", "tBAM_REF_BQ", "tBAM_ALT_BQ"], enumerate(header))))
+    nm_diff_features = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["nBAM_NM_Diff", "tBAM_NM_Diff"], enumerate(header))))
+    ranksum_features = list(map(lambda x: x[0], filter(lambda x: x[1] in ["nBAM_Z_Ranksums_MQ", "nBAM_Z_Ranksums_BQ",
+                                                                     "nBAM_Z_Ranksums_EndPos", "tBAM_Z_Ranksums_BQ",  "tBAM_Z_Ranksums_MQ", "tBAM_Z_Ranksums_EndPos", ], enumerate(header))))
+    zero_to_one_features = list(map(lambda x: x[0], filter(lambda x: x[1] in ["if_MuTect", "if_VarScan2", "if_SomaticSniper", "if_VarDict",
                                                                          "MuSE_Tier", "if_Strelka"] + ["nBAM_Concordance_FET", "nBAM_StrandBias_FET", "nBAM_Clipping_FET",
-                                                                                                       "tBAM_Concordance_FET", "tBAM_StrandBias_FET", "tBAM_Clipping_FET"] + ["if_dbsnp", "COMMON"] + ["M2_STR"], enumerate(header)))
-    stralka_scor = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Strelka_Score"], enumerate(header)))
-    stralka_qss = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Strelka_QSS"], enumerate(header)))
-    stralka_tqss = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Strelka_TQSS"], enumerate(header)))
-    varscan2_score = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["VarScan2_Score"], enumerate(header)))
-    vardict_score = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["VarDict_Score"], enumerate(header)))
-    m2_lod = map(lambda x: x[0], filter(lambda x: x[1] in [
-                 "M2_NLOD", "M2_TLOD"], enumerate(header)))
-    sniper_score = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Sniper_Score"], enumerate(header)))
-    m2_ecent = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["M2_ECNT"], enumerate(header)))
-    sor = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["SOR"], enumerate(header)))
-    msi = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["MSI"], enumerate(header)))
-    msilen = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["MSILEN"], enumerate(header)))
-    shift3 = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["SHIFT3"], enumerate(header)))
-    MaxHomopolymer_Length = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["MaxHomopolymer_Length"], enumerate(header)))
-    SiteHomopolymer_Length = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["SiteHomopolymer_Length"], enumerate(header)))
-    InDel_Length = map(lambda x: x[0], filter(
-        lambda x: x[1] in ["InDel_Length"], enumerate(header)))
+                                                                                                       "tBAM_Concordance_FET", "tBAM_StrandBias_FET", "tBAM_Clipping_FET"] + ["if_dbsnp", "COMMON"] + ["M2_STR"], enumerate(header))))
+    stralka_scor = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["Strelka_Score"], enumerate(header))))
+    stralka_qss = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["Strelka_QSS"], enumerate(header))))
+    stralka_tqss = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["Strelka_TQSS"], enumerate(header))))
+    varscan2_score = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["VarScan2_Score"], enumerate(header))))
+    vardict_score = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["VarDict_Score"], enumerate(header))))
+    m2_lod = list(map(lambda x: x[0], filter(lambda x: x[1] in [
+                 "M2_NLOD", "M2_TLOD"], enumerate(header))))
+    sniper_score = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["Sniper_Score"], enumerate(header))))
+    m2_ecent = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["M2_ECNT"], enumerate(header))))
+    sor = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["SOR"], enumerate(header))))
+    msi = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["MSI"], enumerate(header))))
+    msilen = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["MSILEN"], enumerate(header))))
+    shift3 = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["SHIFT3"], enumerate(header))))
+    MaxHomopolymer_Length = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["MaxHomopolymer_Length"], enumerate(header))))
+    SiteHomopolymer_Length = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["SiteHomopolymer_Length"], enumerate(header))))
+    InDel_Length = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["InDel_Length"], enumerate(header))))
 
     min_max_features = [[cov_features, 0, 2 * COV],
                         [mq_features, 0, 70],
@@ -1340,7 +1345,7 @@ def extract_ensemble(work, ensemble_tsv):
                         [InDel_Length, -30, 30],
                         ]
     selected_features = sorted([i for f in min_max_features for i in f[0]])
-    selected_features_tags = map(lambda x: header[x], selected_features)
+    selected_features_tags = list(map(lambda x: header[x], selected_features))
     for i_s, mn, mx in min_max_features:
         s = ensemble_data[:, np.array(i_s)]
         s = np.maximum(np.minimum(s, mx), mn)
@@ -1387,7 +1392,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
         len_candids += len(pybedtools.BedTool(ensemble_bed)
                            .intersect(region_bed_file, u=True))
     logger.info("len_candids: {}".format(len_candids))
-    num_splits = max(len_candids / split_batch_size, num_threads)
+    num_splits = max(len_candids // split_batch_size, num_threads)
     split_region_files = split_region(
         work, region_bed_file, num_splits, shuffle_intervals=True)
 
@@ -1421,8 +1426,8 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     for records_r, none_records, vtype, record_len, record_center, chroms_order, anns in records_data:
         total_ims += len(records_r) + len(none_records)
 
-    candidates_split = int(total_ims / tsv_batch_size) + 1
-    is_split = total_ims / candidates_split
+    candidates_split = int(total_ims // tsv_batch_size) + 1
+    is_split = total_ims // candidates_split
     with open(var_vcf, "w") as vv, open(none_vcf, "w") as nv:
         is_current = 0
         is_ = -1
@@ -1519,8 +1524,8 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                         vv.write("\t".join([record[0], str(record[1]), ".", record[2], record[
                                  3], ".", ".", "TAG={};".format(tag), ".", "."]) + "\n")
                         tsv_idx.append(b_o.tell())
-                        b_o.write("\t".join([str(cnt_ims), "1", tag, compressed_candidate_mat] + map(
-                            lambda x: str(np.round(x, 4)), ann)) + "\n")
+                        b_o.write("\t".join([str(cnt_ims), "1", tag, compressed_candidate_mat] + list(map(
+                            lambda x: str(np.round(x, 4)), ann))) + "\n")
                         cnt_ims += 1
                 for x in none_records_done:
                     if x:
@@ -1528,11 +1533,11 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                         nv.write("\t".join([record[0], str(record[1]), ".", record[2], record[
                                  3], ".", ".", "TAG={};".format(tag), ".", "."]) + "\n")
                         tsv_idx.append(b_o.tell())
-                        b_o.write("\t".join([str(cnt_ims), "1", tag, compressed_candidate_mat] + map(
-                            lambda x: str(np.round(x, 4)), ann)) + "\n")
+                        b_o.write("\t".join([str(cnt_ims), "1", tag, compressed_candidate_mat] + list(map(
+                            lambda x: str(np.round(x, 4)), ann))) + "\n")
                         cnt_ims += 1
                 tsv_idx.append(b_o.tell())
-            pickle.dump(tsv_idx, open(candidates_tsv_file + ".idx", "w"))
+            pickle.dump(tsv_idx, open(candidates_tsv_file + ".idx", "wb"))
             is_current = is_end
             if is_current >= total_ims:
                 break

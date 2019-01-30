@@ -35,7 +35,7 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
             intervals_dict[id_] = []
         intervals_dict[id_].append(interval)
 
-    for id_, intervals in intervals_dict.iteritems():
+    for id_, intervals in intervals_dict.items():
         if len(intervals) == 1:
             score = intervals[0][15]
             interval = intervals[0][:10]
@@ -45,15 +45,15 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
         else:
             len_ = (len(intervals[0][4]) - len(intervals[0][3]))
             pos_ = int(intervals[0][1])
-            len_diff = map(lambda x: abs(
-                (len(x[14]) - len(x[13])) - len_), intervals)
+            len_diff = list(map(lambda x: abs(
+                (len(x[14]) - len(x[13])) - len_), intervals))
             min_len_diff = min(len_diff)
-            intervals = filter(lambda x: abs(
-                (len(x[14]) - len(x[13])) - len_) == min_len_diff, intervals)
-            pos_diff = map(lambda x: abs(int(x[11]) - pos_), intervals)
+            intervals = list(filter(lambda x: abs(
+                (len(x[14]) - len(x[13])) - len_) == min_len_diff, intervals))
+            pos_diff = list(map(lambda x: abs(int(x[11]) - pos_), intervals))
             min_pos_diff = min(pos_diff)
-            intervals = filter(lambda x: abs(
-                int(x[11]) - pos_) == min_pos_diff, intervals)
+            intervals = list(filter(lambda x: abs(
+                int(x[11]) - pos_) == min_pos_diff, intervals))
             score = "{:.4f}".format(
                 np.round(max(map(lambda x: float(x[15]), intervals)), 4))
             interval = intervals[0][:10]

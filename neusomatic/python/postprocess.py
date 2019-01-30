@@ -86,7 +86,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
             if tag not in tags_info:
                 tags_info[tag] = []
             info = x[19].split(":")
-            dp, ro, ao = map(int, info[1:4])
+            dp, ro, ao = list(map(int, info[1:4]))
             af = float(info[4])
             is_same = x[1] == x[11] and x[3] == x[13] and x[4] == x[14]
             is_same_type = np.sign(
@@ -96,7 +96,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
             tags_info[tag].append(
                 [~is_same, ~is_same_type, dist, len_diff, s_e, dp, ro, ao, af])
     fina_info_tag = {}
-    for tag, hits in tags_info.iteritems():
+    for tag, hits in tags_info.items():
         hits = sorted(hits, key=lambda x: x[0:5])
         fina_info_tag[tag] = hits[0][5:]
 
@@ -105,8 +105,8 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
         fina_info_tag[tag] = [0, 0, 0, 0]
         scores[tag] = [x[5], x[6], x[7], x[9]]
 
-    tags = sorted(fina_info_tag.keys(), key=lambda x: map(int, x.split("-")[0:2]
-                                                          ))
+    tags = sorted(fina_info_tag.keys(), key=lambda x: list(map(int, x.split("-")[0:2]
+                                                          )))
     with open(output_vcf, "w") as o_f:
         o_f.write("##fileformat=VCFv4.2\n")
         o_f.write("##NeuSomatic Version={}\n".format(__version__))
