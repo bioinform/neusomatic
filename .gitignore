@@ -2,6 +2,7 @@ third_party/*
 !third_party/*.cmake
 neusomatic/build/
 neusomatic/bin/*
+neusomatic/python/__pycache__/
 others/
 neusomatic/python/*.pyc
 test/example/

@@ -368,9 +368,9 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
     return in_fasta_file, info_file
 
 
-def split_bam_to_chuncks(work, region, input_bam, chunck_size=200,
-                         chunck_scale=1.5):
-    logger = logging.getLogger(split_bam_to_chuncks.__name__)
+def split_bam_to_chunks(work, region, input_bam, chunk_size=200,
+                         chunk_scale=1.5):
+    logger = logging.getLogger(split_bam_to_chunks.__name__)
     records = []
     with pysam.Samfile(input_bam, "rb") as samfile:
         for record in samfile.fetch(region.chrom, region.start, region.end + 1):
@@ -404,22 +404,22 @@ def split_bam_to_chuncks(work, region, input_bam, chunck_size=200,
             records.append([record, len(q_seq)])
 
     records = list(map(lambda x: x[0], sorted(records, key=lambda x: x[1])))
-    if len(records) < chunck_size * chunck_scale:
+    if len(records) < chunk_size * chunk_scale:
         bams = [input_bam]
         lens = [len(records)]
     else:
-        n_splits = int(max(6, len(records) // chunck_size))
-        new_chunck_size = len(records) // n_splits
+        n_splits = int(max(6, len(records) // chunk_size))
+        new_chunk_size = len(records) // n_splits
         bams = []
         lens = []
-        n_split = (len(records) // new_chunck_size) + 1
-        if 0 < (len(records) - ((n_split - 1) * new_chunck_size) + new_chunck_size) \
-                < new_chunck_size * chunck_scale:
+        n_split = (len(records) // new_chunk_size) + 1
+        if 0 < (len(records) - ((n_split - 1) * new_chunk_size) + new_chunk_size) \
+                < new_chunk_size * chunk_scale:
             n_split -= 1
         for i in range(n_split):
-            i_start = i * new_chunck_size
+            i_start = i * new_chunk_size
             i_end = (i + 1) * \
-                new_chunck_size if i < (n_split - 1) else len(records)
+                new_chunk_size if i < (n_split - 1) else len(records)
             split_input_bam = os.path.join(
                 work, region.__str__() + "_split_{}.bam".format(i))
             with pysam.AlignmentFile(input_bam, "rb") as samfile:
@@ -442,8 +442,8 @@ def read_info(info_file):
     logger = logging.getLogger(read_info.__name__)
     info = {}
     with open(info_file, 'r') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter='\t', quotechar='|')
-        for row in spamreader:
+        csvreader = csv.reader(csvfile, delimiter='\t', quotechar='|')
+        for row in csvreader:
             info[int(row[0])] = Read_Info(row[1:])
     return info
 
@@ -900,7 +900,7 @@ def TrimREFALT(ref, alt, pos):
 
 
 def run_realignment(input_record):
-    work, ref_fasta_file, target_region, pad, chunck_size, chunck_scale, \
+    work, ref_fasta_file, target_region, pad, chunk_size, chunk_scale, \
     snp_min_af, del_min_af, ins_min_af, len_chr, input_bam, \
     match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty, \
     msa_binary, get_var = input_record
@@ -918,8 +918,8 @@ def run_realignment(input_record):
         pybedtools.set_tempdir(pybedtmp)
         variant = []
         all_entries = []
-        input_bam_splits, lens_splits = split_bam_to_chuncks(
-            work, region, input_bam, chunck_size, chunck_scale)
+        input_bam_splits, lens_splits = split_bam_to_chunks(
+            work, region, input_bam, chunk_size, chunk_scale)
         new_seqs = []
         new_ref_seq = ""
         skipped = 0
@@ -1163,7 +1163,7 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
 
 def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_file,
                            ref_fasta_file, num_threads, pad,
-                           chunck_size, chunck_scale, snp_min_af, del_min_af, ins_min_af,
+                           chunk_size, chunk_scale, snp_min_af, del_min_af, ins_min_af,
                            match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
                            msa_binary):
     logger = logging.getLogger(long_read_indelrealign.__name__)
@@ -1210,8 +1210,8 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
     pool = multiprocessing.Pool(num_threads)
     map_args = []
     for target_region in target_regions:
-        map_args.append((work, ref_fasta_file, target_region, pad, chunck_size,
-                         chunck_scale, snp_min_af, del_min_af, ins_min_af,
+        map_args.append((work, ref_fasta_file, target_region, pad, chunk_size,
+                         chunk_scale, snp_min_af, del_min_af, ins_min_af,
                          chrom_lengths[target_region[0]], input_bam,
                          match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
                          msa_binary, get_var))
@@ -1299,9 +1299,9 @@ if __name__ == '__main__':
                         help='number of threads', default=1)
     parser.add_argument('--pad', type=int,
                         help='#base padding to the regions', default=1)
-    parser.add_argument('--chunck_size', type=int,
+    parser.add_argument('--chunk_size', type=int,
                         help='chuck split size for high depth', default=600)
-    parser.add_argument('--chunck_scale', type=float,
+    parser.add_argument('--chunk_scale', type=float,
                         help='chuck scale size for high depth', default=1.5)
     parser.add_argument('--snp_min_af', type=float,
                         help='SNP min allele freq', default=0.05)
@@ -1325,8 +1325,8 @@ if __name__ == '__main__':
     try:
         processor = long_read_indelrealign(args.work, args.input_bam, args.output_bam,
                                            args.output_vcf, args.region_bed, args.reference,
-                                           args.num_threads, args.pad, args.chunck_size,
-                                           args.chunck_scale, args.snp_min_af, args.del_min_af,
+                                           args.num_threads, args.pad, args.chunk_size,
+                                           args.chunk_scale, args.snp_min_af, args.del_min_af,
                                            args.ins_min_af, args.match_score,
                                            args.mismatch_penalty, args.gap_open_penalty,
                                            args.gap_ext_penalty, args.msa_binary)
