@@ -12,10 +12,13 @@ Sayed Mohammad Ebrahim Sahraeian, Ruolin Liu, Bayo Lau, Marghoob Mohiyuddin, Hug
 doi: https://doi.org/10.1101/393801](https://doi.org/10.1101/393801)
 
 ## Example Input Matrix
-![Example input](toy_example.png)
+![Example input](resources/toy_example.png)
 
 ## Table of Contents
 **[Availability](#availability)**<br>
+**[NeuSomatic Docker Image](#neusomatic-docker-image)**<br>
+**[Required Inputs](#required-inputs)**<br>
+**[Quick Test](#quick-test)**<br>
 **[Example Usage](#example-usage)**<br>
 **[Ensemble mode](#ensemble-mode)**<br>
 **[Creating Training Data](#creating-training-data)**<br>
@@ -26,7 +29,7 @@ doi: https://doi.org/10.1101/393801](https://doi.org/10.1101/393801)
 
 ## Availability
 
-NeuSomatic is written in Python and C++ and requires a Unix-like environment to run. Its deep learning framework is implemented using PyTorch 0.3.1 to enable GPU acceleration for training/testing.
+NeuSomatic is written in Python and C++ and requires a Unix-like environment to run. It has been sucessfully tested on CentOS 7. Its deep learning framework is implemented using PyTorch 0.3.1 to enable GPU acceleration for training/testing.
 
 NeuSomatic first scans the genome to identify candidate variants and extract alignment information. 
 The binary for this step can be obtained at `neusomatic/bin` folder by running `./build.sh` (which requires cmake 3.12.1 and g++ 5.4.0).
@@ -36,7 +39,6 @@ Python 2.7 and the following Python packages must be installed:
 * torchvision 0.2.0
 * pybedtools 0.7.10
 * pysam 0.14.1
-* pytabix 0.0.2
 * zlib 1.2.11
 * numpy 1.14.3
 * scipy 1.1.0
@@ -48,15 +50,31 @@ It also depends on the following packages:
 * bedtools 2.27.1
 * samtools 1.7
 
-You can install these packages using [anaconda](https://www.anaconda.com/download):
+You can install these packages using [anaconda](https://www.anaconda.com/download)/[miniconda](https://conda.io/miniconda.html) :
 ```
+conda install zlib=1.2.11 numpy=1.14.3 scipy=1.1.0 
 conda install pytorch=0.3.1 torchvision=0.2.0 cuda80=1.0 -c pytorch
-conda install pysam=0.14.1 pybedtools=0.7.10 pytabix=0.0.2 zlib=1.2.11 numpy=1.14.3 scipy=1.1.0 \
-              tabix=0.2.5 bedtools=2.27.1 samtools=1.7 cmake=3.12.1 biopython=1.68
+conda install cmake=3.12.1 -c conda-forge
+conda install pysam=0.14.1 pybedtools=0.7.10 samtools=1.7 tabix=0.2.5 bedtools=2.27.1 biopython=1.68 -c bioconda
+```
+Then you can export the conda paths as:
+```
+export PATH="/PATH/TO/CONDA/bin:$PATH"
+export LD_LIBRARY_PATH="/PATH/TO/CONDA/lib:$LD_LIBRARY_PATH"
 ```
 g++ 5.4.0 can also be obained as `sudo apt-get install gcc-5 g++-5`.
 
-## Requird Inputs
+## NeuSomatic Docker Image
+
+The docker image with all the packages installed (CPU-only) can be found at https://hub.docker.com/r/msahraeian/neusomatic/ 
+
+To use GPU (in `train.py` and `call.py` steps), you should use conda environment to locally install required packages as shown above.
+
+The dockerfile is also available at `docker/Dockerfile` for local build.
+
+Examples on how to use the docker image are shown at `test/docker_test.sh`.
+
+## Required Inputs
 
 For training mode, the following inputs are required:
 * tumor `.bam` alignment file 
@@ -70,11 +88,27 @@ For calling mode, the following inputs are required:
 * call region `.bed` file
 * trained model `.pth` file
 
-Reads in input .bam file should be sorted, indexed and have MD tags. If you are not sure about the MD tag, you should run:
+Reads in input `.bam` file should be sorted, indexed and have MD tags. If you are not sure that all you reads have MD tags, you should run the following command for both tumor and normal alignments:
 
 ```
 samtools calmd -@ num_threads -b alignment.bam reference.fasta  > alignment.md.bam 
 samtools index alignment.md.bam
+```
+
+For the region `.bed` files, if you don't have any preferred target regions for training/calling, you can use the whole genome as the target region. Example bed files of major chromosomes for human hg38, hg19, and b37 references can be found at [resources](resources).
+
+## Quick Test
+Testing the preprocessing, calling, and postprocessing steps:
+```
+cd test
+./run_test.sh
+```
+The outputs at `test/example/work_standalone/NeuSomatic_standalone.vcf` and `test/example/work_ensemble/NeuSomatic_ensemble.vcf` for stand-alone and ensemble modes should look like `test/NeuSomatic_standalone.vcf` and `test/NeuSomatic_ensemble.vcf`, respectively.
+
+Similarly, you can test docker image as:
+```
+cd test
+./docker_test.sh
 ```
 
 ## Example Usage
@@ -138,6 +172,7 @@ python postprocess.py \
 	--output_vcf work_call/NeuSomatic.vcf \
 	--work work_call 
 ```
+Here, the final NeuSomatic prediction is reported at `work_call/NeuSomatic.vcf`.
 
 NeuSomatic will use GPUs in train/call steps if they are avilable. To use specific GPUs for train/call steps, you can set the environment variable `CUDA_VISIBLE_DEVICES` as:
 
@@ -152,53 +187,45 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python call.py ...
 To run in CPU mode you can disable accessing to GPU by exporting `CUDA_VISIBLE_DEVICES=`.
 
 ## Ensemble mode
-NeuSomatic can be used universally as a stand-alone somatic mutation detection method or with an ensemble of existing methods. NeuSomatic currently supports outputs from MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2. For ensemble mode, the ensembled outputs of different somatic callers (as a single `.tsv` file) should be prepared and inputed using `--ensemble_tsv` argument in `preprocess.py`. 
-This `.tsv` file can be prepared using the SomaticSeq script at https://github.com/bioinform/somaticseq/blob/master/SomaticSeq.Wrapper.sh .
+NeuSomatic can be used universally as a stand-alone somatic mutation detection method or with an ensemble of existing methods. NeuSomatic currently supports outputs from MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2. For ensemble mode, the ensembled outputs of different somatic callers (as a single `.tsv` file) should be prepared and inputed using `--ensemble_tsv` argument in `preprocess.py` and `postprocess.py` . 
 
-For instance:
-```
-SomaticSeq.Wrapper.sh \
---output-dir output \
---genome-reference GRCh38.fa \
---tumor-bam tumor.bam \
---normal-bam normal.bam \
- -mutect2 MuTect2.vcf \
---varscan-snv VarScan2.snp.vcf \
---varscan-indel VarScan2.indel.vcf \
- -sniper SomaticSniper.vcf \
---vardict VarDict.vcf \
---muse MuSE.vcf \
---strelka-snv somatic.snvs.vcf.gz \
---strelka-indel somatic.indels.vcf.gz \
---inclusion-region region.bed \
- -dbsnp dbsnp.GRCh38.vcf \
- -gatk GenomeAnalysisTK.jar
-```
+There are two alternative ways to prepare this file:
 
-Then, in the output directory, do:
-```
-cat Ensemble.s*.tsv |sed "s/nan/0/g" > enemble_ann.tsv
-```
-and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
+1. **Dockerized solution** for running all of the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), and a wrapper that combines their output is explained at [ensemble_docker_pipelines](https://github.com/bioinform/neusomatic/tree/master/ensemble_docker_pipelines).
 
-The requirements for this wrapper script can be found [here](https://github.com/bioinform/somaticseq). The docker image with those requirment installed can be found [here](https://hub.docker.com/r/lethalfang/somaticseq/). 
+2. Alternartively, if you don't want to use docker and already have the output of all somatic callers, you can prepare the `.tsv` file using the `SomaticSeq.Wrapper.sh` script [here](https://github.com/bioinform/somaticseq/blob/master/SomaticSeq.Wrapper.sh) (you may need to install the necessary dependencies for this script, explained [here](https://github.com/bioinform/somaticseq)).
 
-To run the individual somatic callers (MuTect2, MuSE, Strelka2, SomaticSniper, VarDict, and VarScan2), you can follow dockerized pipeline indicated [here](https://github.com/bioinform/somaticseq/tree/master/utilities/dockered_pipelines).
+	For instance:
+	```
+	SomaticSeq.Wrapper.sh \
+	--output-dir output \
+	--genome-reference GRCh38.fa \
+	--tumor-bam tumor.bam \
+	--normal-bam normal.bam \
+	 -mutect2 MuTect2.vcf \
+	--varscan-snv VarScan2.snp.vcf \
+	--varscan-indel VarScan2.indel.vcf \
+	 -sniper SomaticSniper.vcf \
+	--vardict VarDict.vcf \
+	--muse MuSE.vcf \
+	--strelka-snv somatic.snvs.vcf.gz \
+	--strelka-indel somatic.indels.vcf.gz \
+	--inclusion-region region.bed \
+	 -dbsnp dbsnp.GRCh38.vcf \
+	 -gatk GenomeAnalysisTK.jar
+	```
 
-For instance:
-```
-$PATH/TO/somaticseq/utilities/dockered_pipelines/submit_callers_multiThreads.sh \
---normal-bam      /ABSOLUTE/PATH/TO/normal_sample.bam \
---tumor-bam       /ABSOLUTE/PATH/TO/tumor_sample.bam \
---human-reference /ABSOLUTE/PATH/TO/GRCh38.fa \
---output-dir      /ABSOLUTE/PATH/TO/RESULTS \
---threads         10 \
---dbsnp           /ABSOLUTE/PATH/TO/dbSNP.GRCh38.vcf \
---selector      /ABSOLUTE/PATH/TO/region.bed \
---mutect2 --vardict --varscan2 --muse --somaticsniper --strelka --somaticseq
-```
+	Then, in the output directory, do:
+	```
+	cat <(cat Ensemble.s*.tsv |grep CHROM|head -1) \
+	    <(cat Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
+	```
+	and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py` and `postprocess.py`.
 
-To train or call in the ensemble mode you should use `--ensemble` argument in `train.py` and `call.py`.
+
+### NOTE: 
+
+* To train or call in the ensemble mode you should use `--ensemble` argument in `train.py` and `call.py`.
 
 ## Creating Training Data
 The best performance can be obtained when the network is trained on your input dataset. You can creat training data for your input data using [BAMSurgeon](https://github.com/adamewing/bamsurgeon) that can spike in *in silico* somatic mutations into existing BAM files. The dockerized piplines and complete documentation on how to creat training sets can be found [here](https://github.com/bioinform/somaticseq/tree/master/utilities/dockered_pipelines/bamSimulator).

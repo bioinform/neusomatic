@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-------------------------------------------------------------------------
 # resolve_score.py
 # resolve prediction scores for realigned variants
@@ -5,28 +6,18 @@
 
 import argparse
 import logging
+import traceback
 
 import pybedtools
 import numpy as np
 
 from utils import get_chromosomes_order
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
-logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
-
-logger = logging.getLogger(__name__)
-
 
 def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
+    logger = logging.getLogger(resolve_scores.__name__)
 
-    logger.info("-----------------------------------------------------------")
-    logger.info("Resolve Prediction Scores for Realigned Variants")
-    logger.info("-----------------------------------------------------------")
+    logger.info("-----Resolve Prediction Scores for Realigned Variants------")
 
     ra_out = pybedtools.BedTool(ra_vcf)
     ra_target = pybedtools.BedTool(target_vcf)
@@ -83,6 +74,11 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
 
 
 if __name__ == '__main__':
+
+    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(description='Resolve scores')
     parser.add_argument('--input_bam', type=str,
                         help='input bam', required=True)
@@ -94,5 +90,12 @@ if __name__ == '__main__':
                         help='output_vcf', required=True)
     args = parser.parse_args()
 
-    resolve_scores(args.input_bam, args.ra_vcf,
-                   args.target_vcf, args.output_vcf)
+    try:
+        resolve_scores(args.input_bam, args.ra_vcf,
+                       args.target_vcf, args.output_vcf)
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        logger.error("Aborting!")
+        logger.error(
+            "resolve_scores.py failure on arguments: {}".format(args))
+        raise e

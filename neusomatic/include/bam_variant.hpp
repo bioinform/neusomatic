@@ -131,6 +131,7 @@ std::vector<neusomatic::bio::Variant<std::string, Contig>> GetSNVs(const BamReco
   bool status = bam.GetZTag("MD", mdstr);
   if (!status) {
     std::cerr<<"Warning: no MD tag!\n";
+    return result;
   }
   std::transform(mdstr.begin(), mdstr.end(),mdstr.begin(), ::toupper);
   if (bam.Position() < 0) return result;
@@ -141,11 +142,6 @@ std::vector<neusomatic::bio::Variant<std::string, Contig>> GetSNVs(const BamReco
 
   MDTags md(mdstr);
   std::pair<MDType, std::string> unit;
-  //std::cerr << mdstr << std::endl;
-  //while (md.Next(unit)) {
-    //std::cerr<<unit.first << ":" <<unit.second << std::endl;
-  //}
-
 
   std::vector<neusomatic::bio::Variant<std::string, Contig>> snvs_MDTags;
   int sum_M_len_before_D = 0;
@@ -200,16 +196,17 @@ std::vector<neusomatic::bio::Variant<std::string, Contig>> GetSNVs(const BamReco
   ref_pos = bam.Position();
   read_pos = bam.AlignmentPosition();
   auto b = cigar.begin();
+  if (b->Type() == 'H') {
+    if (b == cigar.begin()){
+    read_pos -= b->Length();
+    }
+  }
   for (const auto& t : snvs_MDTags) {
-    int32_t ref_consume_goal = t.left() -  ref_pos; 
+    const int32_t ref_consume_goal = t.left() -  ref_pos;
     int32_t ref_consume = 0;
     int32_t read_consume = 0;
     while (ref_consume < ref_consume_goal) {
-      if (b->Type() == 'H') {
-        if (b == cigar.begin()){
-        read_consume -= b->Length();
-        }
-      } else if (b->Type() == 'M') {
+      if (b->Type() == 'M') {
         ref_consume += b->Length();
         read_consume += b->Length();
       } else if (b->Type() == 'D') {
@@ -220,7 +217,7 @@ std::vector<neusomatic::bio::Variant<std::string, Contig>> GetSNVs(const BamReco
       ++b;
     }
     int32_t read_shift = read_consume - (ref_consume - ref_consume_goal);
-    if (b->Type() == 'I' && ref_consume == ref_consume_goal) { // SUB after an INS
+    if (b != cigar.end() && b->Type() == 'I' && ref_consume == ref_consume_goal) { // SUB after an INS
       read_shift += b->Length();
     }
     std::string s = seq.substr(read_pos + read_shift, t.allele().length()); 

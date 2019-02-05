@@ -8,19 +8,16 @@ import zlib
 import glob
 import logging
 import base64
-
+import traceback
 
 from numpy import random
 import numpy as np
 import torch
+import resource
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
 type_class_dict = {"DEL": 0, "INS": 1, "NONE": 2, "SNP": 3}
 
@@ -29,8 +26,11 @@ def extract_zlib(zlib_compressed_im):
     return np.fromstring(zlib.decompress(zlib_compressed_im), dtype="uint8").reshape((5, 32, 23))
 
 
-def candidate_loader_tsv(tsv, idx, i):
-    i_f = open(tsv, "r")
+def candidate_loader_tsv(tsv, open_tsv, idx, i):
+    if open_tsv:
+        i_f = open_tsv
+    else:
+        i_f = open(tsv, "r")
     i_f.seek(idx[i])
     fields = i_f.read(idx[i + 1] - idx[i]).strip().split()
     tag = fields[2]
@@ -40,65 +40,73 @@ def candidate_loader_tsv(tsv, idx, i):
     else:
         anns = []
     label = type_class_dict[tag.split(".")[4]]
-    i_f.close()
+    if not open_tsv:
+        i_f.close()
     return tag, im, anns, label
 
 
 def extract_info_tsv((i_b, tsv, idx, L, max_load_candidates, nclasses_t, nclasses_l)):
+    thread_logger = logging.getLogger(
+        "{} ({})".format(extract_info_tsv.__name__, multiprocessing.current_process().name))
+    try:
+        n_none = 0
+        with open(tsv, "r") as i_f:
+            for line in i_f:
+                tag = line.strip().split()[2]
+                n_none += (1 if "NONE" in tag else 0)
+        n_var = L - n_none
 
-    n_none = 0
-    with open(tsv, "r") as i_f:
-        for line in i_f:
-            tag = line.strip().split()[2]
-            n_none += (1 if "NONE" in tag else 0)
-    n_var = L - n_none
+        max_load_candidates_var = min(n_var, max_load_candidates)
+        max_load_candidates_none = max_load_candidates - max_load_candidates_var
 
-    max_load_candidates_var = min(n_var, max_load_candidates)
-    max_load_candidates_none = max_load_candidates - max_load_candidates_var
-
-    j = 0
-    matrices = []
-    none_ids = []
-    var_ids = []
-    count_class_t = [0] * nclasses_t
-    count_class_l = [0] * nclasses_l
-    data = []
-    cnt_none = 0
-    cnt_var = 0
-    with open(tsv, "r") as i_f:
-        for i in range(L):
-            i_f.seek(idx[i])
-            fields = i_f.read(idx[i + 1] - idx[i]).strip().split()
-            ii = int(fields[0])
-            assert ii == i
-            tag = fields[2]
-            matrices.append([i_b, i])
-            if "NONE" in tag:
-                none_ids.append(j)
-            else:
-                var_ids.append(j)
-            j += 1
-            _, _, _, _, vartype, _, length, _, _ = tag.split(".")
-            count_class_t[type_class_dict[vartype]] += 1
-            count_class_l[min(int(length), 3)] += 1
-            if ((cnt_var < max_load_candidates_var) and ("NONE" not in tag)) or (
-                    (cnt_none < max_load_candidates_none) and ("NONE" in tag)):
-                im = extract_zlib(base64.b64decode(fields[3]))
-                label = type_class_dict[tag.split(".")[4]]
-                if len(fields) > 4:
-                    anns = map(float, fields[4:])
-                else:
-                    anns = []
-                data.append([tag, im, anns, label])
+        j = 0
+        matrices = []
+        none_ids = []
+        var_ids = []
+        count_class_t = [0] * nclasses_t
+        count_class_l = [0] * nclasses_l
+        data = []
+        cnt_none = 0
+        cnt_var = 0
+        with open(tsv, "r") as i_f:
+            i = -1
+            for i, line in enumerate(i_f):
+                fields = line.strip().split()
+                ii = int(fields[0])
+                assert ii == i
+                tag = fields[2]
+                matrices.append([i_b, i])
                 if "NONE" in tag:
-                    cnt_none += 1
+                    none_ids.append(j)
                 else:
-                    cnt_var += 1
-            else:
-                data.append([])
-    logger.info("Loaded {} candidates for {}".format(
-        len(matrices), tsv))
-    return matrices, data, none_ids, var_ids, count_class_t, count_class_l
+                    var_ids.append(j)
+                j += 1
+                _, _, _, _, vartype, _, length, _, _ = tag.split(".")
+                count_class_t[type_class_dict[vartype]] += 1
+                count_class_l[min(int(length), 3)] += 1
+                if ((cnt_var < max_load_candidates_var) and ("NONE" not in tag)) or (
+                        (cnt_none < max_load_candidates_none) and ("NONE" in tag)):
+                    im = extract_zlib(base64.b64decode(fields[3]))
+                    label = type_class_dict[tag.split(".")[4]]
+                    if len(fields) > 4:
+                        anns = map(float, fields[4:])
+                    else:
+                        anns = []
+                    data.append([tag, im, anns, label])
+                    if "NONE" in tag:
+                        cnt_none += 1
+                    else:
+                        cnt_var += 1
+                else:
+                    data.append([])
+            assert i + 1 == L
+        thread_logger.info("Loaded {} candidates for {}".format(
+            len(matrices), tsv))
+        return matrices, data, none_ids, var_ids, count_class_t, count_class_l
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 class NeuSomaticDataset(torch.utils.data.Dataset):
@@ -106,8 +114,16 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
     def __init__(self, roots, max_load_candidates, transform=None,
                  loader=candidate_loader_tsv, is_test=False,
                  num_threads=1, disable_ensemble=False, data_augmentation=False,
-                 nclasses_t=4, nclasses_l=4, coverage_thr=100):
+                 nclasses_t=4, nclasses_l=4, coverage_thr=100,
+                 max_opended_tsv=-1):
 
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        logger.info(resource.getrlimit(resource.RLIMIT_NOFILE))
+        if max_opended_tsv == -1:
+            max_opended_tsv = soft
+        else:
+            max_opended_tsv = min(max_opended_tsv, soft)
+        self.max_opended_tsv = max_opended_tsv
         self.da_shift_p = 0.3
         self.da_base_p = 0.05
         self.da_rev_p = 0.1
@@ -121,50 +137,74 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         self.var_ids = []
 
         self.tsvs = []
+        self.open_tsvs = [[] for t in range(num_threads)]
+        self.opened_tsvs = []
+        self.num_threads = num_threads
         self.Ls = []
         self.idxs = []
         for root in roots:
             for tsv in glob.glob(root):
                 self.tsvs.append(tsv)
+                for t in range(num_threads):
+                    self.open_tsvs[t].append("")
                 idx = pickle.load(open(tsv + ".idx"))
                 self.idxs.append(idx)
                 self.Ls.append(len(idx) - 1)
         self.data = []
-
         total_L = sum(self.Ls)
         batches = []
         new_batch = []
         for i_b, L in enumerate(self.Ls):
             new_batch.append([i_b, L])
-            if sum(map(lambda x: x[1], new_batch)) > 100000 or i_b == len(self.Ls) - 1:
+            if sum(map(lambda x: x[1], new_batch)) > 200000 or i_b == len(self.Ls) - 1 \
+                    or len(new_batch) > num_threads:
                 batches.append(new_batch)
                 new_batch = []
 
-        records_done = []
-        for batch in batches:
+        records_done = [[] for i in range(len(batches))]
+        for i, batch in enumerate(batches):
             map_args = []
+            Ls_ = []
             for i_b, _ in batch:
                 tsv = self.tsvs[i_b]
                 max_load_ = self.Ls[i_b] * max_load_candidates / \
                     total_L if total_L > 0 else 0
                 map_args.append([i_b, tsv, self.idxs[i_b], self.Ls[i_b],
                                  max_load_, nclasses_t, nclasses_l])
-            pool = multiprocessing.Pool(num_threads)
-            records_done.extend(pool.map_async(
-                extract_info_tsv, map_args).get())
-            pool.close()
+                Ls_.append(self.Ls[i_b])
+            logger.info("Len's of tsv files in this batch: {}".format(Ls_))
+            if len(map_args) == 1:
+                records_ = [extract_info_tsv(map_args[0])]
+            else:
+                pool = multiprocessing.Pool(num_threads)
+                try:
+                    records_ = pool.map_async(
+                        extract_info_tsv, map_args).get()
+                    pool.close()
+                except Exception as inst:
+                    pool.close()
+                    logger.error(inst)
+                    traceback.print_exc()
+                    raise Exception
+
+            for o in records_:
+                if o is None:
+                    raise Exception("extract_info_tsv failed!")
+
+            records_done[i] = records_
 
         j = 0
-        for matrices, data, none_ids, var_ids, count_class_t, count_class_l in records_done:
-            self.matrices += matrices
-            self.data += data
-            self.none_ids += map(lambda x: x + j, none_ids)
-            self.var_ids += map(lambda x: x + j, var_ids)
-            for k in range(nclasses_t):
-                self.count_class_t[k] += count_class_t[k]
-            for k in range(nclasses_l):
-                self.count_class_l[k] += count_class_l[k]
-            j += len(matrices)
+        for records_ in records_done:
+            for matrices, data, none_ids, var_ids, count_class_t, count_class_l in records_:
+                self.matrices += matrices
+                self.data += data
+                self.none_ids += map(lambda x: x + j, none_ids)
+                self.var_ids += map(lambda x: x + j, var_ids)
+                for k in range(nclasses_t):
+                    self.count_class_t[k] += count_class_t[k]
+                for k in range(nclasses_l):
+                    self.count_class_l[k] += count_class_l[k]
+                j += len(matrices)
 
         self.roots = roots
         self.transform = transform
@@ -174,12 +214,33 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         self.data_augmentation = data_augmentation
         self.coverage_thr = coverage_thr
 
-    def __getitem__(self, index):
+    def open_candidate_tsvs(self):
+        for i, tsv in enumerate(self.tsvs):
+            for t in range(self.num_threads):
+                if len(self.opened_tsvs) < self.max_opended_tsv - 1:
+                    self.open_tsvs[t][i] = open(tsv)
+                    self.opened_tsvs.append([t, i])
 
+    def close_candidate_tsvs(self):
+        for t, i in self.opened_tsvs:
+            self.open_tsvs[t][i].close()
+        self.opened_tsvs = []
+
+    def __getitem__(self, index):
         if len(self.data[index]) == 0:
             i_b, i = self.matrices[index]
-            path, matrix, anns, label = candidate_loader_tsv(
-                self.tsvs[i_b], self.idxs[i_b], i)
+            if multiprocessing.current_process()._identity:
+                path, matrix, anns, label = candidate_loader_tsv(self.tsvs[i_b],
+                                                                 self.open_tsvs[
+                    int(multiprocessing.current_process()._identity[0]
+                        ) % self.num_threads][i_b],
+                    self.idxs[i_b], i)
+            else:
+                path, matrix, anns, label = candidate_loader_tsv(self.tsvs[i_b],
+                                                                 self.open_tsvs[
+                                                                     0][i_b],
+                                                                 self.idxs[i_b], i)
+
         else:
             path, matrix, anns, label = self.data[index]
 

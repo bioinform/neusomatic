@@ -13,28 +13,26 @@ import numpy as np
 
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
-logFormatter = logging.Formatter(FORMAT)
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-logger.addHandler(consoleHandler)
-logging.getLogger().setLevel(logging.INFO)
 
 
-def run_shell_command(command, stdout=None, stderr=None):
+def run_shell_command(command, stdout=None, stderr=None, run_logger=None):
     stdout_fd = open(stdout, "w") if stdout else None
     stderr_fd = open(stderr, "w") if stderr else None
+    my_logger = logger
+    if run_logger:
+        my_logger = run_logger
 
     fixed_command = shlex.split(command)
-    logger.info("Running command: {}".format(fixed_command))
-    process = subprocess.Popen(
+    my_logger.info("Running command: {}".format(fixed_command))
+    returncode = subprocess.check_call(
         fixed_command, stdout=stdout_fd, stderr=stderr_fd)
-    process.wait()
     if stdout_fd:
         stdout_fd.close()
     if stderr_fd:
         stderr_fd.close()
-    return process.returncode
+    return returncode
 
 
 def concatenate_files(infiles, outfile, check_file_existence=True):
