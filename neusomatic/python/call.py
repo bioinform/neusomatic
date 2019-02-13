@@ -24,6 +24,18 @@ from torchvision import transforms
 from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset
 from utils import get_chromosomes_order, prob2phred
+from merge_tsvs import merge_tsvs
+
+import torch._utils
+try:
+    torch._utils._rebuild_tensor_v2
+except AttributeError:
+    def _rebuild_tensor_v2(storage, storage_offset, size, stride, requires_grad, backward_hooks):
+        tensor = torch._utils._rebuild_tensor(storage, storage_offset, size, stride)
+        tensor.requires_grad = requires_grad
+        tensor._backward_hooks = backward_hooks
+        return tensor
+    torch._utils._rebuild_tensor_v2 = _rebuild_tensor_v2
 
 
 def get_type(ref, alt):
@@ -205,14 +217,15 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, 
                 alt_ = ""
                 for i in range(len_pred):
                     nzp = nzref_pos[nzref_pos >= (center_ + i)]
-                    center__ = nzp[np.argmin(abs(nzp - (center_ + i)))]
-                    rb = np.argmax(I[1:, center__, 0])
-                    ref_ += ACGT[rb]
-                    II = I.copy()
-                    II[rb + 1, center__, 1] = 0
-                    alt_ += ACGT[np.argmax(II[1:, center__, 1])]
-                    if sum(I[1:, center__, 1]) == 0:
-                        break
+                    if len(nzp) > 0:
+                        center__ = nzp[np.argmin(abs(nzp - (center_ + i)))]
+                        rb = np.argmax(I[1:, center__, 0])
+                        ref_ += ACGT[rb]
+                        II = I.copy()
+                        II[rb + 1, center__, 1] = 0
+                        alt_ += ACGT[np.argmax(II[1:, center__, 1])]
+                        if sum(I[1:, center__, 1]) == 0:
+                            break
                 if not ref_:
                     # print "SSS",path,pred
                     return vcf_record
@@ -369,7 +382,6 @@ def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_thr
                 ov.write(line)
                 lines.append(line)
 
-
 def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     batch_size, max_load_candidates, pass_threshold, lowqual_threshold,
                     ensemble,
@@ -428,24 +440,50 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     else:
         pretrained_state_dict = {k: v for k,
                                  v in pretrained_state_dict.items() if k in model_dict}
+
     # 2. overwrite entries in the existing state dict
     model_dict.update(pretrained_state_dict)
     # 3. load the new state dict
     net.load_state_dict(pretrained_state_dict)
 
+    new_split_tsvs_dir = os.path.join(out_dir,"split_tsvs")
+    if os.path.exists(new_split_tsvs_dir):
+        shutil.rmtree(new_split_tsvs_dir)
+    os.mkdir(new_split_tsvs_dir)
     Ls = []
+    candidates_tsv_=[]
+    split_i = 0
     for candidate_file in candidates_tsv:
         idx = pickle.load(open(candidate_file + ".idx"))
-        Ls.append(len(idx) - 1)
+        if len(idx) > max_load_candidates / 2:
+            logger.info("Splitting {} of lenght {}".format(candidate_file, len(idx)))
+            new_split_tsvs_dir_i=os.path.join(new_split_tsvs_dir,"split_{}".format(split_i))
+            if os.path.exists(new_split_tsvs_dir_i):
+                shutil.rmtree(new_split_tsvs_dir_i)
+            os.mkdir(new_split_tsvs_dir_i)
+            candidate_file_splits = merge_tsvs(input_tsvs=[candidate_file], 
+                                               out=new_split_tsvs_dir_i,
+                                               candidates_per_tsv=max(1, max_load_candidates/2),
+                                               max_num_tsvs=100000,
+                                               overwrite_merged_tsvs=True,
+                                               keep_none_types=True)
+            for candidate_file_split in candidate_file_splits:
+                idx_split = pickle.load(open(candidate_file_split + ".idx"))
+                candidates_tsv_.append(candidate_file_split)
+                Ls.append(len(idx_split) - 1)
+            split_i += 1
+        else:
+            candidates_tsv_.append(candidate_file)
+            Ls.append(len(idx) - 1)
 
     current_L = 0
     candidate_files = []
     all_vcf_records = []
     all_vcf_records_none = []
-    for i, (candidate_file, L) in enumerate(sorted(zip(candidates_tsv, Ls), key=lambda x: x[1])):
+    for i, (candidate_file, L) in enumerate(sorted(zip(candidates_tsv_, Ls), key=lambda x: x[1])):
         current_L += L
         candidate_files.append(candidate_file)
-        if current_L > max_load_candidates / 10 or i == len(candidates_tsv) - 1:
+        if current_L > max_load_candidates / 10 or i == len(candidates_tsv_) - 1:
             logger.info("Run for candidate files: {}".format(candidate_files))
             call_set = NeuSomaticDataset(roots=candidate_files,
                                          max_load_candidates=max_load_candidates,
@@ -476,6 +514,10 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     all_vcf_records = dict(all_vcf_records)
     all_vcf_records_none = dict(all_vcf_records_none)
 
+
+    if os.path.exists(new_split_tsvs_dir):
+        shutil.rmtree(new_split_tsvs_dir)
+
     logger.info("Prepare Output VCF")
     output_vcf = "{}/pred.vcf".format(out_dir)
     var_vcf_records = get_vcf_records(all_vcf_records)
@@ -487,6 +529,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     vcf_records_none = get_vcf_records(all_vcf_records_none)
     write_vcf(vcf_records_none, output_vcf_none,
               chroms_order, pass_threshold, lowqual_threshold)
+
     return output_vcf
 
 if __name__ == '__main__':
