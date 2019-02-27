@@ -2,7 +2,7 @@
 
 NeuSomatic is based on deep convolutional neural networks for accurate somatic mutation detection. With properly trained models, it can robustly perform across sequencing platforms, strategies, and conditions. NeuSomatic summarizes and augments sequence alignments in a novel way and incorporates multi-dimensional features to capture variant signals effectively. It is not only a universal but also accurate somatic mutation detection method.
 
-For more information contact us at bina.rd@roche.com
+For more information contact us at bioinformatics.red@roche.com
 
 ## Publication
 If you use NeuSomatic in your work, please cite the following preprint:
