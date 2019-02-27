@@ -530,6 +530,8 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     write_vcf(vcf_records_none, output_vcf_none,
               chroms_order, pass_threshold, lowqual_threshold)
 
+    if os.path.exists(matrices_dir):
+        shutil.rmtree(matrices_dir)
     return output_vcf
 
 if __name__ == '__main__':
@@ -556,7 +558,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int,
                         help='batch size', default=1000)
     parser.add_argument('--max_load_candidates', type=int,
-                        help='maximum candidates to load in memory', default=1000000)
+                        help='maximum candidates to load in memory', default=100000)
     parser.add_argument('--pass_threshold', type=float,
                         help='SCORE for PASS (PASS for score => pass_threshold)', default=0.7)
     parser.add_argument('--lowqual_threshold', type=float,
