@@ -26,6 +26,16 @@ from merge_tsvs import merge_tsvs
 type_class_dict = {"DEL": 0, "INS": 1, "NONE": 2, "SNP": 3}
 vartype_classes = ['DEL', 'INS', 'NONE', 'SNP']
 
+import torch._utils
+try:
+    torch._utils._rebuild_tensor_v2
+except AttributeError:
+    def _rebuild_tensor_v2(storage, storage_offset, size, stride, requires_grad, backward_hooks):
+        tensor = torch._utils._rebuild_tensor(storage, storage_offset, size, stride)
+        tensor.requires_grad = requires_grad
+        tensor._backward_hooks = backward_hooks
+        return tensor
+    torch._utils._rebuild_tensor_v2 = _rebuild_tensor_v2
 
 def make_weights_for_balanced_classes(count_class_t, count_class_l, nclasses_t, nclasses_l,
                                       none_count=None):
