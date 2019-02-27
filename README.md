@@ -238,6 +238,16 @@ You can then used the synthetic tumor/normal pair and the known *in silico* spik
 We provide a set of trained NeuSomatic network models for general purpose usage. Users should note that these models are trained for sepcific settings and are not supposed to work perfectly for all circumestances.
 The following models can be found at `neusomatic/models` folder:
 
+
+###Latest models
+Model                                              | Mode         | Training Information                                                        
+---------------------------------------------------|---------------|-----------------------------------------------------------------------
+`NeuSomatic_v0.1.3_standalone_Dream3.pth` |  Stand-alone  | WGS Dream Challenge Stage 3 (trained on multiple purity settings: 100%T-100%N/50%T-100%N/70%T-95%N/50%T-95%N/25%T-95%N, Illumina, BWA-MEM,  ~30x) 
+`NeuSomatic_v0.1.3_ensemble_Dream3.pth`   |  Ensemble     | WGS Dream Challenge Stage 3 (trained on multiple purity settings: 100%T-100%N/50%T-100%N/70%T-95%N/50%T-95%N/25%T-95%N, Illumina, BWA-MEM,  ~30x)
+
+
+
+###Older models
 Model                                              | Mode         | Training Information                                                        
 ---------------------------------------------------|---------------|-----------------------------------------------------------------------
 `NeuSomatic_v0.1.0_standalone_Dream3_70purity.pth` |  Stand-alone  | WGS Dream Challenge Stage 3 (70% tumor and 95% normal purities, Illumina, BWA-MEM,  ~30x) 
