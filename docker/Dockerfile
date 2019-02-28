@@ -7,14 +7,14 @@ ENV SCIPY_VERSION 1.2.0
 ENV IMAGEIO_VERSION 2.5.0
 ENV PYTORCH_VERSION 1.0.1
 ENV TORCHVISION_VERSION 0.2.1
-ENV CUDATOOLKIT_VERSION=8.0
+ENV CUDATOOLKIT_VERSION 8.0
 ENV CMAKE_VERSION 3.13.2
 ENV PYBEDTOOLS_VERSION 0.8.0
 ENV PYSAM_VERSION 0.15.2
 ENV SAMTOOLS_VERSION 1.9
 ENV TABIX_VERSION 0.2.6
 ENV BEDTOOLS_VERSION 2.27.1
-ENV BIOPYTHON_VERSION 1.73
+ENV BIOPYTHON_VERSION 1.72
 ENV GCC_VERSION 5
 
 RUN apt-get update && apt-get install -y --fix-missing \
@@ -29,15 +29,16 @@ ENV LD_LIBRARY_PATH=/miniconda/lib:${LD_LIBRARY_PATH}
 RUN conda update -y conda
 
 
-RUN conda install -y zlib=${ZLIB_VERSION} numpy=${NUMPY_VERSION} scipy=${SCIPY_VERSION}\
-					 imageio=${IMAGEIO_VERSION} cmake=${CMAKE_VERSION} && conda clean -a
+RUN conda install -y zlib=${ZLIB_VERSION} numpy=${NUMPY_VERSION} scipy=${SCIPY_VERSION} \
+					 imageio=${IMAGEIO_VERSION} && conda clean -a
+RUN conda install -y cmake=${CMAKE_VERSION} -c conda-forge && conda clean -a
 RUN conda install -y pysam=${PYSAM_VERSION} pybedtools=${PYBEDTOOLS_VERSION} \
 					 samtools=${SAMTOOLS_VERSION} tabix=${TABIX_VERSION} \
 					 bedtools=${BEDTOOLS_VERSION} \
 					 biopython=${BIOPYTHON_VERSION} -c bioconda && conda clean -a
 RUN conda install -y pytorch=${PYTORCH_VERSION} \
 					 torchvision=${TORCHVISION_VERSION} \
-					 cudatoolkit=${CUDATOOLKIT_VERSION}-c pytorch && conda clean -a
+					 cudatoolkit=${CUDATOOLKIT_VERSION} -c pytorch && conda clean -a
 
 RUN apt-get install -y --fix-missing gcc-${GCC_VERSION} g++-${GCC_VERSION}
 
