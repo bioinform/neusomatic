@@ -2,7 +2,7 @@
 
 NeuSomatic is based on deep convolutional neural networks for accurate somatic mutation detection. With properly trained models, it can robustly perform across sequencing platforms, strategies, and conditions. NeuSomatic summarizes and augments sequence alignments in a novel way and incorporates multi-dimensional features to capture variant signals effectively. It is not only a universal but also accurate somatic mutation detection method.
 
-For more information contact us at bina.rd@roche.com
+For more information contact us at bioinformatics.red@roche.com
 
 ## Publication
 If you use NeuSomatic in your work, please cite the following preprint:
@@ -238,6 +238,16 @@ You can then used the synthetic tumor/normal pair and the known *in silico* spik
 We provide a set of trained NeuSomatic network models for general purpose usage. Users should note that these models are trained for sepcific settings and are not supposed to work perfectly for all circumestances.
 The following models can be found at `neusomatic/models` folder:
 
+
+### Latest models
+Model                                              | Mode         | Training Information                                                        
+---------------------------------------------------|---------------|-----------------------------------------------------------------------
+`NeuSomatic_v0.1.3_standalone_Dream3.pth` |  Stand-alone  | WGS Dream Challenge Stage 3 (trained on multiple purity settings: 100T-100N/50T-100N/70T-95N/50T-95N/25T-95N, Illumina, BWA-MEM,  ~30x) 
+`NeuSomatic_v0.1.3_ensemble_Dream3.pth`   |  Ensemble     | WGS Dream Challenge Stage 3 (trained on multiple purity settings: 100T-100N/50T-100N/70T-95N/50T-95N/25T-95N, Illumina, BWA-MEM,  ~30x)
+
+
+
+### Older models
 Model                                              | Mode         | Training Information                                                        
 ---------------------------------------------------|---------------|-----------------------------------------------------------------------
 `NeuSomatic_v0.1.0_standalone_Dream3_70purity.pth` |  Stand-alone  | WGS Dream Challenge Stage 3 (70% tumor and 95% normal purities, Illumina, BWA-MEM,  ~30x) 
