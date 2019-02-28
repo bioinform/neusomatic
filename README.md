@@ -29,32 +29,33 @@ doi: https://doi.org/10.1101/393801](https://doi.org/10.1101/393801)
 
 ## Availability
 
-NeuSomatic is written in Python and C++ and requires a Unix-like environment to run. It has been sucessfully tested on CentOS 7. Its deep learning framework is implemented using PyTorch 1.0.0 to enable GPU acceleration for training/testing.
+NeuSomatic is written in Python and C++ and requires a Unix-like environment to run. It has been sucessfully tested on CentOS 7. Its deep learning framework is implemented using PyTorch 1.0.1 to enable GPU acceleration for training/testing.
 
 NeuSomatic first scans the genome to identify candidate variants and extract alignment information. 
 The binary for this step can be obtained at `neusomatic/bin` folder by running `./build.sh` (which requires cmake 3.13.2 and g++ 5.4.0).
 
-Python 2.7 and the following Python packages must be installed:
-* pytorch 1.0.0
+Python 3.7 and the following Python packages must be installed:
+* pytorch 1.0.1
 * torchvision 0.2.1
 * pybedtools 0.8.0
 * pysam 0.15.2
 * zlib 1.2.11
 * numpy 1.15.4
 * scipy 1.2.0
+* imageio 2.5.0
 * biopython 1.73
 
 It also depends on the following packages:
-* cuda80 1.0 (if you want to use GPU)
+* cudatoolkit 8.0 (if you want to use GPU)
 * tabix 0.2.6
 * bedtools 2.27.1
 * samtools 1.9
 
 You can install these packages using [anaconda](https://www.anaconda.com/download)/[miniconda](https://conda.io/miniconda.html) :
 ```
-conda install zlib=1.2.11 numpy=1.15.4 scipy=1.2.0 cmake=3.13.2
+conda install zlib=1.2.11 numpy=1.15.4 scipy=1.2.0 cmake=3.13.2 imageio=2.5.0
 conda install pysam=0.15.2 pybedtools=0.8.0 samtools=1.9 tabix=0.2.6 bedtools=2.27.1 biopython=1.73 -c bioconda
-conda install pytorch=1.0.0 torchvision=0.2.1 cuda80==1.0 -c pytorch
+conda install pytorch=1.0.1 torchvision=0.2.1 cudatoolkit=8.0 -c pytorch
 ```
 Then you can export the conda paths as:
 ```

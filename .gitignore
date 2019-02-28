@@ -3,7 +3,6 @@ third_party/*
 neusomatic/python/__pycache__/
 neusomatic/build/
 neusomatic/bin/*
-neusomatic/python/__pycache__/
 others/
 neusomatic/python/*.pyc
 test/example/
