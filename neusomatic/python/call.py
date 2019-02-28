@@ -421,6 +421,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
     matrices_dir = "{}/matrices_{}".format(out_dir, model_tag)
     if os.path.exists(matrices_dir):
+        logger.warning("Remove matrices directory: {}".format(matrices_dir))
         shutil.rmtree(matrices_dir)
     os.mkdir(matrices_dir)
     coverage_thr = pretrained_dict["coverage_thr"]
@@ -448,6 +449,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
     new_split_tsvs_dir = os.path.join(out_dir,"split_tsvs")
     if os.path.exists(new_split_tsvs_dir):
+        logger.warning("Remove split candidates directory: {}".format(new_split_tsvs_dir))
         shutil.rmtree(new_split_tsvs_dir)
     os.mkdir(new_split_tsvs_dir)
     Ls = []
@@ -459,6 +461,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
             logger.info("Splitting {} of lenght {}".format(candidate_file, len(idx)))
             new_split_tsvs_dir_i=os.path.join(new_split_tsvs_dir,"split_{}".format(split_i))
             if os.path.exists(new_split_tsvs_dir_i):
+                logger.warning("Remove split candidates directory: {}".format(new_split_tsvs_dir_i))
                 shutil.rmtree(new_split_tsvs_dir_i)
             os.mkdir(new_split_tsvs_dir_i)
             candidate_file_splits = merge_tsvs(input_tsvs=[candidate_file], 
@@ -516,6 +519,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
 
     if os.path.exists(new_split_tsvs_dir):
+        logger.warning("Remove split candidates directory: {}".format(new_split_tsvs_dir))
         shutil.rmtree(new_split_tsvs_dir)
 
     logger.info("Prepare Output VCF")
@@ -531,6 +535,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
               chroms_order, pass_threshold, lowqual_threshold)
 
     if os.path.exists(matrices_dir):
+        logger.warning("Remove matrices directory: {}".format(matrices_dir))
         shutil.rmtree(matrices_dir)
     return output_vcf
 
