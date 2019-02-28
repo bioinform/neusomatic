@@ -204,7 +204,10 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     num_channels = 119 if ensemble else 26
     net = NeuSomaticNet(num_channels)
     if use_cuda:
+        logger.info("GPU training!")
         net.cuda()
+    else:
+        logger.info("CPU training!")
 
     if torch.cuda.device_count() > 1:
         logger.info("We use {} GPUs!".format(torch.cuda.device_count()))

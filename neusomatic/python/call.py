@@ -404,7 +404,11 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     num_channels = 119 if ensemble else 26
     net = NeuSomaticNet(num_channels)
     if use_cuda:
+        logger.info("GPU calling!")
         net.cuda()
+    else:
+        logger.info("CPU calling!")
+
 
     if torch.cuda.device_count() > 1:
         logger.info("We use {} GPUs!".format(torch.cuda.device_count()))
