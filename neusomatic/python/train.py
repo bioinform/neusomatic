@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import transforms
+import torchvision
 from random import shuffle
 import pickle
 
@@ -191,6 +192,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     logger = logging.getLogger(train_neusomatic.__name__)
 
     logger.info("----------------Train NeuSomatic Network-------------------")
+    logger.info("PyTorch Version: {}".format(torch.__version__))
+    logger.info("Torchvision Version: {}".format(torchvision.__version__))
 
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)

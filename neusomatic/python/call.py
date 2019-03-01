@@ -20,6 +20,7 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
+import torchvision
 
 from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset
@@ -391,6 +392,8 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
     logger.info("-----------------Call Somatic Mutations--------------------")
 
+    logger.info("PyTorch Version: {}".format(torch.__version__))
+    logger.info("Torchvision Version: {}".format(torchvision.__version__))
     if not use_cuda:
         torch.set_num_threads(num_threads)
 
