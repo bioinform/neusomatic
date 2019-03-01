@@ -20,13 +20,13 @@ class NSBlock(nn.Module):
         super(NSBlock, self).__init__()
         self.dim = dim
         self.conv_r1 = nn.Conv2d(
-            dim, dim, kernel_size=ks_1, dilation=dl_1, padding=(dl_1 * (ks_1 - 1)) / 2)
+            dim, dim, kernel_size=ks_1, dilation=dl_1, padding=(dl_1 * (ks_1 - 1)) // 2)
         self.bn_r1 = nn.BatchNorm2d(dim)
         self.conv_r2 = nn.Conv2d(
-            dim, dim, kernel_size=ks_2, dilation=dl_2, padding=(dl_2 * (ks_2 - 1)) / 2)
+            dim, dim, kernel_size=ks_2, dilation=dl_2, padding=(dl_2 * (ks_2 - 1)) // 2)
         self.bn_r2 = nn.BatchNorm2d(dim)
         self.pool_r2 = nn.MaxPool2d((1, mp_ks), padding=(
-            0, (mp_ks - 1) / 2), stride=(1, mp_st))
+            0, (mp_ks - 1) // 2), stride=(1, mp_st))
 
     def forward(self, x):
         y1 = (F.relu(self.bn_r1(self.conv_r1(x))))
@@ -56,8 +56,8 @@ class NeuSomaticNet(nn.Module):
             rb = NSBlock(dim, ks_1, ks_2, dl_1, dl_2, mp_ks, mp_st)
             res_layers.append(rb)
         self.res_layers = nn.Sequential(*res_layers)
-        ds = np.prod(map(lambda x: x[5], self.nsblocks))
-        self.fc_dim = dim * 32 * 5 / ds
+        ds = np.prod(list(map(lambda x: x[5], self.nsblocks)))
+        self.fc_dim = dim * 32 * 5 // ds
         self.fc1 = nn.Linear(self.fc_dim, 240)
         self.fc2 = nn.Linear(240, 4)
         self.fc3 = nn.Linear(240, 1)

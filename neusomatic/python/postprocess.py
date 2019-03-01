@@ -86,7 +86,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
             if tag not in tags_info:
                 tags_info[tag] = []
             info = x[19].split(":")
-            dp, ro, ao = map(int, info[1:4])
+            dp, ro, ao = list(map(int, info[1:4]))
             af = float(info[4])
             is_same = x[1] == x[11] and x[3] == x[13] and x[4] == x[14]
             is_same_type = np.sign(
@@ -96,7 +96,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
             tags_info[tag].append(
                 [~is_same, ~is_same_type, dist, len_diff, s_e, dp, ro, ao, af])
     fina_info_tag = {}
-    for tag, hits in tags_info.iteritems():
+    for tag, hits in tags_info.items():
         hits = sorted(hits, key=lambda x: x[0:5])
         fina_info_tag[tag] = hits[0][5:]
 
@@ -105,8 +105,8 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
         fina_info_tag[tag] = [0, 0, 0, 0]
         scores[tag] = [x[5], x[6], x[7], x[9]]
 
-    tags = sorted(fina_info_tag.keys(), key=lambda x: map(int, x.split("-")[0:2]
-                                                          ))
+    tags = sorted(fina_info_tag.keys(), key=lambda x: list(map(int, x.split("-")[0:2]
+                                                          )))
     with open(output_vcf, "w") as o_f:
         o_f.write("##fileformat=VCFv4.2\n")
         o_f.write("##NeuSomatic Version={}\n".format(__version__))
@@ -143,7 +143,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
 def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ensemble_tsv,
                 tumor_bam, min_len,
                 postprocess_max_dist, long_read,
-                lr_pad, lr_chunck_size, lr_chunck_scale,
+                lr_pad, lr_chunk_size, lr_chunk_scale,
                 lr_snp_min_af, lr_ins_min_af, lr_del_min_af, lr_match_score, lr_mismatch_penalty,
                 lr_gap_open_penalty, lr_gap_ext_penalty,
                 pass_threshold, lowqual_threshold,
@@ -183,7 +183,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
             work, "candidates_preds.ra_resolved.vcf")
         long_read_indelrealign(work_lr_indel_realign, tumor_bam, None, ra_resolved_vcf, target_bed,
                                reference, num_threads, lr_pad,
-                               lr_chunck_size, lr_chunck_scale, lr_snp_min_af,
+                               lr_chunk_size, lr_chunk_scale, lr_snp_min_af,
                                lr_del_min_af, lr_ins_min_af,
                                lr_match_score, lr_mismatch_penalty, lr_gap_open_penalty,
                                lr_gap_ext_penalty, msa_binary)
@@ -233,9 +233,9 @@ if __name__ == '__main__':
         '--long_read', help='Enable long_read (high error-rate sequence) indel realignment', action="store_true")
     parser.add_argument(
         '--lr_pad', type=int, help='long_read indel realign: #base padding to the regions', default=1)
-    parser.add_argument('--lr_chunck_size', type=int,
+    parser.add_argument('--lr_chunk_size', type=int,
                         help='long_read indel realign: chuck split size for high depth', default=600)
-    parser.add_argument('--lr_chunck_scale', type=float,
+    parser.add_argument('--lr_chunk_scale', type=float,
                         help='long_read indel realign: chuck scale size for high depth', default=1.5)
     parser.add_argument('--lr_snp_min_af', type=float,
                         help='long_read indel realign: SNP min allele freq', default=0.05)
@@ -270,7 +270,7 @@ if __name__ == '__main__':
                                  args.candidates_vcf, args.ensemble_tsv,
                                  args.tumor_bam, args.min_len,
                                  args.postprocess_max_dist, args.long_read,
-                                 args.lr_pad, args.lr_chunck_size, args.lr_chunck_scale,
+                                 args.lr_pad, args.lr_chunk_size, args.lr_chunk_scale,
                                  args.lr_snp_min_af, args.lr_ins_min_af, args.lr_del_min_af,
                                  args.lr_match_score, args.lr_mismatch_penalty,
                                  args.lr_gap_open_penalty,

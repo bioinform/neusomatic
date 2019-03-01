@@ -24,8 +24,10 @@ from utils import concatenate_files, run_shell_command
 from split_bed import split_region
 
 
-def run_scan_alignments((work, reference, scan_alignments_binary, split_region_file,
-                         input_bam, window_size, maf, min_mapq, max_dp, calc_qual, num_threads)):
+def run_scan_alignments(record):
+    work, reference, scan_alignments_binary, split_region_file, \
+    input_bam, window_size, maf, min_mapq, max_dp, calc_qual, num_threads = record
+
     thread_logger = logging.getLogger(
         "{} ({})".format(run_scan_alignments.__name__, multiprocessing.current_process().name))
     try:
@@ -80,7 +82,7 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
             with pysam.AlignmentFile(input_bam, "rb") as samfile:
                 for chrom, length in zip(samfile.references, samfile.lengths):
                     intervals.append(pybedtools.Interval(chrom, 1, length - 1))
-            regions_bed = pybedtools.BedTool(intervals)
+            regions_bed = pybedtools.BedTool(intervals).saveas()
         if not os.path.exists(work):
             os.mkdir(work)
         total_len = sum(map(lambda x: int(x[2]) - int(x[1]) + 1, regions_bed))
@@ -98,7 +100,7 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
             regions_bed_file = os.path.join(work, "all_regions.bed")
             regions_bed.saveas(regions_bed_file)
 
-            num_split = max(int(np.ceil((total_len / 10000000) /
+            num_split = max(int(np.ceil((total_len // 10000000) //
                                         num_threads) * num_threads), num_threads)
             split_region_files = split_region(work, regions_bed_file, num_split,
                                               min_region=window_size, max_region=1e20)

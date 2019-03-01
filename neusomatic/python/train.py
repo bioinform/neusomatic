@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import transforms
+import torchvision
 from random import shuffle
 import pickle
 
@@ -51,21 +52,21 @@ def make_weights_for_balanced_classes(count_class_t, count_class_l, nclasses_t, 
         count_class_l[0] = none_count
 
     logger.info("count type classes: {}".format(
-        zip(vartype_classes, count_class_t)))
+        list(zip(vartype_classes, count_class_t))))
     N = float(sum(count_class_t))
     for i in range(nclasses_t):
         w_t[i] = (1 - (float(count_class_t[i]) / float(N))) / float(nclasses_t)
     w_t = np.array(w_t)
-    logger.info("weight type classes: {}".format(zip(vartype_classes, w_t)))
+    logger.info("weight type classes: {}".format(list(zip(vartype_classes, w_t))))
 
-    logger.info("count length classes: {}".format(
-        zip(range(nclasses_l), count_class_l)))
+    logger.info("count length classes: {}".format(list(
+        zip(range(nclasses_l), count_class_l))))
     N = float(sum(count_class_l))
     for i in range(nclasses_l):
         w_l[i] = (1 - (float(count_class_l[i]) / float(N))) / float(nclasses_l)
     w_l = np.array(w_l)
-    logger.info("weight length classes: {}".format(
-        zip(range(nclasses_l), w_l)))
+    logger.info("weight length classes: {}".format(list(
+        zip(range(nclasses_l), w_l))))
     return w_t, w_l
 
 
@@ -111,7 +112,7 @@ def test(net, epoch, validation_loader, use_cuda):
 
         for i in range(len(labels)):
             label = labels[i]
-            class_correct[label] += compare_labels[i]
+            class_correct[label] += compare_labels[i].data.cpu().numpy()
             class_total[label] += 1
         for i in range(len(predicted)):
             label = predicted[i]
@@ -120,7 +121,7 @@ def test(net, epoch, validation_loader, use_cuda):
         compare_len = (len_pred == var_len_s).squeeze()
         for i in range(len(var_len_s)):
             len_ = var_len_s[i]
-            len_class_correct[len_] += compare_len[i]
+            len_class_correct[len_] += compare_len[i].data.cpu().numpy()
             len_class_total[len_] += 1
         for i in range(len(len_pred)):
             len_ = len_pred[i]
@@ -164,8 +165,8 @@ class SubsetNoneSampler(torch.utils.data.sampler.Sampler):
         logger = logging.getLogger(SubsetNoneSampler.__iter__.__name__)
         if self.current_none_id > (len(self.none_indices) - self.none_count):
             this_round_nones = self.none_indices[self.current_none_id:]
-            self.none_indices = map(lambda i: self.none_indices[i],
-                                    torch.randperm(len(self.none_indices)).tolist())
+            self.none_indices = list(map(lambda i: self.none_indices[i],
+                                    torch.randperm(len(self.none_indices)).tolist()))
             self.current_none_id = self.none_count - len(this_round_nones)
             this_round_nones += self.none_indices[0:self.current_none_id]
         else:
@@ -191,6 +192,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     logger = logging.getLogger(train_neusomatic.__name__)
 
     logger.info("----------------Train NeuSomatic Network-------------------")
+    logger.info("PyTorch Version: {}".format(torch.__version__))
+    logger.info("Torchvision Version: {}".format(torchvision.__version__))
 
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
@@ -199,13 +202,15 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         torch.set_num_threads(num_threads)
 
     data_transform = transforms.Compose(
-        [transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+        [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
     )
     num_channels = 119 if ensemble else 26
     net = NeuSomaticNet(num_channels)
     if use_cuda:
+        logger.info("GPU training!")
         net.cuda()
+    else:
+        logger.info("CPU training!")
 
     if torch.cuda.device_count() > 1:
         logger.info("We use {} GPUs!".format(torch.cuda.device_count()))
@@ -232,10 +237,10 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         # 1. filter out unnecessary keys
         # pretrained_state_dict = {
         # k: v for k, v in pretrained_state_dict.items() if k in model_dict}
-        if "module." in pretrained_state_dict.keys()[0] and "module." not in model_dict.keys()[0]:
+        if "module." in list(pretrained_state_dict.keys())[0] and "module." not in list(model_dict.keys())[0]:
             pretrained_state_dict = {k.split("module.")[1]: v for k, v in pretrained_state_dict.items(
             ) if k.split("module.")[1] in model_dict}
-        elif "module." not in pretrained_state_dict.keys()[0] and "module." in model_dict.keys()[0]:
+        elif "module." not in list(pretrained_state_dict.keys())[0] and "module." in list(model_dict.keys())[0]:
             pretrained_state_dict = {
                 ("module." + k): v for k, v in pretrained_state_dict.items() if ("module." + k) in model_dict}
         else:
@@ -262,11 +267,11 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
 
     Ls = []
     for tsv in candidates_tsv:
-        idx = pickle.load(open(tsv + ".idx"))
+        idx = pickle.load(open(tsv + ".idx", "rb"))
         Ls.append(len(idx) - 1)
 
-    Ls, candidates_tsv = zip(
-        *sorted(zip(Ls, candidates_tsv), key=lambda x: x[0], reverse=True))
+    Ls, candidates_tsv = list(zip(
+        *sorted(zip(Ls, candidates_tsv), key=lambda x: x[0], reverse=True)))
 
     train_split_tsvs = []
     current_L = 0
@@ -298,13 +303,13 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         none_indices = train_set.get_none_indices()
         var_indices = train_set.get_var_indices()
         if none_indices:
-            none_indices = map(lambda i: none_indices[i],
-                               torch.randperm(len(none_indices)).tolist())
+            none_indices = list(map(lambda i: none_indices[i],
+                               torch.randperm(len(none_indices)).tolist()))
         logger.info(
             "Non-somatic candidates is split {}: {}".format(split_i, len(none_indices)))
         if var_indices:
-            var_indices = map(lambda i: var_indices[i],
-                              torch.randperm(len(var_indices)).tolist())
+            var_indices = list(map(lambda i: var_indices[i],
+                              torch.randperm(len(var_indices)).tolist()))
         logger.info("Somatic candidates in split {}: {}".format(
             split_i, len(var_indices)))
         none_count = max(min(len(none_indices), len(
@@ -410,14 +415,14 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 if use_cuda:
                     var_len_labels = var_len_labels.cuda()
                 loss = criterion_crossentropy(outputs_classification, labels) + 1 * criterion_smoothl1(
-                    outputs_pos, var_pos_s[:, 1]
+                    outputs_pos.squeeze(1), var_pos_s[:, 1]
                 ) + 1 * criterion_crossentropy2(outputs_len, var_len_labels)
 
                 loss.backward()
                 optimizer.step()
-                loss_s.append(loss.data[0])
+                loss_s.append(loss.data)
 
-                running_loss += loss.data[0]
+                running_loss += loss.data
                 if i_ % print_freq == print_freq - 1:
                     logger.info('epoch: {}, iter: {:>7}, lr: {}, loss: {:.5f}'.format(
                                 n_epoch + prev_epochs, len(loss_s),

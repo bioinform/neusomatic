@@ -70,19 +70,20 @@ def extract_ins(record):
     return inss
 
 
-def find_resolved_variants((chrom, start, end, variants, input_bam, reference)):
+def find_resolved_variants(input_record):
+    chrom, start, end, variants, input_bam, reference = input_record
     thread_logger = logging.getLogger(
         "{} ({})".format(find_resolved_variants.__name__, multiprocessing.current_process().name))
     try:
         ref = pysam.FastaFile(reference)
         out_variants = []
-        start, end = map(int, [start, end])
+        start, end = list(map(int, [start, end]))
         region = [chrom, start, end]
-        vartypes = map(lambda x: x[-1], variants)
-        scores = map(lambda x: x[5], variants)
+        vartypes = list(map(lambda x: x[-1], variants))
+        scores = list(map(lambda x: x[5], variants))
         if len(set(vartypes)) > 1:
             out_variants.extend(
-                map(lambda x: [x[0], int(x[1]), x[3], x[4], x[10], x[5]], variants))
+                list(map(lambda x: [x[0], int(x[1]), x[3], x[4], x[10], x[5]], variants)))
         else:
             vartype = vartypes[0]
             score = max(scores)
@@ -93,13 +94,13 @@ def find_resolved_variants((chrom, start, end, variants, input_bam, reference)):
                     for record in samfile.fetch(chrom, start, end):
                         if record.cigarstring and "D" in record.cigarstring:
                             dels.extend(extract_del(record))
-                dels = filter(lambda x: (
-                    start <= x[1] <= end) or start <= x[2] <= end, dels)
+                dels = list(filter(lambda x: (
+                    start <= x[1] <= end) or start <= x[2] <= end, dels))
                 if dels:
-                    intervals = map(lambda x: pybedtools.Interval(
-                        x[0], x[1], x[2]), dels)
-                    bed = pybedtools.BedTool(intervals)
-                    del_strs = map(lambda x: "---".join(x[0:3]), bed)
+                    intervals = list(map(lambda x: pybedtools.Interval(
+                        x[0], x[1], x[2]), dels))
+                    bed = pybedtools.BedTool(intervals).saveas()
+                    del_strs = list(map(lambda x: "---".join(x[0:3]), bed))
                     uniq_dels = list(set(del_strs))
                     uniq_dels_count = {}
                     for del_ in uniq_dels:
@@ -109,10 +110,10 @@ def find_resolved_variants((chrom, start, end, variants, input_bam, reference)):
                         if uniq_dels_count[del_] <= max_count * 0.5:
                             del uniq_dels_count[del_]
                     new_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[2])),
-                                                     map(lambda x: x.split("---"), uniq_dels_count.keys())))
+                                                     list(map(lambda x: x.split("---"), uniq_dels_count.keys())))).saveas()
                     new_bed = new_bed.sort().merge(c=[1], o="count")
-                    out_variants.extend(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
-                        x[1]) - 1, int(x[2])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])), "0/1", score], new_bed))
+                    out_variants.extend(list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
+                        x[1]) - 1, int(x[2])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])), "0/1", score], new_bed)))
             elif vartype == "INS":
                 intervals = []
                 inss = []
@@ -120,13 +121,13 @@ def find_resolved_variants((chrom, start, end, variants, input_bam, reference)):
                     for record in samfile.fetch(chrom, start, end):
                         if record.cigarstring and "I" in record.cigarstring:
                             inss.extend(extract_ins(record))
-                inss = filter(lambda x: (
-                    start <= x[1] <= end) or start <= x[2] <= end, inss)
+                inss = list(filter(lambda x: (
+                    start <= x[1] <= end) or start <= x[2] <= end, inss))
                 if inss:
-                    intervals = map(lambda x: pybedtools.Interval(
-                        x[0], x[1], x[2], x[3]), inss)
-                    bed = pybedtools.BedTool(intervals)
-                    ins_strs = map(lambda x: "---".join(x[0:4]), bed)
+                    intervals = list(map(lambda x: pybedtools.Interval(
+                        x[0], x[1], x[2], x[3]), inss))
+                    bed = pybedtools.BedTool(intervals).saveas()
+                    ins_strs = list(map(lambda x: "---".join(x[0:4]), bed))
                     uniq_inss = list(set(ins_strs))
                     uniq_inss_count = {}
                     for ins_ in uniq_inss:
@@ -138,9 +139,9 @@ def find_resolved_variants((chrom, start, end, variants, input_bam, reference)):
                         if uniq_inss_count[ins_] <= max_count * 0.5 or 0 < abs(int(ins_.split("---")[1]) - max_pos) < 4:
                             del uniq_inss_count[ins_]
                     new_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[2]), x[3]),
-                                                     map(lambda x: x.split("---"), uniq_inss_count.keys()))).sort()
-                    out_variants.extend(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
-                        x[1]) - 1, int(x[1])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])) + x[3], "0/1", score], new_bed))
+                                                     list(map(lambda x: x.split("---"), uniq_inss_count.keys())))).sort()
+                    out_variants.extend(list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
+                        x[1]) - 1, int(x[1])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])) + x[3], "0/1", score], new_bed)))
         return out_variants
     except Exception as ex:
         thread_logger.error(traceback.format_exc())

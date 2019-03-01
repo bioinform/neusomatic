@@ -15,6 +15,7 @@ import fileinput
 import logging
 from random import shuffle
 import csv
+import functools
 
 import numpy as np
 import pybedtools
@@ -125,8 +126,8 @@ class Realign_Read:
         bias = 0
         for region_start, region_end, start_idx, end_idx, del_start, del_end, \
                 pos_start, pos_end, new_cigar, excess_start, excess_end in self.realignments:
-            c_array = np.array(map(lambda x: [x[0], x[1][1] if x[1][0]
-                                              != CIGAR_DEL else 0], enumerate(cigartuples)))
+            c_array = np.array(list(map(lambda x: [x[0], x[1][1] if x[1][0]
+                                              != CIGAR_DEL else 0], enumerate(cigartuples))))
             c_map = np.repeat(c_array[:, 0], c_array[:, 1])
 
             c_i = c_map[start_idx - bias]
@@ -197,7 +198,7 @@ class Realign_Read:
         if end_hc:
             new_cigartuples_list.append([[CIGAR_HARDCLIP, end_hc]])
 
-        new_cigartuples = reduce(
+        new_cigartuples = functools.reduce(
             lambda x, y: merge_cigartuples(x, y), new_cigartuples_list)
         if len(new_cigartuples) > 2 and new_cigartuples[-1][0] == CIGAR_SOFTCLIP \
                 and new_cigartuples[-2][0] == CIGAR_DEL:
@@ -222,8 +223,8 @@ class Realign_Read:
 
         record.cigarstring = cigartuple_to_string(new_cigartuples)
         NM = find_NM(record, ref_seq)
-        record.tags = filter(
-            lambda x: x[0] != "NM", record.tags) + [("NM", int(NM))]
+        record.tags = list(filter(
+            lambda x: x[0] != "NM", record.tags)) + [("NM", int(NM))]
         return record
 
 
@@ -239,8 +240,8 @@ def get_cigar_stat(cigartuple, keys=[]):
 
 def find_NM(record, ref_seq):
     logger = logging.getLogger(find_NM.__name__)
-    positions = np.array(map(lambda x: x if x else -1,
-                             (record.get_reference_positions(full_length=True))))
+    positions = np.array(list(map(lambda x: x if x else -1,
+                             (record.get_reference_positions(full_length=True)))))
     sc_start = (record.cigartuples[0][0] ==
                 CIGAR_SOFTCLIP) * record.cigartuples[0][1]
     sc_end = (record.cigartuples[-1][0] ==
@@ -255,9 +256,9 @@ def find_NM(record, ref_seq):
     non_ins_positions = positions[non_ins]
     mn, mx = min(non_ins_positions), max(non_ins_positions)
     refseq = ref_seq.get_seq(mn, mx + 1)
-    ref_array = np.array(map(lambda x: NUC_to_NUM[x.upper()], list(refseq)))[
+    ref_array = np.array(list(map(lambda x: NUC_to_NUM[x.upper()], list(refseq))))[
         non_ins_positions - mn]
-    q_array = np.array(map(lambda x: NUC_to_NUM[x.upper()], list(q_seq)))[
+    q_array = np.array(list(map(lambda x: NUC_to_NUM[x.upper()], list(q_seq))))[
         non_ins]
     cigar_stat = get_cigar_stat(record.cigartuples, [CIGAR_DEL, CIGAR_INS])
     assert ref_array.shape[0] == q_array.shape[0]
@@ -297,13 +298,13 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
                     for record in samfile.fetch(region.chrom, region.start, region.end + 1):
                         if record.is_supplementary and "SA" in dict(record.tags):
                             sas = dict(record.tags)["SA"].split(";")
-                            sas = filter(None, sas)
-                            sas_cigs = map(lambda x: x.split(",")[3], sas)
+                            sas = list(filter(None, sas))
+                            sas_cigs = list(map(lambda x: x.split(",")[3], sas))
                             if record.cigarstring in sas_cigs:
                                 continue
-                        positions = np.array(map(lambda x: x if x else -1,
+                        positions = np.array(list(map(lambda x: x if x else -1,
                                                  (record.get_reference_positions(
-                                                     full_length=True))))
+                                                     full_length=True)))))
                         if not record.cigartuples:
                             continue
                         sc_start = (record.cigartuples[0][0] ==
@@ -326,9 +327,9 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
                             0][0] + sc_start
 
                         if max(end_idx - start_idx, pos_end - pos_start) >= (region.span() * 0.75):
-                            c_array = np.array(map(lambda x: [x[0], x[1][1] if x[1][0]
+                            c_array = np.array(list(map(lambda x: [x[0], x[1][1] if x[1][0]
                                                               != CIGAR_DEL else 0],
-                                                   enumerate(record.cigartuples)))
+                                                   enumerate(record.cigartuples))))
                             c_map = np.repeat(c_array[:, 0], c_array[:, 1])
                             c_i = c_map[start_idx]
                             c_e = c_map[end_idx]
@@ -344,10 +345,10 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
                             non_ins_positions = positions_[non_ins]
                             mn, mx = min(non_ins_positions), max(
                                 non_ins_positions)
-                            ref_array = np.array(map(lambda x:
+                            ref_array = np.array(list(map(lambda x:
                                                      NUC_to_NUM[x.upper()],
-                                                     list(refseq)))[non_ins_positions - mn]
-                            q_array = np.array(map(lambda x: NUC_to_NUM[x.upper()], list(q_seq)))[
+                                                     list(refseq))))[non_ins_positions - mn]
+                            q_array = np.array(list(map(lambda x: NUC_to_NUM[x.upper()], list(q_seq))))[
                                 non_ins]
                             cigar_stat = get_cigar_stat(
                                 my_cigartuples, [CIGAR_DEL, CIGAR_INS])
@@ -367,21 +368,21 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
     return in_fasta_file, info_file
 
 
-def split_bam_to_chuncks(work, region, input_bam, chunck_size=200,
-                         chunck_scale=1.5):
-    logger = logging.getLogger(split_bam_to_chuncks.__name__)
+def split_bam_to_chunks(work, region, input_bam, chunk_size=200,
+                         chunk_scale=1.5):
+    logger = logging.getLogger(split_bam_to_chunks.__name__)
     records = []
     with pysam.Samfile(input_bam, "rb") as samfile:
         for record in samfile.fetch(region.chrom, region.start, region.end + 1):
             if record.is_supplementary and "SA" in dict(record.tags):
                 sas = dict(record.tags)["SA"].split(";")
-                sas = filter(None, sas)
-                sas_cigs = map(lambda x: x.split(",")[3], sas)
+                sas = list(filter(None, sas))
+                sas_cigs = list(map(lambda x: x.split(",")[3], sas))
                 if record.cigarstring in sas_cigs:
                     continue
 
             positions = np.array(
-                map(lambda x: x if x else -1, (record.get_reference_positions(full_length=True))))
+                list(map(lambda x: x if x else -1, (record.get_reference_positions(full_length=True)))))
             if not record.cigartuples:
                 continue
 
@@ -402,23 +403,23 @@ def split_bam_to_chuncks(work, region, input_bam, chunck_size=200,
 
             records.append([record, len(q_seq)])
 
-    records = map(lambda x: x[0], sorted(records, key=lambda x: x[1]))
-    if len(records) < chunck_size * chunck_scale:
+    records = list(map(lambda x: x[0], sorted(records, key=lambda x: x[1])))
+    if len(records) < chunk_size * chunk_scale:
         bams = [input_bam]
         lens = [len(records)]
     else:
-        n_splits = int(max(6, len(records) / chunck_size))
-        new_chunck_size = len(records) / n_splits
+        n_splits = int(max(6, len(records) // chunk_size))
+        new_chunk_size = len(records) // n_splits
         bams = []
         lens = []
-        n_split = (len(records) / new_chunck_size) + 1
-        if 0 < (len(records) - ((n_split - 1) * new_chunck_size) + new_chunck_size) \
-                < new_chunck_size * chunck_scale:
+        n_split = (len(records) // new_chunk_size) + 1
+        if 0 < (len(records) - ((n_split - 1) * new_chunk_size) + new_chunk_size) \
+                < new_chunk_size * chunk_scale:
             n_split -= 1
         for i in range(n_split):
-            i_start = i * new_chunck_size
+            i_start = i * new_chunk_size
             i_end = (i + 1) * \
-                new_chunck_size if i < (n_split - 1) else len(records)
+                new_chunk_size if i < (n_split - 1) else len(records)
             split_input_bam = os.path.join(
                 work, region.__str__() + "_split_{}.bam".format(i))
             with pysam.AlignmentFile(input_bam, "rb") as samfile:
@@ -440,9 +441,9 @@ def split_bam_to_chuncks(work, region, input_bam, chunck_size=200,
 def read_info(info_file):
     logger = logging.getLogger(read_info.__name__)
     info = {}
-    with open(info_file, 'rb') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter='\t', quotechar='|')
-        for row in spamreader:
+    with open(info_file, 'r') as csvfile:
+        csvreader = csv.reader(csvfile, delimiter='\t', quotechar='|')
+        for row in csvreader:
             info[int(row[0])] = Read_Info(row[1:])
     return info
 
@@ -459,7 +460,7 @@ def find_cigar(alignment):
         raise Exception
 
     event_type = augmented_alignment[:-1][event_pos[1:]]
-    cigartuple = zip(event_type, event_len)
+    cigartuple = list(zip(event_type, event_len))
     return cigartuple_to_string(cigartuple)
 
 
@@ -476,10 +477,10 @@ def extract_new_cigars(region, info_file, out_fasta_file):
             set(map(int, records.keys())) ^ set(range(len(records)))))
         raise Exception
 
-    alignment = map(lambda x: x[1], sorted(map(lambda x: [int(x[0]), map(lambda x: 0 if x == "-"
-                                                                         else 1, x[1].seq)],
+    alignment = list(map(lambda x: x[1], sorted(map(lambda x: [int(x[0]), list(map(lambda x: 0 if x == "-"
+                                                                         else 1, x[1].seq))],
                                                records.items()),
-                                           key=lambda x: x[0]))
+                                           key=lambda x: x[0])))
     ref_seq = np.array(alignment[0])
     pos_ref = np.cumsum(alignment[0]) - 1
     alignment = np.array(alignment[1:]) - ref_seq
@@ -527,9 +528,9 @@ def extract_consensus(region, out_fasta_file):
         if nuc.upper() not in NUC_to_NUM.keys():
             nuc = "-"
         return NUC_to_NUM[nuc.upper()]
-    for i, record in records.iteritems():
+    for i, record in records.items():
         ii = int(i) - 1
-        msa[ii] = map(lambda x: nuc_to_num_convert(x), record.seq)
+        msa[ii] = list(map(lambda x: nuc_to_num_convert(x), record.seq))
     msa = np.array(msa, dtype=int)
     consensus = []
     for i in range(align_len):
@@ -558,11 +559,11 @@ def get_final_msa(region, msa_0, consensus, out_fasta_file_1, out_fasta_file_fin
         raise Exception
     align_len = len(records["0"].seq)
     msa_1 = [[] for i in range(2)]
-    for i, record in records.iteritems():
+    for i, record in records.items():
         ii = int(i)
-        msa_1[ii] = map(lambda x: nuc_to_num_convert(x), record.seq)
+        msa_1[ii] = list(map(lambda x: nuc_to_num_convert(x), record.seq))
     msa_1 = np.array(msa_1, dtype=int)
-    consensus_array = np.array(map(lambda x: nuc_to_num_convert(x), consensus))
+    consensus_array = np.array(list(map(lambda x: nuc_to_num_convert(x), consensus)))
     consensus_cumsum = np.cumsum(consensus_array > 0)
     new_cols = np.where(msa_1[1, :] == 0)[0]
     new_cols -= np.arange(len(new_cols))
@@ -622,7 +623,7 @@ def merge_cigartuples(tuple1, tuple2):
 def find_realign_dict(realign_bed_file, chrom):
     logger = logging.getLogger(find_realign_dict.__name__)
     realign_bed = pybedtools.BedTool(
-        realign_bed_file).filter(lambda x: x[0] == chrom)
+        realign_bed_file).filter(lambda x: x[0] == chrom).saveas()
     realign_dict = {}
     chrom_regions = set([])
     for interval in realign_bed:
@@ -638,11 +639,12 @@ def find_realign_dict(realign_bed_file, chrom):
                                             excess_end)
         chrom_regions.add("{}-{}".format(start, end))
     chrom_regions = sorted(
-        map(lambda x: map(int, x.split("-")), chrom_regions))
+        map(lambda x: list(map(int, x.split("-"))), chrom_regions))
     return realign_dict, chrom_regions
 
 
-def correct_bam_chrom((work, input_bam, realign_bed_file, ref_fasta_file, chrom)):
+def correct_bam_chrom(input_record):
+    work, input_bam, realign_bed_file, ref_fasta_file, chrom = input_record
     thread_logger = logging.getLogger(
         "{} ({})".format(correct_bam_chrom.__name__, multiprocessing.current_process().name))
     try:
@@ -729,7 +731,7 @@ def correct_bam_all(work, input_bam, output_bam, ref_fasta_file, realign_bed_fil
 
 def concatenate_sam_files(files, output, bam_header):
     logger = logging.getLogger(concatenate_sam_files.__name__)
-    good_files = filter(lambda x: x and os.path.isfile(x), files)
+    good_files = list(filter(lambda x: x and os.path.isfile(x), files))
     fin = fileinput.input(good_files)
     with open(output, "w") as merged_fd:
         with open(bam_header) as bh_fd:
@@ -831,9 +833,9 @@ def find_var(out_fasta_file, snp_min_af, del_min_af, ins_min_af, scale_maf):
         logger.error("sequences are missing in the alignment {}".format(
             set(map(int, records.keys())) ^ set(range(len(records)))))
         raise Exception
-    alignment = np.array(map(lambda x: x[1], sorted(map(lambda x: [int(x[0]), map(
-        lambda x: NUC_to_NUM[x.upper()], x[1].seq)], records.items()),
-        key=lambda x: x[0])))
+    alignment = np.array(list(map(lambda x: x[1], sorted(map(lambda x: [int(x[0]), list(map(
+        lambda x: NUC_to_NUM[x.upper()], x[1].seq))], records.items()),
+        key=lambda x: x[0]))))
     ref_seq = alignment[0, :]
     counts = np.zeros((5, alignment.shape[1]))
     for i in range(5):
@@ -897,10 +899,11 @@ def TrimREFALT(ref, alt, pos):
     return ref, alt, pos
 
 
-def run_realignment((work, ref_fasta_file, target_region, pad, chunck_size, chunck_scale,
-                     snp_min_af, del_min_af, ins_min_af, len_chr, input_bam,
-                     match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
-                     msa_binary, get_var)):
+def run_realignment(input_record):
+    work, ref_fasta_file, target_region, pad, chunk_size, chunk_scale, \
+    snp_min_af, del_min_af, ins_min_af, len_chr, input_bam, \
+    match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty, \
+    msa_binary, get_var = input_record
 
     thread_logger = logging.getLogger(
         "{} ({})".format(run_realignment.__name__, multiprocessing.current_process().name))
@@ -915,8 +918,8 @@ def run_realignment((work, ref_fasta_file, target_region, pad, chunck_size, chun
         pybedtools.set_tempdir(pybedtmp)
         variant = []
         all_entries = []
-        input_bam_splits, lens_splits = split_bam_to_chuncks(
-            work, region, input_bam, chunck_size, chunck_scale)
+        input_bam_splits, lens_splits = split_bam_to_chunks(
+            work, region, input_bam, chunk_size, chunk_scale)
         new_seqs = []
         new_ref_seq = ""
         skipped = 0
@@ -1160,7 +1163,7 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
 
 def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_file,
                            ref_fasta_file, num_threads, pad,
-                           chunck_size, chunck_scale, snp_min_af, del_min_af, ins_min_af,
+                           chunk_size, chunk_scale, snp_min_af, del_min_af, ins_min_af,
                            match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
                            msa_binary):
     logger = logging.getLogger(long_read_indelrealign.__name__)
@@ -1200,15 +1203,15 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
         region_bed_merged = region_bed_merged_tmp
     region_bed_merged.saveas(os.path.join(work, "regions_merged.bed"))
 
-    target_regions = map(
-        lambda x: [x[0], int(x[1]), int(x[2])], region_bed_merged)
+    target_regions = list(map(
+        lambda x: [x[0], int(x[1]), int(x[2])], region_bed_merged))
 
     get_var = True if output_vcf else False
     pool = multiprocessing.Pool(num_threads)
     map_args = []
     for target_region in target_regions:
-        map_args.append((work, ref_fasta_file, target_region, pad, chunck_size,
-                         chunck_scale, snp_min_af, del_min_af, ins_min_af,
+        map_args.append((work, ref_fasta_file, target_region, pad, chunk_size,
+                         chunk_scale, snp_min_af, del_min_af, ins_min_af,
                          chrom_lengths[target_region[0]], input_bam,
                          match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
                          msa_binary, get_var))
@@ -1227,10 +1230,10 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
         if o is None:
             raise Exception("run_realignment failed!")
 
-    realign_entries = map(lambda x: x[0], realign_output)
+    realign_entries = list(map(lambda x: x[0], realign_output))
 
-    realign_variants = map(lambda x: x[1], realign_output)
-    realign_variants = filter(None, realign_variants)
+    realign_variants = list(map(lambda x: x[1], realign_output))
+    realign_variants = list(filter(None, realign_variants))
 
     if get_var:
         with open(output_vcf, "w") as o_f:
@@ -1254,14 +1257,13 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
     pybedtools.set_tempdir(pybedtmp)
 
     if realign_entries:
-        realign_entries = reduce(lambda x, y: x + y, realign_entries)
+        realign_entries = functools.reduce(lambda x, y: x + y, realign_entries)
     realign_bed_file = os.path.join(work, "realign.bed")
     realign_entries.sort()
     relaign_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(x[0], x[1],
-                                                                       x[2], x[
-                                                                           3],
-                                                                       otherfields=map(str, x[4:])),
-                                         realign_entries)).saveas(realign_bed_file)
+                                    x[2],x[3],
+                                    otherfields=list(map(lambda y:str(y).encode('utf-8'), x[4:]))),
+                                    realign_entries)).saveas(realign_bed_file)
 
     relaign_bed = pybedtools.BedTool(realign_bed_file)
 
@@ -1297,9 +1299,9 @@ if __name__ == '__main__':
                         help='number of threads', default=1)
     parser.add_argument('--pad', type=int,
                         help='#base padding to the regions', default=1)
-    parser.add_argument('--chunck_size', type=int,
+    parser.add_argument('--chunk_size', type=int,
                         help='chuck split size for high depth', default=600)
-    parser.add_argument('--chunck_scale', type=float,
+    parser.add_argument('--chunk_scale', type=float,
                         help='chuck scale size for high depth', default=1.5)
     parser.add_argument('--snp_min_af', type=float,
                         help='SNP min allele freq', default=0.05)
@@ -1323,8 +1325,8 @@ if __name__ == '__main__':
     try:
         processor = long_read_indelrealign(args.work, args.input_bam, args.output_bam,
                                            args.output_vcf, args.region_bed, args.reference,
-                                           args.num_threads, args.pad, args.chunck_size,
-                                           args.chunck_scale, args.snp_min_af, args.del_min_af,
+                                           args.num_threads, args.pad, args.chunk_size,
+                                           args.chunk_scale, args.snp_min_af, args.del_min_af,
                                            args.ins_min_af, args.match_score,
                                            args.mismatch_penalty, args.gap_open_penalty,
                                            args.gap_ext_penalty, args.msa_binary)

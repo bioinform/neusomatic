@@ -34,7 +34,7 @@ def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
             if not record_set:
                 record_set.append(record)
                 continue
-            if len(filter(lambda x: (chrom == x[0] and (abs(min(x[1] + len(x[2]), pos + len(ref)) - max(x[1], pos)) <= max_dist)), record_set)) > 0:
+            if len(list(filter(lambda x: (chrom == x[0] and (abs(min(x[1] + len(x[2]), pos + len(ref)) - max(x[1], pos)) <= max_dist)), record_set))) > 0:
                 record_set.append(record)
                 continue
 
@@ -45,7 +45,7 @@ def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
 
         for ii, record_set in enumerate(record_sets):
             if len(record_set) > 1:
-                if filter(lambda x: len(x[2]) != len(x[3]), record_set):
+                if list(filter(lambda x: len(x[2]) != len(x[3]), record_set)):
                     for x in record_set:
                         fields = x[-1].strip().split()
                         fields[2] = str(ii)

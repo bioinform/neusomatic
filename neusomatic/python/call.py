@@ -14,12 +14,13 @@ import multiprocessing
 
 import pysam
 import numpy as np
-from scipy.misc import imsave, imread
+from imageio import imwrite, imread
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
+import torchvision
 
 from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset
@@ -88,34 +89,35 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
                 file_name = "{}/matrices_{}/{}.png".format(
                     out_dir, model_tag, path)
                 if not os.path.exists(file_name):
-                    imsave(file_name, non_transformed_matrices[i, :, :, 0:3])
+                    imwrite(file_name, non_transformed_matrices[i, :, :, 0:3])
                 true_path[path] = file_name
                 final_preds[path] = [vartype_classes[predicted[i]], pos_pred[i], len_pred[i],
-                                     map(lambda x: round(x, 4), F.softmax(
-                                         outputs1[i, :], 0).data.cpu().numpy()),
-                                     map(lambda x: round(x, 4), F.softmax(
-                                         outputs3[i, :], 0).data.cpu().numpy()),
-                                     map(lambda x: round(x, 4),
-                                         outputs1.data.cpu()[i].numpy()),
-                                     map(lambda x: round(x, 4),
-                                         outputs3.data.cpu()[i].numpy())]
+                                     list(map(lambda x: round(x, 4), F.softmax(
+                                         outputs1[i, :], 0).data.cpu().numpy())),
+                                     list(map(lambda x: round(x, 4), F.softmax(
+                                         outputs3[i, :], 0).data.cpu().numpy())),
+                                     list(map(lambda x: round(x, 4),
+                                         outputs1.data.cpu()[i].numpy())),
+                                     list(map(lambda x: round(x, 4),
+                                         outputs3.data.cpu()[i].numpy()))]
             else:
                 none_preds[path] = [vartype_classes[predicted[i]], pos_pred[i], len_pred[i],
-                                    map(lambda x: round(x, 4), F.softmax(
-                                        outputs1[i, :], 0).data.cpu().numpy()),
-                                    map(lambda x: round(x, 4), F.softmax(
-                                        outputs3[i, :], 0).data.cpu().numpy()),
-                                    map(lambda x: round(x, 4),
-                                        outputs1.data.cpu()[i].numpy()),
-                                    map(lambda x: round(x, 4),
-                                        outputs3.data.cpu()[i].numpy())]
+                                    list(map(lambda x: round(x, 4), F.softmax(
+                                        outputs1[i, :], 0).data.cpu().numpy())),
+                                    list(map(lambda x: round(x, 4), F.softmax(
+                                        outputs3[i, :], 0).data.cpu().numpy())),
+                                    list(map(lambda x: round(x, 4),
+                                        outputs1.data.cpu()[i].numpy())),
+                                    list(map(lambda x: round(x, 4),
+                                        outputs3.data.cpu()[i].numpy()))]
         if (iii % 10 == 0):
             logger.info("Called {} candidates in this batch.".format(j))
     logger.info("Called {} candidates in this batch.".format(j))
     return final_preds, none_preds, true_path
 
 
-def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, ref_file)):
+def pred_vcf_records_path(record):
+    path, true_path_, pred_all, chroms, vartype_classes, ref_file = record
     thread_logger = logging.getLogger(
         "{} ({})".format(pred_vcf_records_path.__name__, multiprocessing.current_process().name))
     try:
@@ -208,7 +210,7 @@ def pred_vcf_records_path((path, true_path_, pred_all, chroms, vartype_classes, 
         b = (anchor[0] - col_2_pos[anchor[1]])
         for i in nzref_pos:
             col_2_pos[i] += b
-        pos_2_col = {v: k for k, v in col_2_pos.iteritems()}
+        pos_2_col = {v: k for k, v in col_2_pos.items()}
 
         if abs(center_pred - center) < too_far_center:
             if type_pred == "SNP":
@@ -324,7 +326,7 @@ def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, 
         if o is None:
             raise Exception("pred_vcf_records_path failed!")
 
-    all_vcf_records = filter(None, all_vcf_records)
+    all_vcf_records = list(filter(None, all_vcf_records))
 
     return all_vcf_records
 
@@ -361,7 +363,7 @@ def get_vcf_records(all_vcf_records):
 
 def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_threshold):
     logger = logging.getLogger(write_vcf.__name__)
-    vcf_records = filter(lambda x: len(x) > 0, vcf_records)
+    vcf_records = list(filter(lambda x: len(x) > 0, vcf_records))
     vcf_records = sorted(vcf_records, key=lambda x: [chroms_order[x[0]], x[1]])
     lines = []
     with open(output_vcf, "w") as ov:
@@ -390,6 +392,8 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
     logger.info("-----------------Call Somatic Mutations--------------------")
 
+    logger.info("PyTorch Version: {}".format(torch.__version__))
+    logger.info("Torchvision Version: {}".format(torchvision.__version__))
     if not use_cuda:
         torch.set_num_threads(num_threads)
 
@@ -399,12 +403,15 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
     vartype_classes = ['DEL', 'INS', 'NONE', 'SNP']
     data_transform = transforms.Compose(
-        [transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     num_channels = 119 if ensemble else 26
     net = NeuSomaticNet(num_channels)
     if use_cuda:
+        logger.info("GPU calling!")
         net.cuda()
+    else:
+        logger.info("CPU calling!")
+
 
     if torch.cuda.device_count() > 1:
         logger.info("We use {} GPUs!".format(torch.cuda.device_count()))
@@ -431,10 +438,10 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     # 1. filter out unnecessary keys
     # pretrained_state_dict = {
     #     k: v for k, v in pretrained_state_dict.items() if k in model_dict}
-    if "module." in pretrained_state_dict.keys()[0] and "module." not in model_dict.keys()[0]:
+    if "module." in list(pretrained_state_dict.keys())[0] and "module." not in list(model_dict.keys())[0]:
         pretrained_state_dict = {k.split("module.")[1]: v for k, v in pretrained_state_dict.items(
         ) if k.split("module.")[1] in model_dict}
-    elif "module." not in pretrained_state_dict.keys()[0] and "module." in model_dict.keys()[0]:
+    elif "module." not in list(pretrained_state_dict.keys())[0] and "module." in list(model_dict.keys())[0]:
         pretrained_state_dict = {
             ("module." + k): v for k, v in pretrained_state_dict.items()
             if ("module." + k) in model_dict}
@@ -456,7 +463,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     candidates_tsv_=[]
     split_i = 0
     for candidate_file in candidates_tsv:
-        idx = pickle.load(open(candidate_file + ".idx"))
+        idx = pickle.load(open(candidate_file + ".idx", "rb"))
         if len(idx) > max_load_candidates / 2:
             logger.info("Splitting {} of lenght {}".format(candidate_file, len(idx)))
             new_split_tsvs_dir_i=os.path.join(new_split_tsvs_dir,"split_{}".format(split_i))
@@ -471,7 +478,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                                                overwrite_merged_tsvs=True,
                                                keep_none_types=True)
             for candidate_file_split in candidate_file_splits:
-                idx_split = pickle.load(open(candidate_file_split + ".idx"))
+                idx_split = pickle.load(open(candidate_file_split + ".idx", "rb"))
                 candidates_tsv_.append(candidate_file_split)
                 Ls.append(len(idx_split) - 1)
             split_i += 1
