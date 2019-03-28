@@ -5,6 +5,7 @@
 #include <string>
 
 #include "change_coordinates.hpp"
+#include "msa.hpp"
 
 namespace neusomatic{
 
@@ -17,11 +18,14 @@ class Col{
 
   public:
     static const int ALPHABET_SIZE = 6; // a, t, c, g, gap and missing_char
-    static const int TAG_SIZE = 5; // number of tag used. 
-    Col() = delete;
+    static const int TAG_SIZE = 5;
     explicit Col(size_t nbases): bases_(nbases), bquals_(nbases), base_freq_(ALPHABET_SIZE), //base_rids_(ALPHABET_SIZE),
                                  bqual_mean(ALPHABET_SIZE), mqual_mean(ALPHABET_SIZE), strand_mean(ALPHABET_SIZE), lsc_mean(ALPHABET_SIZE),
                                  rsc_mean(ALPHABET_SIZE), tag_mean(ALPHABET_SIZE, std::vector<float>(TAG_SIZE)) {}
+
+    Col(): base_freq_(ALPHABET_SIZE), 
+           bqual_mean(ALPHABET_SIZE), mqual_mean(ALPHABET_SIZE), strand_mean(ALPHABET_SIZE), lsc_mean(ALPHABET_SIZE),
+           rsc_mean(ALPHABET_SIZE), tag_mean(ALPHABET_SIZE, std::vector<float>(TAG_SIZE)) {}
 
     std::vector<int> base_freq_;
     std::vector<float> bqual_mean;
@@ -54,11 +58,14 @@ class Col{
     }
 };
 
-template<typename RefGap, typename Base>
+template<typename Base>
 class CondensedArray{
 public:
   using Idx = unsigned;
   static const unsigned char missing_chr_ = '~';
+  static const int DEL_CODE = 4;
+  static const int GAP_CODE = 4;
+  static const int MISSING_CODE = 5;
 
   static int DnaCharToDnaCode(const char& dna) {
     switch(dna) {
@@ -85,11 +92,8 @@ public:
 public:
   using Val = Base;
   using MatrixIdx =  Idx;
-  using Row = std::unordered_map<Idx, Val>;
   using ColSpace  = std::vector<Col>;
-  using RowSpace = std::vector<Row>;
   using TId = unsigned;
-  using SnvTuple = std::tuple<double, std::vector<Idx>>;
 
   decltype(auto) GetColSpace() const {
     return (cspace_);
@@ -120,10 +124,18 @@ public:
     return nrow_;
   }
 
+  decltype(auto) GetGappedRef() const {
+    return (gapped_ref_str_);
+  }
+
+  CondensedArray() : nrow_(0)  {} 
+
   template<typename GInv>
-  explicit CondensedArray(const std::vector<std::string>& msa, const int& total_cov, const GInv& ginv, const RefGap& refgap, const int num_thread = 4):
-      nrow_(msa.size()), cspace_(msa[0].size(), Col(msa.size())), bound_(ginv.left(), ginv.right()), //col_major_bases_(msa[0].size()), 
-     total_cov_(total_cov)
+  explicit CondensedArray(const std::vector<std::string>& msa, const int& total_cov, const GInv& ginv, const std::string& refgap, const int num_thread = 4):
+      nrow_(msa.size()), 
+      cspace_(msa[0].size(), 
+      Col(msa.size())),
+      gapped_ref_str_ (refgap)
   {
     _CheckInput(msa); 
     #pragma omp parallel for schedule(dynamic, 256) num_threads(num_thread)
@@ -133,16 +145,141 @@ public:
     }
   }
 
+  template<typename MSA>
+  explicit CondensedArray(const MSA& msa) : 
+    nrow_(msa.size()), 
+    cspace_(msa.ncol()),
+    gapped_ref_str_(msa.gapped_ref_str())
+  { 
+    for (size_t i = 0; i < nrow_; ++i) {
+      auto const& r = msa.bam_records()[i];
+      auto const& cigar = r.GetCigar();        
+      const auto seq_qual = msa.GetGappedSeqAndQual(r);
+      const auto& seq = seq_qual.first;
+      const auto& qual = seq_qual.second;
+      auto s = msa.GapPosition(std::max(r.Position() , msa.ref_gaps().left()) - msa.ref_gaps().left());
+      auto e = msa.GapPosition(std::min(r.PositionEnd() , msa.ref_gaps().right()) - msa.ref_gaps().left() - 1);
+
+      int strand = (int) !r.ReverseFlag();
+      const auto clips = msa.GetClipping(r);
+      const auto tags = msa.GetTags(r, 5);
+
+      for (int pp = 0; pp < s; ++pp) {
+        ++cspace_[pp].base_freq_[MISSING_CODE];
+      }
+      for (int pp = e + 1; pp < msa.ncol(); ++pp){
+        ++cspace_[pp].base_freq_[MISSING_CODE];
+      }
+      for (int pp = s; pp <= e; ++pp) {
+        ++cspace_[pp].base_freq_[DnaCharToDnaCode(seq[pp])];
+        cspace_[pp].bqual_mean[DnaCharToDnaCode(seq[pp])] += float(qual[pp] - 33) ;
+        cspace_[pp].strand_mean[DnaCharToDnaCode(seq[pp])] += strand;
+        cspace_[pp].mqual_mean[ DnaCharToDnaCode(seq[pp]) ] += r.MapQuality();
+        for (size_t ii = 0; ii < Col::TAG_SIZE; ++ii) {
+          cspace_[pp].tag_mean[ DnaCharToDnaCode(seq[pp]) ][ii] += tags[ii];
+        }
+      }
+      if (clips.first != -1) cspace_[clips.first].lsc_mean[DnaCharToDnaCode(seq[clips.first])] ++;
+      if (clips.second != -1) cspace_[clips.second].rsc_mean[DnaCharToDnaCode(seq[clips.second])] ++;
+      
+    }//end for
+
+    for (size_t ii = 0; ii < msa.ncol(); ++ii) {
+      auto & col = cspace_[ii];
+      for (auto s = 0; s < Col::ALPHABET_SIZE; ++ s) {
+        if (col.base_freq_[s] == 0) continue;
+        col.bqual_mean[s]/=col.base_freq_[s];
+        col.mqual_mean[s]/=col.base_freq_[s];
+        col.strand_mean[s]/=col.base_freq_[s];
+        col.strand_mean[s]*=100.0;
+        for (size_t ii = 0; ii < Col::TAG_SIZE; ++ii) {
+          col.tag_mean[s][ii]/=col.base_freq_[s];
+        }
+      }
+    }
+  }
+
+  template<typename GInv, typename BamRecord>
+  explicit CondensedArray(const std::vector<BamRecord>& records, const std::string& refstr, const GInv& ginv) :
+      nrow_(records.size()){
+    GappedSeq<char, GInv> refgap(refstr, ginv); 
+    MSABuilder<BamRecord, GInv>::BuildRefGap(records, refgap);
+    gapped_ref_str_ = refgap.to_string();
+    ChangeCoordinates cc(gapped_ref_str_);
+    cspace_.resize(refgap.length());
+    for (size_t i = 0; i < records.size(); ++i) {
+      auto const& r = records[i];
+      auto vars = neusomatic::GetVars<BamRecord, int>(r);
+
+      for (size_t i = refgap.left(); i < r.Position(); ++i) {
+        const auto gappos = cc.GapPos(i - refgap.left());
+        cspace_[gappos].base_freq_[MISSING_CODE]++;
+      }
+
+      for (size_t i = r.PositionEnd(); i < refgap.right(); ++i) {
+        const auto gappos = cc.GapPos(i - refgap.left());
+        cspace_[gappos].base_freq_[MISSING_CODE]++;
+      }
+       
+      const int ll = std::max(r.Position(), refgap.left());
+      const int rr = std::min(r.PositionEnd(), refgap.right());
+      for (int pp = ll - refgap.left(); pp < rr - refgap.left() - 1; ++pp) {
+        int gapl = cc.GapPos(pp); 
+        int gapr = cc.GapPos(pp + 1);
+        for (int gp = gapl + 1; gp < gapr; ++gp) {
+          ++cspace_[gp].base_freq_[GAP_CODE];
+        }
+      }
+      for (auto const& v : vars) {
+
+        if (v.Type() == bio::VarType::SUB) {
+          if (!bio::IsOverlapped(v.ginv(), refgap.ginv())) continue; 
+          const int left = std::max(v.left(), refgap.left());
+          const int right = std::min(v.right(), refgap.right());
+          for (size_t i = left; i < right; ++i) {
+            const auto gappos = cc.GapPos(i - refgap.left());
+            const auto dnacode = DnaCharToDnaCode(v.allele()[i - v.left()]);
+            cspace_[gappos].base_freq_[dnacode] ++;
+          }
+        } else if (v.Type() == bio::VarType::DEL) {
+          if (!bio::IsOverlapped(v.ginv(), refgap.ginv())) continue; 
+          const int left = std::max(v.left(), refgap.left());
+          const int right = std::min(v.right(), refgap.right());
+          for (size_t i = left; i < right; ++i) {
+            const auto gappos = cc.GapPos(i - refgap.left());
+            cspace_[gappos].base_freq_[DEL_CODE] ++;
+          }
+        } else if (v.Type() == bio::VarType::INS) {
+          if (!bio::IsContainedIn(v.ginv(), refgap.ginv())) continue; 
+          const auto gap_start_pos = cc.GapPos(v.left() - 1 - refgap.left());
+          int gap_end_pos = gap_start_pos + 1; 
+          for (; gapped_ref_str_[gap_end_pos] == '-'; ++gap_end_pos) {};
+          for (size_t ii = 0; ii < v.allele().length(); ++ii) {
+            const auto dnacode = DnaCharToDnaCode(v.allele()[ii]);
+            ++cspace_[gap_start_pos + ii + 1].base_freq_[dnacode];
+            --cspace_[gap_start_pos + ii + 1].base_freq_[GAP_CODE];
+          }
+        }
+      }
+    }
+    for (auto i = 0; i < cspace_.size(); ++i) {
+      const auto dnacode = DnaCharToDnaCode(gapped_ref_str_[i]);
+      const int non_ref_count = accumulate(cspace_[i].base_freq_.begin(), cspace_[i].base_freq_.end(), 0);
+      if (gapped_ref_str_[i] != '-') {
+        cspace_[i].base_freq_[dnacode] = nrow_ - non_ref_count;
+      }
+    }
+  }
+
   template<typename GInv>
   explicit CondensedArray(const std::vector<std::string>& msa, const std::vector<std::string>& bqual, 
                     const std::vector<int>& mqual, const std::vector<int>& strand, 
                     const std::vector<int>& lsc, const std::vector<int>& rsc,
                     const std::vector<std::vector<int>>& tags, 
-                    const int& total_cov, const GInv& ginv, const RefGap& refgap, const int num_thread = 4): 
+                    const int& total_cov, const GInv& ginv, const std::string& refgap, const int num_thread = 4): 
             nrow_(msa.size()), 
-            total_cov_(total_cov),
             cspace_(msa[0].size(), Col(msa.size())),
-            bound_(ginv.left(), ginv.right()), 
+            gapped_ref_str_(refgap),
             mquals_(nrow_),
             strands_(nrow_), 
             lsc_(nrow_),
@@ -274,30 +411,21 @@ public:
     }
   }
 
-
   decltype(auto) total_cov() const {
-    return (total_cov_);
+    return (nrow_);
   }
 
   decltype(auto) cspace() const {
     return (cspace_);
   }
-
-  decltype(auto) bound() const {
-    return (bound_);
-  }
-
+  template<typename T1>
+  friend std::ostream& operator<<(std::ostream&, const CondensedArray<T1>&);
 
 private:
 
-  // used only when use seqan interface
-  // now obsolete
-  const std::vector<TId> aids_; 
-
   size_t nrow_;
-  const int total_cov_;
   ColSpace cspace_;
-  const std::pair<Idx, Idx> bound_;
+  std::string gapped_ref_str_;
   std::vector<int> mquals_;
   std::vector<int> strands_;
   std::vector<int> lsc_;
@@ -369,9 +497,22 @@ private:
 
 };
 
+template<typename Base>
+std::ostream& operator<<(std::ostream& os, const CondensedArray<Base>& ca) {
+  for (const auto& col: ca.cspace_) {
+    std::string col_s;
+    for (const auto& b : col.base_freq_) {
+      col_s += std::to_string(b) + ":";
+    }
+    col_s += "\n";
+    os << col_s;
+  } 
+  return os;
+}
+
 template<typename RefGap, typename GInv>
 decltype(auto) CreateCondensedArray(const std::vector<std::string>& msa, const int total_cov, const GInv& ginv, const RefGap& refgap, const int num_threads) {
-  using CondensedArray = neusomatic::CondensedArray<RefGap, int>;
+  using CondensedArray = neusomatic::CondensedArray<int>;
   CondensedArray condensed_array(msa, total_cov, ginv, refgap, num_threads);
   condensed_array.Init(num_threads);
   return condensed_array;
@@ -383,7 +524,7 @@ decltype(auto) CreateCondensedArray(const std::vector<std::string>& msa, const s
                               const std::vector<int>& lscs, const std::vector<int>& rscs,
                               const std::vector<std::vector<int>>& tag,
                               const int total_cov, const GInv& ginv, const RefGap& refgap, const int num_threads) {
-  using CondensedArray = neusomatic::CondensedArray<RefGap, int>; 
+  using CondensedArray = neusomatic::CondensedArray<int>; 
   CondensedArray condensed_array(msa, bqual, mqual, strand, lscs, rscs, tag, total_cov, ginv, refgap, num_threads);
   condensed_array.InitWithAlnMetaData(num_threads);
   return condensed_array;
@@ -428,6 +569,5 @@ std::string add_tag_col(auto  & data_array, bool is_int=false, int idx=0){
 
 
 }// end neusomatic
-
 
 #endif

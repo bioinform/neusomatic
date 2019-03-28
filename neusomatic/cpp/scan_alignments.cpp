@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
 
   using GInvStdString = neusomatic::bio::GenomicInterval<std::string>;
   using GInvInt = neusomatic::bio::GenomicInterval<int>;
-  using MSA = typename neusomatic::MSABuilder<SeqLib::BamRecord, neusomatic::bio::Variant<std::string, int>>;
+  using MSA = typename neusomatic::MSABuilder<SeqLib::BamRecord, GInvInt>;
   using ContigGaps = typename MSA::ContigGaps;
   neusomatic::BedIO<GInvStdString> bed_reader(bed_in);
   std::vector<GInvStdString> bed_regions = bed_reader.ReadBed3_windowed(window_size);
@@ -118,55 +118,14 @@ int main(int argc, char **argv) {
       if (ginv.length() > non_gapped_ref.size())  {
         ginv.right() = ginv.left() + non_gapped_ref.size();
       }
-      MSA msa(ginv, records, non_gapped_ref);
-      std::vector<std::string> msa_, bqual_; 
-      
-      std::vector<int> lscs_, rscs_;
-      std::vector<int> mqual_;
-      std::vector<int> strand_;
-      std::vector<std::vector<int>> tag_;
-      if (calculate_qual_stat){
-        std::tie(msa_,bqual_,mqual_,strand_,lscs_,rscs_,tag_)=msa.GetMSAwithQual();
-      } else{
-        msa_ = msa.GetMSA();
-      }
 
-      if (opts.verbosity()>0){
-        for (const auto& l : msa_) {
-          std::cout << l << std::endl;
-        }
-        if (calculate_qual_stat){
-          for (const auto& l : bqual_) {
-            std::cout << l << std::endl;
-          }
-          for (const auto& l : lscs_) {
-            std::cout << l << std::endl;
-          }
-          for (const auto& l : rscs_) {
-            std::cout << l << std::endl;
-          }
-          for (const auto& l : mqual_) {
-            std::cout << l << std::endl;
-          }
-          for (const auto& l : strand_) {
-            std::cout << l << std::endl;
-          }
-          for (const auto& l : tag_) {
-            for (const auto& ll : l) {
-              std::cout << ll << "-";
-            }
-            std::cout << std::endl;
-          }
-        }
+      neusomatic::CondensedArray<int> condensed_array;
+      if ( calculate_qual_stat) {
+        MSA msa(ginv, records, non_gapped_ref);
+        condensed_array = neusomatic::CondensedArray<int>(msa);
+      } else {
+        condensed_array = neusomatic::CondensedArray<int>(records, non_gapped_ref, ginv);
       }
-      auto gapped_ref=msa.ref_gaps();
-      auto ref = gapped_ref.to_string();
-      if (opts.verbosity()>0){
-        std::cout << "Ref: " << std::endl;
-        std::cout << ref << std::endl;
-      }
-
-      auto condensed_array = calculate_qual_stat ? neusomatic::CreateCondensedArray(msa_, bqual_, mqual_, strand_, lscs_, rscs_, tag_, msa_.size(), ginv, ref, opts.num_threads()) : neusomatic::CreateCondensedArray(msa_, msa_.size(), ginv, ref, opts.num_threads());
 
       auto cols = condensed_array.GetColSpace();
       auto cols_mqual = condensed_array.GetColSpaceMQual();
@@ -175,13 +134,14 @@ int main(int argc, char **argv) {
       auto cols_rsc = condensed_array.GetColSpaceRSC();
       auto cols_tag = condensed_array.GetColSpaceTag();
       auto ncol = cols.size();
-      const auto cc_ = neusomatic::ChangeCoordinates<std::string>(ref);
+      const auto ref = condensed_array.GetGappedRef();
+      const auto cc = neusomatic::ChangeCoordinates(ref);
 
       for (size_t i = 0; i < ncol; i++) {
-        if (ginv.left() + cc_.RefPos(i) >=ginv.right()){ break;}
+        if (ginv.left() + cc.UngapPos(i) >=ginv.right()){ break;}
         auto ref_base = ref[i];
         ref_base = std::toupper(ref_base);
-        auto ref_code = neusomatic::CondensedArray<GInvInt,std::string>::DnaCharToDnaCode(ref_base);
+        auto ref_code = neusomatic::CondensedArray<int>::DnaCharToDnaCode(ref_base);
 
         if (ref_base == 'N') {
           ref_base = '-';
@@ -201,7 +161,7 @@ int main(int argc, char **argv) {
           std::cout<< std::endl;
         }
 
-        auto nrow = msa_.size()-cols[i].base_freq_[5];
+        auto nrow = condensed_array.nrow()-cols[i].base_freq_[5];
         cols[i].base_freq_.erase(cols[i].base_freq_.begin() + 5);
 
         std::vector<int> pileup_counts(cols[i].base_freq_.size());
@@ -217,7 +177,7 @@ int main(int argc, char **argv) {
 
         int rsc_counts=0;
         int lsc_counts=0;
-        auto start_pos=ginv.left() + cc_.RefPos(i);
+        auto start_pos=ginv.left() + cc.UngapPos(i);
         if (ref_base!='-'){
           start_pos++;
         }
@@ -329,7 +289,7 @@ int main(int argc, char **argv) {
           auto var_base = nuc_code_char[var_code];  
           if (ref_base == '-') {ref_base = 'N';}
           if (var_base == '-') {var_base = 'N';}
-          auto var_ref_pos=ginv.left() + cc_.RefPos(i);
+          auto var_ref_pos=ginv.left() + cc.UngapPos(i);
           seqan::VcfRecord record;
           record.rID = ginv.contig();
           record.beginPos = var_ref_pos;

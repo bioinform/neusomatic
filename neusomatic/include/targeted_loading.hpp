@@ -56,7 +56,7 @@ public:
           good = true;
         }
       } else {
-        if (rec.Position() < curr_ginv.right() && curr_ginv.left() <= rec.PositionEnd() && rec.MapQuality()>=opts_.min_mapq() && (!rec.SecondaryFlag())) { // overlapped
+        if (rec.Position() < curr_ginv.right() && curr_ginv.left() <= rec.PositionEnd() && rec.MapQuality()>=opts_.min_mapq() && (opts_.include_secondary() || !rec.SecondaryFlag())) { // overlapped
           good = true;
         }
       }
