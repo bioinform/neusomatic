@@ -14,7 +14,6 @@ else()
 endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
-set( CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -fopenmp " )
 set( CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wall -Wno-deprecated -Wno-unused-variable " )
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
@@ -23,6 +22,8 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
     else()
         message(FATAL_ERROR "current GCC/G++ version is ${GXX_VERSION}Installation abort. Need GCC/G++ >= 5.3.0")
     endif()
+
+    set( CMAKE_EXE_LINKER_FLAGS " ${CMAKE_EXE_LINKER_FLAGS} -pthread")
 
     if (APPLE)
         message("-- MAC GCC/G++ version ${GXX_VERSION}")

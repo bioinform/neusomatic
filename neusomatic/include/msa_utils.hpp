@@ -131,14 +131,13 @@ public:
   CondensedArray() : nrow_(0)  {} 
 
   template<typename GInv>
-  explicit CondensedArray(const std::vector<std::string>& msa, const int& total_cov, const GInv& ginv, const std::string& refgap, const int num_thread = 4):
+  explicit CondensedArray(const std::vector<std::string>& msa, const int& total_cov, const GInv& ginv, const std::string& refgap) :
       nrow_(msa.size()), 
       cspace_(msa[0].size(), 
       Col(msa.size())),
       gapped_ref_str_ (refgap)
   {
     _CheckInput(msa); 
-    #pragma omp parallel for schedule(dynamic, 256) num_threads(num_thread)
     for (size_t i = 0; i < msa.size(); ++i) {
       auto dna5qseq = _StringToDnaInt(msa[i]);
       this->row_push(dna5qseq.begin(), dna5qseq.end(), i);
@@ -276,7 +275,7 @@ public:
                     const std::vector<int>& mqual, const std::vector<int>& strand, 
                     const std::vector<int>& lsc, const std::vector<int>& rsc,
                     const std::vector<std::vector<int>>& tags, 
-                    const int& total_cov, const GInv& ginv, const std::string& refgap, const int num_thread = 4): 
+                    const int& total_cov, const GInv& ginv, const std::string& refgap): 
             nrow_(msa.size()), 
             cspace_(msa[0].size(), Col(msa.size())),
             gapped_ref_str_(refgap),
@@ -289,13 +288,6 @@ public:
 
     _CheckInput(msa); 
 
-    #pragma omp parallel num_threads(num_thread)
-    {
-      //if (omp_get_thread_num() == 0) {
-        //std::cerr << "using " << omp_get_num_threads() << " threads\n";
-      //}
-
-    #pragma omp for schedule(dynamic, 256) 
     for (size_t i = 0; i < msa.size(); ++i) {
       auto dna5qseq = _StringToDnaInt(msa[i]);
       this->row_push(dna5qseq.begin(), dna5qseq.end(), i);
@@ -307,7 +299,6 @@ public:
       this->row_push_tag(tags[i], i);
     }
 
-    } //end parallel
   }
 
 
@@ -360,7 +351,7 @@ public:
     }
   }
 
-  void Init(const int num_thread) {
+  void Init() {
     for (size_t i = 0; i < ncol(); ++i) {
       auto& col = cspace_[i];
       for (size_t j = 0; j < nrow(); ++j) {
@@ -369,7 +360,7 @@ public:
     }
   }
 
-  void InitWithAlnMetaData(const int num_thread) {
+  void InitWithAlnMetaData() {
     for (size_t i = 0; i < ncol(); ++i) {
       //column-wise 
       auto& col = cspace_[i];
@@ -511,10 +502,10 @@ std::ostream& operator<<(std::ostream& os, const CondensedArray<Base>& ca) {
 }
 
 template<typename RefGap, typename GInv>
-decltype(auto) CreateCondensedArray(const std::vector<std::string>& msa, const int total_cov, const GInv& ginv, const RefGap& refgap, const int num_threads) {
+decltype(auto) CreateCondensedArray(const std::vector<std::string>& msa, const int total_cov, const GInv& ginv, const RefGap& refgap) {
   using CondensedArray = neusomatic::CondensedArray<int>;
-  CondensedArray condensed_array(msa, total_cov, ginv, refgap, num_threads);
-  condensed_array.Init(num_threads);
+  CondensedArray condensed_array(msa, total_cov, ginv, refgap);
+  condensed_array.Init();
   return condensed_array;
 }
 
@@ -523,10 +514,10 @@ template<typename RefGap, typename GInv>
 decltype(auto) CreateCondensedArray(const std::vector<std::string>& msa, const std::vector<std::string>& bqual,  const std::vector<int>& mqual, const std::vector<int>& strand,
                               const std::vector<int>& lscs, const std::vector<int>& rscs,
                               const std::vector<std::vector<int>>& tag,
-                              const int total_cov, const GInv& ginv, const RefGap& refgap, const int num_threads) {
+                              const int total_cov, const GInv& ginv, const RefGap& refgap) {
   using CondensedArray = neusomatic::CondensedArray<int>; 
-  CondensedArray condensed_array(msa, bqual, mqual, strand, lscs, rscs, tag, total_cov, ginv, refgap, num_threads);
-  condensed_array.InitWithAlnMetaData(num_threads);
+  CondensedArray condensed_array(msa, bqual, mqual, strand, lscs, rscs, tag, total_cov, ginv, refgap);
+  condensed_array.InitWithAlnMetaData();
   return condensed_array;
 }
 

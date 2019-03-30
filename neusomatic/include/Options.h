@@ -45,7 +45,7 @@ namespace neusomatic {
     std::cerr<< "-o/--out_count_file,                  output count file path,                                                required.\n";
     std::cerr<< "-w/--window_size,                     window size to scan the variants,                                      default is 15\n";
     std::cerr<< "-y/--fully_contained,                 if this option is on. A read has to be fully contained in the region,  default is False\n";
-    std::cerr<< "-t/--num_threads,                     number or thread used for building the count matrix,                   default is 4\n";
+    //std::cerr<< "-t/--num_threads,                     number or thread used for building the count matrix,                   default is 4\n";
     std::cerr<< "-d/--max_depth,                       maximum depth for building the count matrix,                           default is 40,000\n";
     std::cerr<< "-s/--include_secondary,               consider secondary alignments,                                         default is False\n";
   }
@@ -142,7 +142,7 @@ namespace neusomatic {
           opt.min_allele_freq() = parseFloat(optarg, 0.0, 1.0, "-a/--min_af must be between 0 and 1", print_help);
           break;
         case 't':
-          opt.num_threads() = parseInt(optarg, 1, "-t/--num_threads must be at least 1", print_help);
+          //opt.num_threads() = parseInt(optarg, 1, "-t/--num_threads must be at least 1", print_help);
           break;
         default:
           return 1;
