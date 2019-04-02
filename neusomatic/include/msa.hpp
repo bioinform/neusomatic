@@ -226,9 +226,13 @@ public:
     auto const& qual = r.Qualities();
     int32_t ref_pos = r.Position();
     int32_t read_pos = r.AlignmentPosition();
-    std::fill(msa_bases.begin() + GapPosition(std::max(r.Position() , ref_gaps_.left()) - ref_gaps_.left()),
-              msa_bases.begin() +  GapPosition(std::min(r.PositionEnd(), ref_gaps_.right()) - 1 - ref_gaps_.left()), 
-              '-');
+    auto gapl = GapPosition(std::max(r.Position() , ref_gaps_.left()) - ref_gaps_.left());
+    auto gapr = GapPosition(std::min(r.PositionEnd(), ref_gaps_.right()) - 1 - ref_gaps_.left());
+    if (gapl > gapr) {
+      throw std::runtime_error("Invalid read " + r.Qname() + "\n");
+    }
+    std::fill(msa_bases.begin() + gapl, msa_bases.begin() + gapr ,'-');
+
     if (cigar.begin()->Type() == 'H') {
       read_pos -= cigar.begin()->Length();
     }

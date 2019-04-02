@@ -63,7 +63,10 @@ public:
       if (good) {
         if(rec.GetCigar().size() == 0) {
           std::cerr << "warning: " << rec.Qname() << " has no cigar\n";
-        } else {
+        } else if (rec.Position() == rec.PositionEnd()) {
+          std::cerr << "warning: " << rec.Qname() << " has no acutall alignment\n";
+        }
+        else {
           records.push_back(rec);
         }
       } 
