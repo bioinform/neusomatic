@@ -262,7 +262,7 @@ public:
         read_pos += c->Length();
       }
       if (c->Type() == 'I') {
-        if (ref_pos >= ref_gaps_.left() && ref_pos < ref_gaps_.right()) {
+        if (ref_pos > ref_gaps_.left() && ref_pos < ref_gaps_.right()) {
           const auto gapp = GapPosition(ref_pos - 1 - ref_gaps_.left());
           const auto gapp_end = GapPosition(ref_pos - ref_gaps_.left());
           auto s = seq.substr(read_pos, c->Length());
