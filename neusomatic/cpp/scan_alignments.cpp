@@ -120,12 +120,8 @@ int main(int argc, char **argv) {
       }
 
       neusomatic::CondensedArray<int> condensed_array;
-      if ( calculate_qual_stat) {
-        MSA msa(ginv, records, non_gapped_ref);
-        condensed_array = neusomatic::CondensedArray<int>(msa);
-      } else {
-        condensed_array = neusomatic::CondensedArray<int>(records, non_gapped_ref, ginv);
-      }
+      MSA msa(ginv, records, non_gapped_ref);
+      condensed_array = neusomatic::CondensedArray<int>(msa, calculate_qual_stat);
 
       auto cols = condensed_array.GetColSpace();
       auto cols_mqual = condensed_array.GetColSpaceMQual();

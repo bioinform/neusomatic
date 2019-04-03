@@ -273,6 +273,7 @@ public:
             msa_bquals[gapp + pp + 1] = q[pp];
           }
           for (; gapp + pp + 1 < gapp_end ; ++pp) {
+            msa_bases[gapp + pp + 1] = gapchar_;
             msa_bquals[gapp + pp + 1] = q.back();
           }
         }
