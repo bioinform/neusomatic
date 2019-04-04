@@ -1,5 +1,5 @@
-#ifndef ALLAMERICAN_MSA_HPP
-#define ALLAMERICAN_MSA_HPP
+#ifndef MSA_HPP
+#define MSA_HPP
 
 #include <vector>
 #include <string>

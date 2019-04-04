@@ -1,5 +1,5 @@
-#ifndef ALLAMERICAN_VARIANT_HPP
-#define ALLAMERICAN_VARIANT_HPP
+#ifndef BAM_VARIANT_HPP
+#define BAM_VARIANT_HPP
 
 #include <vector>
 #include <string>

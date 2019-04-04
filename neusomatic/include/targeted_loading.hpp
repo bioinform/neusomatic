@@ -1,5 +1,5 @@
-#ifndef LIB_INCLUDE_FRAGSTORESEQAN_HPP_
-#define LIB_INCLUDE_FRAGSTORESEQAN_HPP_
+#ifndef TARGET_LOADING_HPP
+#define TARGET_LOADING_HPP
 
 #include <vector>
 #include <map>
