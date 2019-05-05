@@ -1,6 +1,10 @@
 ##fileformat=VCFv4.2
 ##NeuSomatic Version=0.2.0
-##FORMAT=<ID=SCORE,Number=1,Type=Float,Description="Prediction probability score">
+##INFO=<ID=SCORE,Number=1,Type=Float,Description="Prediction probability score">
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Read Depth in the tumor">
+##INFO=<ID=RO,Number=1,Type=Integer,Description="Reference allele observation count in the tumor">
+##INFO=<ID=AO,Number=A,Type=Integer,Description="Alternate allele observation count in the tumor">
+##INFO=<ID=AF,Number=1,Type=Float,Description="Allele fractions of alternate alleles in the tumor">
 ##FILTER=<ID=PASS,Description="Accept as a higher confidence somatic mutation calls with probability score value at least 0.7">
 ##FILTER=<ID=LowQual,Description="Less confident somatic mutation calls with probability score value at least 0.4">
 ##FILTER=<ID=REJECT,Description="Rejected as a confident somatic mutation with probability score value below 0.4">
