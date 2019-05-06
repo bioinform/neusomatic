@@ -7,7 +7,7 @@ For more information contact us at bioinformatics.red@roche.com
 ## Publication
 If you use NeuSomatic in your work, please cite the following preprint:
 
-Sayed Mohammad Ebrahim Sahraeian, Ruolin Liu, Bayo Lau, Marghoob Mohiyuddin, Hugo Y. K. Lam, <br/> 
+Sayed Mohammad Ebrahim Sahraeian, Ruolin Liu, Bayo Lau, Karl Podesta, Marghoob Mohiyuddin, Hugo Y. K. Lam, <br/> 
 [Deep convolutional neural networks for accurate somatic mutation detection. Nature Communications 10: 1041, (2019). <br/> 
 doi: https://doi.org/10.1038/s41467-019-09027-x](https://doi.org/10.1038/s41467-019-09027-x)
 
