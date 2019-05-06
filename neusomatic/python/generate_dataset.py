@@ -1254,19 +1254,51 @@ def extract_ensemble(work, ensemble_tsv):
     ensemble_pos = []
     header = []
     header_pos = []
+    order_header = []
     COV = 50
+    expected_features = ["if_MuTect", "if_VarScan2", "if_JointSNVMix2", 
+                        "if_SomaticSniper", "if_VarDict", "MuSE_Tier", "if_LoFreq", "if_Scalpel", "if_Strelka", 
+                        "if_TNscope", "Strelka_Score", "Strelka_QSS", "Strelka_TQSS", "VarScan2_Score", "SNVMix2_Score", 
+                        "Sniper_Score", "VarDict_Score", "if_dbsnp", "COMMON", "if_COSMIC", "COSMIC_CNT", 
+                        "Consistent_Mates", "Inconsistent_Mates", "N_DP", "nBAM_REF_MQ", "nBAM_ALT_MQ", 
+                        "nBAM_Z_Ranksums_MQ", "nBAM_REF_BQ", "nBAM_ALT_BQ", "nBAM_Z_Ranksums_BQ", "nBAM_REF_NM", 
+                        "nBAM_ALT_NM", "nBAM_NM_Diff", "nBAM_REF_Concordant", "nBAM_REF_Discordant", 
+                        "nBAM_ALT_Concordant", "nBAM_ALT_Discordant", "nBAM_Concordance_FET", "N_REF_FOR", "N_REF_REV", 
+                        "N_ALT_FOR", "N_ALT_REV", "nBAM_StrandBias_FET", "nBAM_Z_Ranksums_EndPos", 
+                        "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads", "nBAM_Clipping_FET", "nBAM_MQ0", 
+                        "nBAM_Other_Reads", "nBAM_Poor_Reads", "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp", 
+                        "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp", "nBAM_ALT_InDel_1bp", 
+                        "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "SOR", "MSI", "MSILEN", "SHIFT3", 
+                        "MaxHomopolymer_Length", "SiteHomopolymer_Length", "T_DP", "tBAM_REF_MQ", "tBAM_ALT_MQ", 
+                        "tBAM_Z_Ranksums_MQ", "tBAM_REF_BQ", "tBAM_ALT_BQ", "tBAM_Z_Ranksums_BQ", "tBAM_REF_NM", 
+                        "tBAM_ALT_NM", "tBAM_NM_Diff", "tBAM_REF_Concordant", "tBAM_REF_Discordant", 
+                        "tBAM_ALT_Concordant", "tBAM_ALT_Discordant", "tBAM_Concordance_FET", "T_REF_FOR", 
+                        "T_REF_REV", "T_ALT_FOR", "T_ALT_REV", "tBAM_StrandBias_FET", "tBAM_Z_Ranksums_EndPos", 
+                        "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads", "tBAM_Clipping_FET", "tBAM_MQ0", 
+                        "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp", 
+                        "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp", 
+                        "InDel_Length"]    
     with open(ensemble_tsv) as s_f:
         for line in s_f:
             if line[0:5] == "CHROM":
                 header_pos = line.strip().split()[0:5]
                 header = line.strip().split()[5:105]
+                header_en = list(filter(lambda x:x[1] in expected_features, enumerate(line.strip().split()[5:])))
+                header = list(map(lambda x: x[1], header_en))
+                if set(expected_features)-set(header):
+                    logger.error("The following features are missing from ensemble file: {}".format(
+                                 list(set(expected_features) - set(header))))
+                    raise Exception
+                order_header = []
+                for f in expected_features:
+                    order_header.append(header_en[header.index(f)][0])
                 continue
             fields = line.strip().split()
             fields[2] = str(int(fields[1]) + len(fields[3]))
             ensemble_pos.append(fields[0:5])
             ensemble_data.append(list(map(lambda x: float(
-                x.replace("False", "0").replace("True", "1")), fields[5:105])))
-    ensemble_data = np.array(ensemble_data)
+                x.replace("False", "0").replace("True", "1")), fields[5:])))
+    ensemble_data = np.array(ensemble_data)[:,order_header]
 
     cov_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
         "Consistent_Mates", "Inconsistent_Mates", "N_DP",

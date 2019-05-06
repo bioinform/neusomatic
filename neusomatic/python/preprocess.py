@@ -208,6 +208,21 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     if restart or not os.path.exists(work):
         os.mkdir(work)
 
+
+    if not os.path.exists(tumor_bam):
+        logger.error("Aborting!")
+        raise Exception("No tumor BAM file {}".format(tumor_bam))
+    if not os.path.exists(normal_bam):
+        logger.error("Aborting!")
+        raise Exception("No normal BAM file {}".format(normal_bam))
+    if not os.path.exists(tumor_bam + ".bai"):
+        logger.error("Aborting!")
+        raise Exception("No tumor .bai index file {}".format(tumor_bam + ".bai"))
+    if not os.path.exists(normal_bam + ".bai"):
+        logger.error("Aborting!")
+        raise Exception("No normal .bai index file {}".format(normal_bam + ".bai"))
+
+
     ensemble_bed = None
     if ensemble_tsv:
         ensemble_bed = os.path.join(work, "ensemble.bed")
