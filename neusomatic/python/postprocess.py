@@ -141,7 +141,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
             chrom_id, pos, ref, alt = tag.split("-")
             qual, filter_, score, gt = scores[tag]
             dp, ro, ao, af = fina_info_tag[tag]
-            info_field = "{};DP={};RO={};AO={};AF={};".format(
+            info_field = "{};DP={};RO={};AO={};AF={}".format(
                 score, dp, ro, ao, af)
             gt_field = "{}:{}:{}:{}:{}".format(gt, dp, ro, ao, af)
             o_f.write("\t".join(map(str, [chroms[int(chrom_id)], str(
