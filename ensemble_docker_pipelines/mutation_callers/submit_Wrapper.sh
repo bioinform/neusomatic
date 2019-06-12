@@ -187,10 +187,10 @@ echo "" >> $out_script
 echo 'echo -e "Start at `date +"%Y/%m/%d %H:%M:%S"`" 1>&2' >> $out_script
 echo "" >> $out_script
 
-echo "docker pull lethalfang/somaticseq:2.7.0" >> $out_script
+echo "docker pull lethalfang/somaticseq:2.7.2" >> $out_script
 echo "" >> $out_script
 
-echo "docker run --rm -v /:/mnt -u $UID --memory 24g lethalfang/somaticseq:2.7.0 \\" >> $out_script
+echo "docker run --rm -v /:/mnt -u $UID --memory 24g lethalfang/somaticseq:2.7.2 \\" >> $out_script
 echo "/opt/somaticseq/SomaticSeq.Wrapper.sh \\" >> $out_script
 echo "--output-dir       /mnt/${outdir} \\" >> $out_script
 echo "--genome-reference /mnt/${HUMAN_REFERENCE} \\" >> $out_script

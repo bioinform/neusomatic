@@ -188,7 +188,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                      lr_drop_ratio, momentum, boost_none, none_count_scale,
                      max_load_candidates, coverage_thr, save_freq, ensemble,
                      merged_candidates_per_tsv, merged_max_num_tsvs, overwrite_merged_tsvs,
-                     trian_split_len, use_cuda):
+                     train_split_len, use_cuda):
     logger = logging.getLogger(train_neusomatic.__name__)
 
     logger.info("----------------Train NeuSomatic Network-------------------")
@@ -279,7 +279,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     for i, (L, tsv) in enumerate(zip(Ls, candidates_tsv)):
         current_L += L
         current_split_tsvs.append(tsv)
-        if current_L >= trian_split_len or (i == len(candidates_tsv) - 1 and current_L > 0):
+        if current_L >= train_split_len or (i == len(candidates_tsv) - 1 and current_L > 0):
             logger.info("tsvs in split {}: {}".format(
                 len(train_split_tsvs), current_split_tsvs))
             train_split_tsvs.append(current_split_tsvs)
@@ -473,7 +473,7 @@ if __name__ == '__main__':
     parser.add_argument('--out', type=str,
                         help='output directory', required=True)
     parser.add_argument('--checkpoint', type=str,
-                        help='pretrianed network model checkpoint path', default=None)
+                        help='pretrained network model checkpoint path', default=None)
     parser.add_argument('--validation_candidates_tsv', nargs="*",
                         help=' validation candidate tsv files', default=[])
     parser.add_argument('--ensemble',
@@ -510,7 +510,7 @@ if __name__ == '__main__':
     parser.add_argument('--overwrite_merged_tsvs',
                         help='if OUT/merged_tsvs/ folder exists overwrite the merged tsvs',
                         action="store_true")
-    parser.add_argument('--trian_split_len', type=int,
+    parser.add_argument('--train_split_len', type=int,
                         help='Maximum number of candidates used in each split of training (>=merged_candidates_per_tsv)',
                         default=10000000)
     parser.add_argument('--coverage_thr', type=int,
@@ -535,7 +535,7 @@ if __name__ == '__main__':
                                       args.max_load_candidates, args.coverage_thr, args.save_freq,
                                       args.ensemble,
                                       args.merged_candidates_per_tsv, args.merged_max_num_tsvs,
-                                      args.overwrite_merged_tsvs, args.trian_split_len,
+                                      args.overwrite_merged_tsvs, args.train_split_len,
                                       use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())

@@ -109,7 +109,7 @@ num_lines=`cat ${SELECTOR} | wc -l`
 input_bed=${SELECTOR}
 if [[ $(( $total_bases / $num_lines )) -gt 50000 ]]
 then
-    echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G lethalfang/somaticseq:2.7.0 \\" >> $out_script
+    echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G lethalfang/somaticseq:2.7.2 \\" >> $out_script
     echo "/opt/somaticseq/utilities/split_mergedBed.py \\" >> $out_script
     echo "-infile /mnt/${SELECTOR} -outfile /mnt/${outdir}/split_regions.bed" >> $out_script
     echo "" >> $out_script
