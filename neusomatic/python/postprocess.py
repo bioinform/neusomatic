@@ -111,7 +111,15 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
         o_f.write("##fileformat=VCFv4.2\n")
         o_f.write("##NeuSomatic Version={}\n".format(__version__))
         o_f.write(
-            "##FORMAT=<ID=SCORE,Number=1,Type=Float,Description=\"Prediction probability score\">\n")
+            "##INFO=<ID=SCORE,Number=1,Type=Float,Description=\"Prediction probability score\">\n")
+        o_f.write(
+            "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth in the tumor\">\n")
+        o_f.write(
+            "##INFO=<ID=RO,Number=1,Type=Integer,Description=\"Reference allele observation count in the tumor\">\n")
+        o_f.write(
+            "##INFO=<ID=AO,Number=A,Type=Integer,Description=\"Alternate allele observation count in the tumor\">\n")
+        o_f.write(
+            "##INFO=<ID=AF,Number=1,Type=Float,Description=\"Allele fractions of alternate alleles in the tumor\">\n")
         o_f.write("##FILTER=<ID=PASS,Description=\"Accept as a higher confidence somatic mutation calls with probability score value at least {}\">\n".format(
             pass_threshold))
         o_f.write("##FILTER=<ID=LowQual,Description=\"Less confident somatic mutation calls with probability score value at least {}\">\n".format(
@@ -133,7 +141,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
             chrom_id, pos, ref, alt = tag.split("-")
             qual, filter_, score, gt = scores[tag]
             dp, ro, ao, af = fina_info_tag[tag]
-            info_field = "{};DP={};RO={};AO={};AF={};".format(
+            info_field = "{};DP={};RO={};AO={};AF={}".format(
                 score, dp, ro, ao, af)
             gt_field = "{}:{}:{}:{}:{}".format(gt, dp, ro, ao, af)
             o_f.write("\t".join(map(str, [chroms[int(chrom_id)], str(

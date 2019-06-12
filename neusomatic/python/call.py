@@ -89,7 +89,7 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
                 file_name = "{}/matrices_{}/{}.png".format(
                     out_dir, model_tag, path)
                 if not os.path.exists(file_name):
-                    imwrite(file_name, non_transformed_matrices[i, :, :, 0:3])
+                    imwrite(file_name, np.array(non_transformed_matrices[i, :, :, 0:3]))
                 true_path[path] = file_name
                 final_preds[path] = [vartype_classes[predicted[i]], pos_pred[i], len_pred[i],
                                      list(map(lambda x: round(x, 4), F.softmax(

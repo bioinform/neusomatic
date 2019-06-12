@@ -306,7 +306,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
             none_indices = list(map(lambda i: none_indices[i],
                                torch.randperm(len(none_indices)).tolist()))
         logger.info(
-            "Non-somatic candidates is split {}: {}".format(split_i, len(none_indices)))
+            "Non-somatic candidates in split {}: {}".format(split_i, len(none_indices)))
         if var_indices:
             var_indices = list(map(lambda i: var_indices[i],
                               torch.randperm(len(var_indices)).tolist()))
