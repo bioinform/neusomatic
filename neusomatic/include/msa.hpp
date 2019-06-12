@@ -283,7 +283,8 @@ public:
         const int l = std::max(ref_pos, ref_gaps_.left());
         const int r = std::min(int32_t(ref_pos + c->Length()), ref_gaps_.right());
         if (l < r) {
-          const unsigned char q = qual[read_pos];
+          assert(read_pos > 0);
+          const unsigned char q = qual[read_pos - 1];
           for (int pp = l; pp < r; ++pp) {
             int gapp = GapPosition(pp - ref_gaps_.left());
             msa_bases[gapp] = gapchar_; 
