@@ -162,6 +162,13 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     if not os.path.exists(work):
         os.mkdir(work)
 
+
+    original_tempdir = pybedtools.get_tempdir()
+    pybedtmp = os.path.join(work, "pybedtmp_postprocess")
+    if not os.path.exists(pybedtmp):
+        os.mkdir(pybedtmp)
+    pybedtools.set_tempdir(pybedtmp)
+
     candidates_preds = os.path.join(work, "candidates_preds.vcf")
     ensembled_preds = os.path.join(work, "ensembled_preds.vcf")
     pred_vcf = pybedtools.BedTool(pred_vcf_file)
@@ -210,6 +217,10 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
                  pass_threshold, lowqual_threshold)
 
     logger.info("Output NeuSomatic prediction at {}".format(output_vcf))
+
+    shutil.rmtree(pybedtmp)
+    pybedtools.set_tempdir(original_tempdir)
+
     logger.info("Postprocessing is Done.")
     return output_vcf
 
