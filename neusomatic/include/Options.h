@@ -23,10 +23,16 @@ namespace neusomatic {
     {"window_size",                     required_argument,      0,        'w'},
     {"num_threads",                     required_argument,      0,        't'},
     {"max_depth",                       required_argument,      0,        'd'},
+    {"include_secondary",               no_argument,            0,        's'},
+    {"filter_duplicate",                no_argument,            0,        'D'},
+    {"filter_QCfailed",                 no_argument,            0,        'Q'},
+    {"filter_improper_pair",            no_argument,            0,        'E'},
+    {"filter_mate_unmapped",            no_argument,            0,        'F'},
+    {"filter_improper_orientation",     no_argument,            0,        'G'},
     {0, 0, 0, 0} // terminator
   };
 
-  const char *short_options = "v:b:L:r:q:f:o:w:a:t:d:cy";
+  const char *short_options = "v:b:L:r:q:f:o:w:a:t:d:cysDQEFG";
 
   void print_help()
   {
@@ -42,10 +48,16 @@ namespace neusomatic {
     std::cerr<< "-a/--min_af,                          minimum allele freq,                                                   default 0.1.\n";
     std::cerr<< "-f/--out_vcf_file,                    output vcf file path,                                                  required.\n";
     std::cerr<< "-o/--out_count_file,                  output count file path,                                                required.\n";
-    std::cerr<< "-w/--window_size,                     window size to scan the variants,                                      default is 15\n";
-    std::cerr<< "-y/--fully_contained,                 if this option is on. A read has to be fully contained in the region,  default is False\n";
-    std::cerr<< "-t/--num_threads,                     number or thread used for building the count matrix,                   default is 4\n";
-    std::cerr<< "-d/--max_depth,                       maximum depth for building the count matrix,                           default is 40,000\n";
+    std::cerr<< "-w/--window_size,                     window size to scan the variants,                                      default is 15.\n";
+    std::cerr<< "-y/--fully_contained,                 if this option is on. A read has to be fully contained in the region,  default is False.\n";
+    std::cerr<< "-t/--num_threads,                     number or thread used for building the count matrix,                   default is 4.\n";
+    std::cerr<< "-d/--max_depth,                       maximum depth for building the count matrix,                           default is 40,000.\n";
+    std::cerr<< "-s/--include_secondary,               consider secondary alignments,                                         default is False.\n";
+    std::cerr<< "-D/--filter_duplicate,                filter duplicate reads if the flag is set,                             default is False.\n";
+    std::cerr<< "-Q/--filter_QCfailed,                 filter QC failed reads if the flag is set,                             default is False.\n";
+    std::cerr<< "-E/--filter_improper_pair,            filter improper pairs if the flag is set,                              default is False.\n";
+    std::cerr<< "-F/--filter_mate_unmapped,            filter reads with unmapeed mates if the flag is set,                   default is False.\n";
+    std::cerr<< "-G/--filter_improper_orientation,     filter reads with improper orientation (not FR) or different chrom,    default is False.\n";
   }
 
   int parseInt(const char* optarg, int lower, const char *errmsg, void (*print_help)()) {
@@ -89,7 +101,7 @@ namespace neusomatic {
     print_help();
     exit(1);
     return -1;
-}
+  }
 
   template<typename Options>
   int parse_options(int argc, char* argv[], Options& opt) {
@@ -133,6 +145,24 @@ namespace neusomatic {
         case 'y':
           opt.fully_contained() = true; 
           break;
+        case 's':
+          opt.include_secondary() = true;
+          break;
+        case 'D':
+          opt.filter_duplicate() = true;
+          break;
+        case 'Q':
+          opt.filter_QCfailed() = true;
+          break;
+        case 'E':
+          opt.filter_improper_pair() = true;
+          break;
+        case 'F':
+          opt.filter_mate_unmapped() = true;
+          break;
+        case 'G':
+          opt.filter_improper_orientation() = true;
+          break;
         case 'a':
           opt.min_allele_freq() = parseFloat(optarg, 0.0, 1.0, "-a/--min_af must be between 0 and 1", print_help);
           break;
@@ -140,7 +170,6 @@ namespace neusomatic {
           opt.num_threads() = parseInt(optarg, 1, "-t/--num_threads must be at least 1", print_help);
           break;
         default:
-          print_help();
           return 1;
       }
     } while (next_option != -1);
@@ -160,6 +189,7 @@ struct Options {
 
     int parse_ret =  parse_options(argc, argv, *this);
     if(parse_ret){
+       print_help();
        exit(0);
     }
 
@@ -251,6 +281,54 @@ struct Options {
     return (max_depth_);
   }
 
+  decltype(auto) include_secondary() {
+    return (include_secondary_);
+  }
+
+  decltype(auto) include_secondary() const {
+    return (include_secondary_);
+  }
+
+  decltype(auto) filter_duplicate() const {
+    return (filter_duplicate_);
+  }
+
+  decltype(auto) filter_duplicate() {
+    return (filter_duplicate_);
+  }
+
+  decltype(auto) filter_QCfailed() const {
+    return (filter_QCfailed_);
+  }
+
+  decltype(auto) filter_QCfailed() {
+    return (filter_QCfailed_);
+  }
+
+  decltype(auto) filter_improper_pair() const {
+    return (filter_improper_pair_);
+  }
+
+  decltype(auto) filter_improper_pair() {
+    return (filter_improper_pair_);
+  }
+
+  decltype(auto) filter_mate_unmapped() const {
+    return (filter_mate_unmapped_);
+  }
+
+  decltype(auto) filter_mate_unmapped() {
+    return (filter_mate_unmapped_);
+  }
+
+  decltype(auto) filter_improper_orientation() const {
+    return (filter_improper_orientation_);
+  }
+
+  decltype(auto) filter_improper_orientation() {
+    return (filter_improper_orientation_);
+  }
+
 private:
   unsigned verbosity_ = 0;
   std::string bam_in_;
@@ -266,6 +344,12 @@ private:
   int window_size_ = 500;
   int num_threads_ = 4;
   int max_depth_ = 40000;
+  bool include_secondary_ = false;
+  bool filter_duplicate_ = false;
+  bool filter_QCfailed_ = false;
+  bool filter_improper_pair_ = false;
+  bool filter_mate_unmapped_ = false;
+  bool filter_improper_orientation_ = false;
 };
 }//namespace neusomatic
 
