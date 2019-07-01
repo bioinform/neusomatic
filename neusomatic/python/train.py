@@ -100,7 +100,10 @@ def test(net, epoch, validation_loader, use_cuda):
         for i, _ in enumerate(paths[0]):
             preds[i] = [vartype_classes[predicted[i]], pos_pred[i], len_pred[i]]
 
-        compare_labels = (predicted == labels).squeeze()
+        if labels.size()[0] > 1:
+            compare_labels = (predicted == labels).squeeze()
+        else:
+            compare_labels = (predicted == labels)
         false_preds = np.where(compare_labels.numpy() == 0)[0]
         if len(false_preds) > 0:
             for i in false_preds:
@@ -110,6 +113,8 @@ def test(net, epoch, validation_loader, use_cuda):
                                list(
                                    np.round(F.softmax(outputs3[i, :], 0).data.cpu().numpy(), 4))])
 
+
+
         for i in range(len(labels)):
             label = labels[i]
             class_correct[label] += compare_labels[i].data.cpu().numpy()
@@ -118,7 +123,13 @@ def test(net, epoch, validation_loader, use_cuda):
             label = predicted[i]
             class_p_total[label] += 1
 
-        compare_len = (len_pred == var_len_s).squeeze()
+
+        if var_len_s.size()[0] > 1:
+            compare_len = (len_pred == var_len_s).squeeze()
+        else:
+            compare_len = (len_pred == var_len_s)
+
+
         for i in range(len(var_len_s)):
             len_ = var_len_s[i]
             len_class_correct[len_] += compare_len[i].data.cpu().numpy()
