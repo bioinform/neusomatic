@@ -50,16 +50,40 @@ public:
     std::vector<BamRecord> records;
     BamRecord rec;
     while (bam_reader_.GetNextRecord(rec)) {
-      bool good = false;
+      bool good = true;
       if (full_contained) {
-        if (rec.Position() <= curr_ginv.left() && rec.PositionEnd() + 1 >= curr_ginv.right() && rec.MapQuality()>=opts_.min_mapq() && (!rec.SecondaryFlag())) {
-          good = true;
-        }
-      } else {
-        if (rec.Position() < curr_ginv.right() && curr_ginv.left() <= rec.PositionEnd() && rec.MapQuality()>=opts_.min_mapq() && (opts_.include_secondary() || !rec.SecondaryFlag())) { // overlapped
-          good = true;
+        if (rec.Position() > curr_ginv.left() || rec.PositionEnd() + 1 < curr_ginv.right()) {
+          good = false;
         }
       }
+      else {
+        if (rec.Position() >= curr_ginv.right() || curr_ginv.left() > rec.PositionEnd()) { // overlapped
+          good = false;
+        }
+      }
+
+      if (rec.MapQuality() < opts_.min_mapq()) { // mapq filter
+        good = false; 
+      }
+      if (!opts_.include_secondary() && rec.SecondaryFlag()) { // secondary flag
+        good = false; 
+      }
+      if (opts_.filter_duplicate() && rec.DuplicateFlag()) { // duplicate flag
+        good = false;
+      }
+      if (opts_.filter_QCfailed() && rec.QCFailFlag()) { // QC failed flag
+        good = false;
+      }
+      if (opts_.filter_improper_pair() && !rec.ProperPair()) { // Proper pair flag. Set by aligner
+        good = false;
+      }
+      if (opts_.filter_mate_unmapped() && !rec.MateMappedFlag()) { // Mate is ummapped
+        good = false;
+      }
+      if (opts_.filter_improper_orientation() && !rec.ProperOrientation()) { // pair read has proper orientation (FR) and on same chrom.
+        good = false;
+      }
+
       if (good) {
         if(rec.GetCigar().size() == 0) {
           std::cerr << "warning: " << rec.Qname() << " has no cigar\n";
