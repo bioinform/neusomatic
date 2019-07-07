@@ -235,7 +235,7 @@ You can then used the synthetic tumor/normal pair and the known *in silico* spik
 ## Trained Network Models
 We provide a set of trained NeuSomatic network models for general purpose usage. Users should note that these models are trained for sepcific settings and are not supposed to work perfectly for all circumestances.
 
-The SEQC-II pretrained models are the recommended NeuSomatic models and are analyzed in details in [Sahraeian et al. 2019](https://doi.org/10.1101/667261).
+The SEQC-II pretrained models are the recommended NeuSomatic models and are analyzed in detail in [Sahraeian et al. 2019](https://doi.org/10.1101/667261).
 
 The following models can be found at `neusomatic/models` folder:
 
