@@ -21,7 +21,7 @@ from random import shuffle
 import pickle
 
 from network import NeuSomaticNet
-from dataloader import NeuSomaticDataset
+from dataloader import NeuSomaticDataset, matrix_transform
 from merge_tsvs import merge_tsvs
 
 type_class_dict = {"DEL": 0, "INS": 1, "NONE": 2, "SNP": 3}
@@ -199,7 +199,9 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                      lr_drop_ratio, momentum, boost_none, none_count_scale,
                      max_load_candidates, coverage_thr, save_freq, ensemble,
                      merged_candidates_per_tsv, merged_max_num_tsvs, overwrite_merged_tsvs,
-                     train_split_len, use_cuda):
+                     train_split_len, 
+                     normalize_channels,
+                     use_cuda):
     logger = logging.getLogger(train_neusomatic.__name__)
 
     logger.info("----------------Train NeuSomatic Network-------------------")
@@ -212,9 +214,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     if not use_cuda:
         torch.set_num_threads(num_threads)
 
-    data_transform = transforms.Compose(
-        [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-    )
+    data_transform = matrix_transform((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     num_channels = 119 if ensemble else 26
     net = NeuSomaticNet(num_channels)
     if use_cuda:
@@ -243,6 +243,12 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         coverage_thr = pretrained_dict["coverage_thr"]
         logger.info(
             "Override coverage_thr from pretrained checkpoint: {}".format(coverage_thr))
+        if "normalize_channels" in pretrained_dict:
+            normalize_channels = pretrained_dict["normalize_channels"]
+        else:
+            normalize_channels = False
+        logger.info(
+            "Override normalize_channels from pretrained checkpoint: {}".format(normalize_channels))            
         prev_epochs = sofar_epochs + 1
         model_dict = net.state_dict()
         # 1. filter out unnecessary keys
@@ -309,7 +315,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                                       max_load_candidates=int(
                                           max_load_candidates * len(tsvs) / float(len(candidates_tsv))),
                                       transform=data_transform, is_test=False,
-                                      num_threads=num_threads, coverage_thr=coverage_thr)
+                                      num_threads=num_threads, coverage_thr=coverage_thr,
+                                      normalize_channels=normalize_channels)
         train_sets.append(train_set)
         none_indices = train_set.get_none_indices()
         var_indices = train_set.get_var_indices()
@@ -341,7 +348,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         validation_set = NeuSomaticDataset(roots=validation_candidates_tsv,
                                            max_load_candidates=max_load_candidates,
                                            transform=data_transform, is_test=True,
-                                           num_threads=num_threads, coverage_thr=coverage_thr)
+                                           num_threads=num_threads, coverage_thr=coverage_thr,
+                                           normalize_channels=normalize_channels)
         validation_loader = torch.utils.data.DataLoader(validation_set,
                                                         batch_size=batch_size, shuffle=True,
                                                         num_workers=num_threads, pin_memory=True)
@@ -383,7 +391,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     torch.save({"state_dict": net.state_dict(),
                 "tag": tag,
                 "epoch": curr_epoch,
-                "coverage_thr": coverage_thr},
+                "coverage_thr": coverage_thr,
+                "normalize_channels": normalize_channels},
                '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
 
     if len(train_sets) == 1:
@@ -448,6 +457,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                         "tag": tag,
                         "epoch": curr_epoch,
                         "coverage_thr": coverage_thr,
+                        "normalize_channels": normalize_channels,
                         }, '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
             if validation_candidates_tsv:
                 test(net, curr_epoch, validation_loader, use_cuda)
@@ -464,11 +474,17 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     torch.save({"state_dict": net.state_dict(),
                 "tag": tag,
                 "epoch": curr_epoch,
-                "coverage_thr": coverage_thr}, '{}/models/checkpoint_{}_epoch{}.pth'.format(
+                "coverage_thr": coverage_thr,
+                "normalize_channels": normalize_channels,
+                }, '{}/models/checkpoint_{}_epoch{}.pth'.format(
         out_dir, tag, curr_epoch))
     if validation_candidates_tsv:
         test(net, curr_epoch, validation_loader, use_cuda)
     logger.info("Total Epochs: {}".format(curr_epoch))
+    logger.info("Total Epochs: {}".format(curr_epoch))
+
+    logger.info("Training is Done.")
+
     return '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch)
 
 if __name__ == '__main__':
@@ -530,6 +546,10 @@ if __name__ == '__main__':
                               Will be overridden if pretrained model is provided\
                               For ~50x WGS, coverage_thr=100 should work. \
                               For higher coverage WES, coverage_thr=300 should work.', default=100)
+    parser.add_argument('--normalize_channels',
+                        help='normalize BQ, MQ, and other bam-info channels by frequency of observed alleles. \
+                              Will be overridden if pretrained model is provided',
+                        action="store_true")
     args = parser.parse_args()
 
     logger.info(args)
@@ -547,6 +567,7 @@ if __name__ == '__main__':
                                       args.ensemble,
                                       args.merged_candidates_per_tsv, args.merged_max_num_tsvs,
                                       args.overwrite_merged_tsvs, args.train_split_len,
+                                      args.normalize_channels,
                                       use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())

@@ -21,6 +21,17 @@ logger = logging.getLogger(__name__)
 
 type_class_dict = {"DEL": 0, "INS": 1, "NONE": 2, "SNP": 3}
 
+class matrix_transform():
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+    def __call__(self, matrix):
+        matrix_ = matrix.clone()
+        for t, m, s in zip(matrix_, self.mean, self.std):
+            t.sub_(m).div_(s)
+        return matrix_
+ 
+
 
 def extract_zlib(zlib_compressed_im):
     return np.fromstring(zlib.decompress(zlib_compressed_im), dtype="uint8").reshape((5, 32, 23))
@@ -115,7 +126,8 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
     def __init__(self, roots, max_load_candidates, transform=None,
                  loader=candidate_loader_tsv, is_test=False,
                  num_threads=1, disable_ensemble=False, data_augmentation=False,
-                 nclasses_t=4, nclasses_l=4, coverage_thr=100,
+                 nclasses_t=4, nclasses_l=4, coverage_thr=100, 
+                 normalize_channels=False,
                  max_opended_tsv=-1):
 
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -125,6 +137,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         else:
             max_opended_tsv = min(max_opended_tsv, soft)
         self.max_opended_tsv = max_opended_tsv
+        self.normalize_channels = normalize_channels
         self.da_shift_p = 0.3
         self.da_base_p = 0.05
         self.da_rev_p = 0.1
@@ -368,6 +381,9 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         # add COV channel
         matrix_ = np.zeros((matrix.shape[0], matrix.shape[1], 26 + len(anns)))
         matrix_[:, :, 0:23] = matrix
+        if self.normalize_channels:
+            matrix_[:,:,3:23:2] *= (matrix_[:,:,1:2] / 255.0)
+            matrix_[:,:,4:23:2] *= (matrix_[:,:,2:3] / 255.0)
         matrix = matrix_
         matrix[:, center, 23] = np.max(matrix[:, :, 0])
         matrix[:, :, 24] = (min(tumor_cov, self.coverage_thr) /

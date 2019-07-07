@@ -23,7 +23,7 @@ from torchvision import transforms
 import torchvision
 
 from network import NeuSomaticNet
-from dataloader import NeuSomaticDataset
+from dataloader import NeuSomaticDataset, matrix_transform
 from utils import get_chromosomes_order, prob2phred
 from merge_tsvs import merge_tsvs
 
@@ -402,8 +402,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         chroms = rf.references
 
     vartype_classes = ['DEL', 'INS', 'NONE', 'SNP']
-    data_transform = transforms.Compose(
-        [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    data_transform = matrix_transform((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     num_channels = 119 if ensemble else 26
     net = NeuSomaticNet(num_channels)
     if use_cuda:
@@ -432,6 +431,10 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         shutil.rmtree(matrices_dir)
     os.mkdir(matrices_dir)
     coverage_thr = pretrained_dict["coverage_thr"]
+    if "normalize_channels" in pretrained_dict:
+        normalize_channels = pretrained_dict["normalize_channels"]
+    else:
+        normalize_channels = False
 
     model_dict = net.state_dict()
 
@@ -499,7 +502,8 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                                          max_load_candidates=max_load_candidates,
                                          transform=data_transform, is_test=True,
                                          num_threads=num_threads,
-                                         coverage_thr=coverage_thr)
+                                         coverage_thr=coverage_thr,
+                                         normalize_channels=normalize_channels)
             call_loader = torch.utils.data.DataLoader(call_set,
                                                       batch_size=batch_size,
                                                       shuffle=True, pin_memory=True,
@@ -544,6 +548,9 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     if os.path.exists(matrices_dir):
         logger.warning("Remove matrices directory: {}".format(matrices_dir))
         shutil.rmtree(matrices_dir)
+
+    logger.info("Calling is Done.")
+
     return output_vcf
 
 if __name__ == '__main__':
