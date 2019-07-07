@@ -5,11 +5,16 @@ NeuSomatic is based on deep convolutional neural networks for accurate somatic m
 For more information contact us at bioinformatics.red@roche.com
 
 ## Publication
-If you use NeuSomatic in your work, please cite the following preprint:
+If you use NeuSomatic in your work, please cite the following papers:
 
 Sayed Mohammad Ebrahim Sahraeian, Ruolin Liu, Bayo Lau, Karl Podesta, Marghoob Mohiyuddin, Hugo Y. K. Lam, <br/> 
 [Deep convolutional neural networks for accurate somatic mutation detection. Nature Communications 10: 1041, (2019). <br/> 
 doi: https://doi.org/10.1038/s41467-019-09027-x](https://doi.org/10.1038/s41467-019-09027-x)
+
+Sayed Mohammad Ebrahim Sahraeian, Li Tai Fang, Marghoob Mohiyuddin, Huixiao Hong, Wenming Xiao, <br/> 
+[Robust cancer mutation detection with deep learning models derived from tumor-normal sequencing data. bioRxiv (2019): 667261. <br/> 
+doi: https://doi.org/10.1101/667261](https://doi.org/10.1101/667261)
+
 
 ## Example Input Matrix
 ![Example input](resources/toy_example.png)
@@ -229,14 +234,17 @@ You can then used the synthetic tumor/normal pair and the known *in silico* spik
 
 ## Trained Network Models
 We provide a set of trained NeuSomatic network models for general purpose usage. Users should note that these models are trained for sepcific settings and are not supposed to work perfectly for all circumestances.
+
+The SEQC-II pretrained models are the recommended NeuSomatic models and are analyzed in details in [Sahraeian et al. 2019](https://doi.org/10.1101/667261).
+
 The following models can be found at `neusomatic/models` folder:
 
 
 ### Latest models
 Model                                              | Mode         | Training Information                                                        
 ---------------------------------------------------|---------------|-----------------------------------------------------------------------
-`NeuSomatic_v0.1.4_standalone_SEQC-WGS-Spike.pth` |  Stand-alone  | SEQC-II (SEQC-WGS-Spike model) (trained on 20 WGS replicate pairs with in silico mutations of 1%-100% AF, matched with both 95%N and 100%N, Illumina HiSeq and NovaSeq, BWA-MEM,  ~40x-220x)
-`NeuSomatic_v0.1.4_ensemble_SEQC-WGS-Spike.pth`   |  Ensemble     | SEQC-II (SEQC-WGS-Spike model) (trained on 20 WGS replicate pairs with in silico mutations of 1%-100% AF, matched with both 95%N and 100%N, Illumina HiSeq and NovaSeq, BWA-MEM,  ~40x-220x)
+`NeuSomatic_v0.1.4_standalone_SEQC-WGS-Spike.pth` |  Stand-alone  | SEQC-II (SEQC-WGS-Spike model) (trained on 20 WGS replicate pairs with in silico somatic mutations of 1%-100% AF, matched with both 95%N and 100%N, Illumina HiSeq and NovaSeq, BWA-MEM,  ~40x-220x)
+`NeuSomatic_v0.1.4_ensemble_SEQC-WGS-Spike.pth`   |  Ensemble     | SEQC-II (SEQC-WGS-Spike model) (trained on 20 WGS replicate pairs with in silico somatic mutations of 1%-100% AF, matched with both 95%N and 100%N, Illumina HiSeq and NovaSeq, BWA-MEM,  ~40x-220x)
 `NeuSomatic_v0.1.4_ensemble_SEQC-WGS-GT50-SpikeWGS10.pth` |  Stand-alone  | SEQC-II (SEQC-WGS-GT50-SpikeWGS10 model) (trained on combination of two datasets: (1) 50% of the genome for 24 real tumor-normal SEQC-II replicates using the HighConf truth set annotation, with multiple purity settings of 100T-100N/10T-100N/10T-95N, 1%-100% AF and (2) 10% of data used in `NeuSomatic_v0.1.4_standalone_SEQC-WGS-Spike.pth` model. Illumina HiSeq and NovaSeq, BWA-MEM,  ~40x-390x)
 `NeuSomatic_v0.1.4_ensemble_SEQC-WGS-GT50-SpikeWGS10.pth` |  Ensemble     | SEQC-II (SEQC-WGS-GT50-SpikeWGS10 model) (trained on combination of two datasets: (1) 50% of the genome for 24 real tumor-normal SEQC-II replicates using the HighConf truth set annotation, with multiple purity settings of 100T-100N/10T-100N/10T-95N, 1%-100% AF and (2) 10% of data used in `NeuSomatic_v0.1.4_ensemble_SEQC-WGS-Spike.pth` model. Illumina HiSeq and NovaSeq, BWA-MEM,  ~40x-390x)
 
