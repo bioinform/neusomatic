@@ -34,7 +34,7 @@ doi: https://doi.org/10.1101/667261](https://doi.org/10.1101/667261)
 
 ## Availability
 
-NeuSomatic is written in Python and C++ and requires a Unix-like environment to run. It has been sucessfully tested on CentOS 7. Its deep learning framework is implemented using PyTorch 1.0.1 to enable GPU acceleration for training/testing.
+NeuSomatic is written in Python and C++ and requires a Unix-like environment to run. It has been sucessfully tested on CentOS 7. Its deep learning framework is implemented using PyTorch 1.1.0 to enable GPU acceleration for training/testing.
 
 NeuSomatic first scans the genome to identify candidate variants and extract alignment information. 
 The binary for this step can be obtained at `neusomatic/bin` folder by running `./build.sh` (which requires cmake 3.13.2 and g++ 5.4.0).

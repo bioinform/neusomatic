@@ -1,5 +1,5 @@
 ##fileformat=VCFv4.2
-##NeuSomatic Version=0.2.0
+##NeuSomatic Version=0.2.1
 ##INFO=<ID=SCORE,Number=1,Type=Float,Description="Prediction probability score">
 ##INFO=<ID=DP,Number=1,Type=Integer,Description="Read Depth in the tumor">
 ##INFO=<ID=RO,Number=1,Type=Integer,Description="Reference allele observation count in the tumor">
