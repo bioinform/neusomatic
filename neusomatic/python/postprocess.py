@@ -106,7 +106,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
         scores[tag] = [x[5], x[6], x[7], x[9]]
 
     tags = sorted(fina_info_tag.keys(), key=lambda x: list(map(int, x.split("-")[0:2]
-                                                          )))
+                                                               )))
     with open(output_vcf, "w") as o_f:
         o_f.write("##fileformat=VCFv4.2\n")
         o_f.write("##NeuSomatic Version={}\n".format(__version__))
@@ -161,7 +161,6 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     logger.info("----------------------Postprocessing-----------------------")
     if not os.path.exists(work):
         os.mkdir(work)
-
 
     original_tempdir = pybedtools.get_tempdir()
     pybedtmp = os.path.join(work, "pybedtmp_postprocess")

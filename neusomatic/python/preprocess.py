@@ -208,7 +208,6 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     if restart or not os.path.exists(work):
         os.mkdir(work)
 
-
     original_tempdir = pybedtools.get_tempdir()
     pybedtmp = os.path.join(work, "pybedtmp_preprocess")
     if not os.path.exists(pybedtmp):
@@ -223,11 +222,12 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         raise Exception("No normal BAM file {}".format(normal_bam))
     if not os.path.exists(tumor_bam + ".bai"):
         logger.error("Aborting!")
-        raise Exception("No tumor .bai index file {}".format(tumor_bam + ".bai"))
+        raise Exception(
+            "No tumor .bai index file {}".format(tumor_bam + ".bai"))
     if not os.path.exists(normal_bam + ".bai"):
         logger.error("Aborting!")
-        raise Exception("No normal .bai index file {}".format(normal_bam + ".bai"))
-
+        raise Exception(
+            "No normal .bai index file {}".format(normal_bam + ".bai"))
 
     ensemble_bed = None
     if ensemble_tsv:
@@ -328,7 +328,6 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     pybedtools.set_tempdir(original_tempdir)
 
     logger.info("Preprocessing is Done.")
-
 
 
 if __name__ == '__main__':

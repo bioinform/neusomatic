@@ -190,9 +190,10 @@ def align_tumor_normal_matrices(record, tumor_matrix_, bq_tumor_matrix_, mq_tumo
         raise(RuntimeError(
             "tumor_col_pos_map  and normal_col_pos_map have different keys."))
 
-    pT = list(map(lambda x: tumor_col_pos_map[x], sorted(tumor_col_pos_map.keys())))
+    pT = list(map(lambda x: tumor_col_pos_map[
+              x], sorted(tumor_col_pos_map.keys())))
     pN = list(map(lambda x: normal_col_pos_map[
-             x], sorted(normal_col_pos_map.keys())))
+        x], sorted(normal_col_pos_map.keys())))
 
     if pT[0] != pN[0]:
         logger.error("record: {}".format(record))
@@ -572,7 +573,7 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
 def prep_data_single_tabix(input_record):
 
     ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order, \
-    matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths = input_record
+        matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths = input_record
 
     thread_logger = logging.getLogger(
         "{} ({})".format(prep_data_single_tabix.__name__, multiprocessing.current_process().name))
@@ -652,7 +653,8 @@ def prep_data_single_tabix(input_record):
             candidate_mat, 255)).astype(np.uint8)
         tag = "{}.{}.{}.{}.{}.{}.{}.{}.{}".format(ch_order, pos, ref[0:55], alt[
                                                   0:55], vartype, center, rlen, tumor_cov, normal_cov)
-        candidate_mat = base64.b64encode(zlib.compress(candidate_mat)).decode('ascii')
+        candidate_mat = base64.b64encode(
+            zlib.compress(candidate_mat)).decode('ascii')
         return tag, candidate_mat, record[0:4], ann
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
@@ -855,8 +857,8 @@ def find_records(input_record):
             pybedtools.BedTool(ensemble_bed).intersect(
                 split_bed, u=True).saveas(split_ensemble_bed_file)
             pybedtools.BedTool(split_ensemble_bed_file).window(split_pred_vcf_file, w=5, v=True).each(
-                lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[1]) + 1, x[3], x[4], 
-                ".", otherfields=[".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8')])).saveas(split_missed_ensemble_bed_file)
+                lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[1]) + 1, x[3], x[4],
+                                              ".", otherfields=[".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8')])).saveas(split_missed_ensemble_bed_file)
             concatenate_vcfs(
                 [split_pred_vcf_file, split_missed_ensemble_bed_file], split_pred_with_missed_file)
             pred_with_missed = pybedtools.BedTool(split_pred_with_missed_file).each(
@@ -1051,7 +1053,8 @@ def find_records(input_record):
                     mt = merge_records(fasta_file, t_)
                     if mt:
                         mt2, eqs2 = push_lr(fasta_file, mt, 2)
-                        eqs2 = list(map(lambda x: "_".join(map(str, x[0:4])), eqs2))
+                        eqs2 = list(
+                            map(lambda x: "_".join(map(str, x[0:4])), eqs2))
                         for idx_jj, jj in enumerate(js):
                             for n_merge_j in range(0, len(js) - idx_jj):
                                 r_j = js[idx_jj:idx_jj + n_merge_j + 1]
@@ -1257,36 +1260,37 @@ def extract_ensemble(work, ensemble_tsv):
     header_pos = []
     order_header = []
     COV = 50
-    expected_features = ["if_MuTect", "if_VarScan2", "if_JointSNVMix2", 
-                        "if_SomaticSniper", "if_VarDict", "MuSE_Tier", "if_LoFreq", "if_Scalpel", "if_Strelka", 
-                        "if_TNscope", "Strelka_Score", "Strelka_QSS", "Strelka_TQSS", "VarScan2_Score", "SNVMix2_Score", 
-                        "Sniper_Score", "VarDict_Score", "if_dbsnp", "COMMON", "if_COSMIC", "COSMIC_CNT", 
-                        "Consistent_Mates", "Inconsistent_Mates", "N_DP", "nBAM_REF_MQ", "nBAM_ALT_MQ", 
-                        "nBAM_Z_Ranksums_MQ", "nBAM_REF_BQ", "nBAM_ALT_BQ", "nBAM_Z_Ranksums_BQ", "nBAM_REF_NM", 
-                        "nBAM_ALT_NM", "nBAM_NM_Diff", "nBAM_REF_Concordant", "nBAM_REF_Discordant", 
-                        "nBAM_ALT_Concordant", "nBAM_ALT_Discordant", "nBAM_Concordance_FET", "N_REF_FOR", "N_REF_REV", 
-                        "N_ALT_FOR", "N_ALT_REV", "nBAM_StrandBias_FET", "nBAM_Z_Ranksums_EndPos", 
-                        "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads", "nBAM_Clipping_FET", "nBAM_MQ0", 
-                        "nBAM_Other_Reads", "nBAM_Poor_Reads", "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp", 
-                        "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp", "nBAM_ALT_InDel_1bp", 
-                        "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "SOR", "MSI", "MSILEN", "SHIFT3", 
-                        "MaxHomopolymer_Length", "SiteHomopolymer_Length", "T_DP", "tBAM_REF_MQ", "tBAM_ALT_MQ", 
-                        "tBAM_Z_Ranksums_MQ", "tBAM_REF_BQ", "tBAM_ALT_BQ", "tBAM_Z_Ranksums_BQ", "tBAM_REF_NM", 
-                        "tBAM_ALT_NM", "tBAM_NM_Diff", "tBAM_REF_Concordant", "tBAM_REF_Discordant", 
-                        "tBAM_ALT_Concordant", "tBAM_ALT_Discordant", "tBAM_Concordance_FET", "T_REF_FOR", 
-                        "T_REF_REV", "T_ALT_FOR", "T_ALT_REV", "tBAM_StrandBias_FET", "tBAM_Z_Ranksums_EndPos", 
-                        "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads", "tBAM_Clipping_FET", "tBAM_MQ0", 
-                        "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp", 
-                        "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp", 
-                        "InDel_Length"]    
+    expected_features = ["if_MuTect", "if_VarScan2", "if_JointSNVMix2",
+                         "if_SomaticSniper", "if_VarDict", "MuSE_Tier", "if_LoFreq", "if_Scalpel", "if_Strelka",
+                         "if_TNscope", "Strelka_Score", "Strelka_QSS", "Strelka_TQSS", "VarScan2_Score", "SNVMix2_Score",
+                         "Sniper_Score", "VarDict_Score", "if_dbsnp", "COMMON", "if_COSMIC", "COSMIC_CNT",
+                         "Consistent_Mates", "Inconsistent_Mates", "N_DP", "nBAM_REF_MQ", "nBAM_ALT_MQ",
+                         "nBAM_Z_Ranksums_MQ", "nBAM_REF_BQ", "nBAM_ALT_BQ", "nBAM_Z_Ranksums_BQ", "nBAM_REF_NM",
+                         "nBAM_ALT_NM", "nBAM_NM_Diff", "nBAM_REF_Concordant", "nBAM_REF_Discordant",
+                         "nBAM_ALT_Concordant", "nBAM_ALT_Discordant", "nBAM_Concordance_FET", "N_REF_FOR", "N_REF_REV",
+                         "N_ALT_FOR", "N_ALT_REV", "nBAM_StrandBias_FET", "nBAM_Z_Ranksums_EndPos",
+                         "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads", "nBAM_Clipping_FET", "nBAM_MQ0",
+                         "nBAM_Other_Reads", "nBAM_Poor_Reads", "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp",
+                         "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp", "nBAM_ALT_InDel_1bp",
+                         "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "SOR", "MSI", "MSILEN", "SHIFT3",
+                         "MaxHomopolymer_Length", "SiteHomopolymer_Length", "T_DP", "tBAM_REF_MQ", "tBAM_ALT_MQ",
+                         "tBAM_Z_Ranksums_MQ", "tBAM_REF_BQ", "tBAM_ALT_BQ", "tBAM_Z_Ranksums_BQ", "tBAM_REF_NM",
+                         "tBAM_ALT_NM", "tBAM_NM_Diff", "tBAM_REF_Concordant", "tBAM_REF_Discordant",
+                         "tBAM_ALT_Concordant", "tBAM_ALT_Discordant", "tBAM_Concordance_FET", "T_REF_FOR",
+                         "T_REF_REV", "T_ALT_FOR", "T_ALT_REV", "tBAM_StrandBias_FET", "tBAM_Z_Ranksums_EndPos",
+                         "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads", "tBAM_Clipping_FET", "tBAM_MQ0",
+                         "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
+                         "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
+                         "InDel_Length"]
     with open(ensemble_tsv) as s_f:
         for line in s_f:
             if line[0:5] == "CHROM":
                 header_pos = line.strip().split()[0:5]
                 header = line.strip().split()[5:105]
-                header_en = list(filter(lambda x:x[1] in expected_features, enumerate(line.strip().split()[5:])))
+                header_en = list(filter(
+                    lambda x: x[1] in expected_features, enumerate(line.strip().split()[5:])))
                 header = list(map(lambda x: x[1], header_en))
-                if set(expected_features)-set(header):
+                if set(expected_features) - set(header):
                     logger.error("The following features are missing from ensemble file: {}".format(
                                  list(set(expected_features) - set(header))))
                     raise Exception
@@ -1299,7 +1303,7 @@ def extract_ensemble(work, ensemble_tsv):
             ensemble_pos.append(fields[0:5])
             ensemble_data.append(list(map(lambda x: float(
                 x.replace("False", "0").replace("True", "1")), fields[5:])))
-    ensemble_data = np.array(ensemble_data)[:,order_header]
+    ensemble_data = np.array(ensemble_data)[:, order_header]
 
     cov_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
         "Consistent_Mates", "Inconsistent_Mates", "N_DP",
@@ -1314,16 +1318,16 @@ def extract_ensemble(work, ensemble_tsv):
         "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
     ], enumerate(header))))
     mq_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
-                      "nBAM_REF_MQ", "nBAM_ALT_MQ", "tBAM_REF_MQ", "tBAM_ALT_MQ"], enumerate(header))))
+        "nBAM_REF_MQ", "nBAM_ALT_MQ", "tBAM_REF_MQ", "tBAM_ALT_MQ"], enumerate(header))))
     bq_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
-                      "nBAM_REF_BQ", "nBAM_ALT_BQ", "tBAM_REF_BQ", "tBAM_ALT_BQ"], enumerate(header))))
+        "nBAM_REF_BQ", "nBAM_ALT_BQ", "tBAM_REF_BQ", "tBAM_ALT_BQ"], enumerate(header))))
     nm_diff_features = list(map(lambda x: x[0], filter(
         lambda x: x[1] in ["nBAM_NM_Diff", "tBAM_NM_Diff"], enumerate(header))))
     ranksum_features = list(map(lambda x: x[0], filter(lambda x: x[1] in ["nBAM_Z_Ranksums_MQ", "nBAM_Z_Ranksums_BQ",
-                                                                     "nBAM_Z_Ranksums_EndPos", "tBAM_Z_Ranksums_BQ",  "tBAM_Z_Ranksums_MQ", "tBAM_Z_Ranksums_EndPos", ], enumerate(header))))
+                                                                          "nBAM_Z_Ranksums_EndPos", "tBAM_Z_Ranksums_BQ",  "tBAM_Z_Ranksums_MQ", "tBAM_Z_Ranksums_EndPos", ], enumerate(header))))
     zero_to_one_features = list(map(lambda x: x[0], filter(lambda x: x[1] in ["if_MuTect", "if_VarScan2", "if_SomaticSniper", "if_VarDict",
-                                                                         "MuSE_Tier", "if_Strelka"] + ["nBAM_Concordance_FET", "nBAM_StrandBias_FET", "nBAM_Clipping_FET",
-                                                                                                       "tBAM_Concordance_FET", "tBAM_StrandBias_FET", "tBAM_Clipping_FET"] + ["if_dbsnp", "COMMON"] + ["M2_STR"], enumerate(header))))
+                                                                              "MuSE_Tier", "if_Strelka"] + ["nBAM_Concordance_FET", "nBAM_StrandBias_FET", "nBAM_Clipping_FET",
+                                                                                                            "tBAM_Concordance_FET", "tBAM_StrandBias_FET", "tBAM_Clipping_FET"] + ["if_dbsnp", "COMMON"] + ["M2_STR"], enumerate(header))))
     stralka_scor = list(map(lambda x: x[0], filter(
         lambda x: x[1] in ["Strelka_Score"], enumerate(header))))
     stralka_qss = list(map(lambda x: x[0], filter(
@@ -1335,7 +1339,7 @@ def extract_ensemble(work, ensemble_tsv):
     vardict_score = list(map(lambda x: x[0], filter(
         lambda x: x[1] in ["VarDict_Score"], enumerate(header))))
     m2_lod = list(map(lambda x: x[0], filter(lambda x: x[1] in [
-                 "M2_NLOD", "M2_TLOD"], enumerate(header))))
+        "M2_NLOD", "M2_TLOD"], enumerate(header))))
     sniper_score = list(map(lambda x: x[0], filter(
         lambda x: x[1] in ["Sniper_Score"], enumerate(header))))
     m2_ecent = list(map(lambda x: x[0], filter(
@@ -1405,13 +1409,11 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     if not os.path.exists(work):
         os.mkdir(work)
 
-
     original_tempdir = pybedtools.get_tempdir()
     pybedtmp = os.path.join(work, "pybedtmp")
     if not os.path.exists(pybedtmp):
         os.mkdir(pybedtmp)
     pybedtools.set_tempdir(pybedtmp)
-
 
     if mode == "train" and not truth_vcf_file:
         raise(RuntimeError("--truth_vcf is needed for 'train' mode"))

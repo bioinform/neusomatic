@@ -26,7 +26,7 @@ from split_bed import split_region
 
 def run_scan_alignments(record):
     work, reference, scan_alignments_binary, split_region_file, \
-    input_bam, window_size, maf, min_mapq, max_dp, calc_qual, num_threads = record
+        input_bam, window_size, maf, min_mapq, max_dp, calc_qual, num_threads = record
 
     thread_logger = logging.getLogger(
         "{} ({})".format(run_scan_alignments.__name__, multiprocessing.current_process().name))

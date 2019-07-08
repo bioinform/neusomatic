@@ -32,11 +32,13 @@ try:
     torch._utils._rebuild_tensor_v2
 except AttributeError:
     def _rebuild_tensor_v2(storage, storage_offset, size, stride, requires_grad, backward_hooks):
-        tensor = torch._utils._rebuild_tensor(storage, storage_offset, size, stride)
+        tensor = torch._utils._rebuild_tensor(
+            storage, storage_offset, size, stride)
         tensor.requires_grad = requires_grad
         tensor._backward_hooks = backward_hooks
         return tensor
     torch._utils._rebuild_tensor_v2 = _rebuild_tensor_v2
+
 
 def make_weights_for_balanced_classes(count_class_t, count_class_l, nclasses_t, nclasses_l,
                                       none_count=None):
@@ -57,7 +59,8 @@ def make_weights_for_balanced_classes(count_class_t, count_class_l, nclasses_t, 
     for i in range(nclasses_t):
         w_t[i] = (1 - (float(count_class_t[i]) / float(N))) / float(nclasses_t)
     w_t = np.array(w_t)
-    logger.info("weight type classes: {}".format(list(zip(vartype_classes, w_t))))
+    logger.info("weight type classes: {}".format(
+        list(zip(vartype_classes, w_t))))
 
     logger.info("count length classes: {}".format(list(
         zip(range(nclasses_l), count_class_l))))
@@ -113,8 +116,6 @@ def test(net, epoch, validation_loader, use_cuda):
                                list(
                                    np.round(F.softmax(outputs3[i, :], 0).data.cpu().numpy(), 4))])
 
-
-
         for i in range(len(labels)):
             label = labels[i]
             class_correct[label] += compare_labels[i].data.cpu().numpy()
@@ -123,12 +124,10 @@ def test(net, epoch, validation_loader, use_cuda):
             label = predicted[i]
             class_p_total[label] += 1
 
-
         if var_len_s.size()[0] > 1:
             compare_len = (len_pred == var_len_s).squeeze()
         else:
             compare_len = (len_pred == var_len_s)
-
 
         for i in range(len(var_len_s)):
             len_ = var_len_s[i]
@@ -177,7 +176,7 @@ class SubsetNoneSampler(torch.utils.data.sampler.Sampler):
         if self.current_none_id > (len(self.none_indices) - self.none_count):
             this_round_nones = self.none_indices[self.current_none_id:]
             self.none_indices = list(map(lambda i: self.none_indices[i],
-                                    torch.randperm(len(self.none_indices)).tolist()))
+                                         torch.randperm(len(self.none_indices)).tolist()))
             self.current_none_id = self.none_count - len(this_round_nones)
             this_round_nones += self.none_indices[0:self.current_none_id]
         else:
@@ -199,7 +198,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                      lr_drop_ratio, momentum, boost_none, none_count_scale,
                      max_load_candidates, coverage_thr, save_freq, ensemble,
                      merged_candidates_per_tsv, merged_max_num_tsvs, overwrite_merged_tsvs,
-                     train_split_len, 
+                     train_split_len,
                      normalize_channels,
                      use_cuda):
     logger = logging.getLogger(train_neusomatic.__name__)
@@ -248,7 +247,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         else:
             normalize_channels = False
         logger.info(
-            "Override normalize_channels from pretrained checkpoint: {}".format(normalize_channels))            
+            "Override normalize_channels from pretrained checkpoint: {}".format(normalize_channels))
         prev_epochs = sofar_epochs + 1
         model_dict = net.state_dict()
         # 1. filter out unnecessary keys
@@ -322,12 +321,12 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         var_indices = train_set.get_var_indices()
         if none_indices:
             none_indices = list(map(lambda i: none_indices[i],
-                               torch.randperm(len(none_indices)).tolist()))
+                                    torch.randperm(len(none_indices)).tolist()))
         logger.info(
             "Non-somatic candidates in split {}: {}".format(split_i, len(none_indices)))
         if var_indices:
             var_indices = list(map(lambda i: var_indices[i],
-                              torch.randperm(len(var_indices)).tolist()))
+                                   torch.randperm(len(var_indices)).tolist()))
         logger.info("Somatic candidates in split {}: {}".format(
             split_i, len(var_indices)))
         none_count = max(min(len(none_indices), len(
@@ -404,7 +403,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     # loop over the dataset multiple times
     n_epoch = 0
     for epoch in range(max_epochs - prev_epochs):
-        n_epoch +=1
+        n_epoch += 1
         running_loss = 0.0
         i_ = 0
         for split_i, train_set in enumerate(train_sets):

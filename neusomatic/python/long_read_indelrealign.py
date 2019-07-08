@@ -127,7 +127,7 @@ class Realign_Read:
         for region_start, region_end, start_idx, end_idx, del_start, del_end, \
                 pos_start, pos_end, new_cigar, excess_start, excess_end in self.realignments:
             c_array = np.array(list(map(lambda x: [x[0], x[1][1] if x[1][0]
-                                              != CIGAR_DEL else 0], enumerate(cigartuples))))
+                                                   != CIGAR_DEL else 0], enumerate(cigartuples))))
             c_map = np.repeat(c_array[:, 0], c_array[:, 1])
 
             c_i = c_map[start_idx - bias]
@@ -241,7 +241,7 @@ def get_cigar_stat(cigartuple, keys=[]):
 def find_NM(record, ref_seq):
     logger = logging.getLogger(find_NM.__name__)
     positions = np.array(list(map(lambda x: x if x else -1,
-                             (record.get_reference_positions(full_length=True)))))
+                                  (record.get_reference_positions(full_length=True)))))
     sc_start = (record.cigartuples[0][0] ==
                 CIGAR_SOFTCLIP) * record.cigartuples[0][1]
     sc_end = (record.cigartuples[-1][0] ==
@@ -299,12 +299,13 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
                         if record.is_supplementary and "SA" in dict(record.tags):
                             sas = dict(record.tags)["SA"].split(";")
                             sas = list(filter(None, sas))
-                            sas_cigs = list(map(lambda x: x.split(",")[3], sas))
+                            sas_cigs = list(
+                                map(lambda x: x.split(",")[3], sas))
                             if record.cigarstring in sas_cigs:
                                 continue
                         positions = np.array(list(map(lambda x: x if x else -1,
-                                                 (record.get_reference_positions(
-                                                     full_length=True)))))
+                                                      (record.get_reference_positions(
+                                                          full_length=True)))))
                         if not record.cigartuples:
                             continue
                         sc_start = (record.cigartuples[0][0] ==
@@ -328,8 +329,8 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
 
                         if max(end_idx - start_idx, pos_end - pos_start) >= (region.span() * 0.75):
                             c_array = np.array(list(map(lambda x: [x[0], x[1][1] if x[1][0]
-                                                              != CIGAR_DEL else 0],
-                                                   enumerate(record.cigartuples))))
+                                                                   != CIGAR_DEL else 0],
+                                                        enumerate(record.cigartuples))))
                             c_map = np.repeat(c_array[:, 0], c_array[:, 1])
                             c_i = c_map[start_idx]
                             c_e = c_map[end_idx]
@@ -346,8 +347,9 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
                             mn, mx = min(non_ins_positions), max(
                                 non_ins_positions)
                             ref_array = np.array(list(map(lambda x:
-                                                     NUC_to_NUM[x.upper()],
-                                                     list(refseq))))[non_ins_positions - mn]
+                                                          NUC_to_NUM[
+                                                              x.upper()],
+                                                          list(refseq))))[non_ins_positions - mn]
                             q_array = np.array(list(map(lambda x: NUC_to_NUM[x.upper()], list(q_seq))))[
                                 non_ins]
                             cigar_stat = get_cigar_stat(
@@ -369,7 +371,7 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
 
 
 def split_bam_to_chunks(work, region, input_bam, chunk_size=200,
-                         chunk_scale=1.5):
+                        chunk_scale=1.5):
     logger = logging.getLogger(split_bam_to_chunks.__name__)
     records = []
     with pysam.Samfile(input_bam, "rb") as samfile:
@@ -478,9 +480,9 @@ def extract_new_cigars(region, info_file, out_fasta_file):
         raise Exception
 
     alignment = list(map(lambda x: x[1], sorted(map(lambda x: [int(x[0]), list(map(lambda x: 0 if x == "-"
-                                                                         else 1, x[1].seq))],
-                                               records.items()),
-                                           key=lambda x: x[0])))
+                                                                                   else 1, x[1].seq))],
+                                                    records.items()),
+                                                key=lambda x: x[0])))
     ref_seq = np.array(alignment[0])
     pos_ref = np.cumsum(alignment[0]) - 1
     alignment = np.array(alignment[1:]) - ref_seq
@@ -563,7 +565,8 @@ def get_final_msa(region, msa_0, consensus, out_fasta_file_1, out_fasta_file_fin
         ii = int(i)
         msa_1[ii] = list(map(lambda x: nuc_to_num_convert(x), record.seq))
     msa_1 = np.array(msa_1, dtype=int)
-    consensus_array = np.array(list(map(lambda x: nuc_to_num_convert(x), consensus)))
+    consensus_array = np.array(
+        list(map(lambda x: nuc_to_num_convert(x), consensus)))
     consensus_cumsum = np.cumsum(consensus_array > 0)
     new_cols = np.where(msa_1[1, :] == 0)[0]
     new_cols -= np.arange(len(new_cols))
@@ -901,9 +904,9 @@ def TrimREFALT(ref, alt, pos):
 
 def run_realignment(input_record):
     work, ref_fasta_file, target_region, pad, chunk_size, chunk_scale, \
-    snp_min_af, del_min_af, ins_min_af, len_chr, input_bam, \
-    match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty, \
-    msa_binary, get_var = input_record
+        snp_min_af, del_min_af, ins_min_af, len_chr, input_bam, \
+        match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty, \
+        msa_binary, get_var = input_record
 
     thread_logger = logging.getLogger(
         "{} ({})".format(run_realignment.__name__, multiprocessing.current_process().name))
@@ -1261,9 +1264,10 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
     realign_bed_file = os.path.join(work, "realign.bed")
     realign_entries.sort()
     relaign_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(x[0], x[1],
-                                    x[2],x[3],
-                                    otherfields=list(map(lambda y:str(y).encode('utf-8'), x[4:]))),
-                                    realign_entries)).saveas(realign_bed_file)
+                                                                       x[2], x[
+                                                                           3],
+                                                                       otherfields=list(map(lambda y: str(y).encode('utf-8'), x[4:]))),
+                                         realign_entries)).saveas(realign_bed_file)
 
     relaign_bed = pybedtools.BedTool(realign_bed_file)
 

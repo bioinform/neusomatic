@@ -21,16 +21,18 @@ logger = logging.getLogger(__name__)
 
 type_class_dict = {"DEL": 0, "INS": 1, "NONE": 2, "SNP": 3}
 
+
 class matrix_transform():
+
     def __init__(self, mean, std):
         self.mean = mean
         self.std = std
+
     def __call__(self, matrix):
         matrix_ = matrix.clone()
         for t, m, s in zip(matrix_, self.mean, self.std):
             t.sub_(m).div_(s)
         return matrix_
- 
 
 
 def extract_zlib(zlib_compressed_im):
@@ -126,7 +128,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
     def __init__(self, roots, max_load_candidates, transform=None,
                  loader=candidate_loader_tsv, is_test=False,
                  num_threads=1, disable_ensemble=False, data_augmentation=False,
-                 nclasses_t=4, nclasses_l=4, coverage_thr=100, 
+                 nclasses_t=4, nclasses_l=4, coverage_thr=100,
                  normalize_channels=False,
                  max_opended_tsv=-1):
 
@@ -382,8 +384,8 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         matrix_ = np.zeros((matrix.shape[0], matrix.shape[1], 26 + len(anns)))
         matrix_[:, :, 0:23] = matrix
         if self.normalize_channels:
-            matrix_[:,:,3:23:2] *= (matrix_[:,:,1:2] / 255.0)
-            matrix_[:,:,4:23:2] *= (matrix_[:,:,2:3] / 255.0)
+            matrix_[:, :, 3:23:2] *= (matrix_[:, :, 1:2] / 255.0)
+            matrix_[:, :, 4:23:2] *= (matrix_[:, :, 2:3] / 255.0)
         matrix = matrix_
         matrix[:, center, 23] = np.max(matrix[:, :, 0])
         matrix[:, :, 24] = (min(tumor_cov, self.coverage_thr) /
@@ -402,11 +404,11 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             non_transformed_matrix = np.array(orig_matrix).astype(np.uint8)
         else:
             non_transformed_matrix = []
-            
+
         matrix = torch.from_numpy(matrix.transpose((2, 0, 1)))
         matrix = matrix.float().div(255)
         if self.transform is not None:
-             matrix = self.transform(matrix)
+            matrix = self.transform(matrix)
 
         var_pos = [length, center]
         var_pos = torch.Tensor(var_pos)
