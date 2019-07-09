@@ -15,6 +15,7 @@ ENV SAMTOOLS_VERSION 1.9
 ENV TABIX_VERSION 0.2.6
 ENV BEDTOOLS_VERSION 2.27.1
 ENV BIOPYTHON_VERSION 1.72
+ENV OPENSSL_VERSION 1.0
 ENV GCC_VERSION 5
 
 RUN apt-get update && apt-get install -y --fix-missing \
@@ -35,7 +36,8 @@ RUN conda install -y cmake=${CMAKE_VERSION} -c conda-forge && conda clean -a
 RUN conda install -y pysam=${PYSAM_VERSION} pybedtools=${PYBEDTOOLS_VERSION} \
 					 samtools=${SAMTOOLS_VERSION} tabix=${TABIX_VERSION} \
 					 bedtools=${BEDTOOLS_VERSION} \
-					 biopython=${BIOPYTHON_VERSION} -c bioconda && conda clean -a
+					 biopython=${BIOPYTHON_VERSION} \
+					 openssl=${OPENSSL_VERSION} -c bioconda && conda clean -a
 RUN conda install -y pytorch=${PYTORCH_VERSION} \
 					 torchvision=${TORCHVISION_VERSION} \
 					 cudatoolkit=${CUDATOOLKIT_VERSION} -c pytorch && conda clean -a

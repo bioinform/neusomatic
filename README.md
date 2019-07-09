@@ -59,7 +59,7 @@ It also depends on the following packages:
 You can install these packages using [anaconda](https://www.anaconda.com/download)/[miniconda](https://conda.io/miniconda.html) :
 ```
 conda install zlib=1.2.11 numpy=1.15.4 scipy=1.2.0 cmake=3.13.2 imageio=2.5.0
-conda install pysam=0.15.2 pybedtools=0.8.0 samtools=1.9 tabix=0.2.6 bedtools=2.27.1 biopython=1.73 -c bioconda
+conda install pysam=0.15.2 pybedtools=0.8.0 samtools=1.9 tabix=0.2.6 bedtools=2.27.1 biopython=1.73 openssl=1.0 -c bioconda
 conda install pytorch=1.1.0 torchvision=0.3.0 cudatoolkit=9.0 -c pytorch
 ```
 Then you can export the conda paths as:
