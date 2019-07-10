@@ -29,7 +29,7 @@ def run_scan_alignments(record):
         input_bam, window_size, maf, min_mapq, max_dp, filter_duplicate, calc_qual = record
 
     if filter_duplicate:
-        filter_duplicate_str = "--filter_duplicat"
+        filter_duplicate_str = "--filter_duplicate"
     else:
         filter_duplicate_str = ""
     thread_logger = logging.getLogger(
