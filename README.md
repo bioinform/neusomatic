@@ -5,11 +5,16 @@ NeuSomatic is based on deep convolutional neural networks for accurate somatic m
 For more information contact us at bioinformatics.red@roche.com
 
 ## Publication
-If you use NeuSomatic in your work, please cite the following preprint:
+If you use NeuSomatic in your work, please cite the following papers:
 
 Sayed Mohammad Ebrahim Sahraeian, Ruolin Liu, Bayo Lau, Karl Podesta, Marghoob Mohiyuddin, Hugo Y. K. Lam, <br/> 
 [Deep convolutional neural networks for accurate somatic mutation detection. Nature Communications 10: 1041, (2019). <br/> 
 doi: https://doi.org/10.1038/s41467-019-09027-x](https://doi.org/10.1038/s41467-019-09027-x)
+
+Sayed Mohammad Ebrahim Sahraeian, Li Tai Fang, Marghoob Mohiyuddin, Huixiao Hong, Wenming Xiao, <br/> 
+[Robust cancer mutation detection with deep learning models derived from tumor-normal sequencing data. bioRxiv (2019): 667261. <br/> 
+doi: https://doi.org/10.1101/667261](https://doi.org/10.1101/667261)
+
 
 ## Example Input Matrix
 ![Example input](resources/toy_example.png)
@@ -29,14 +34,14 @@ doi: https://doi.org/10.1038/s41467-019-09027-x](https://doi.org/10.1038/s41467-
 
 ## Availability
 
-NeuSomatic is written in Python and C++ and requires a Unix-like environment to run. It has been sucessfully tested on CentOS 7. Its deep learning framework is implemented using PyTorch 1.0.1 to enable GPU acceleration for training/testing.
+NeuSomatic is written in Python and C++ and requires a Unix-like environment to run. It has been sucessfully tested on CentOS 7. Its deep learning framework is implemented using PyTorch 1.1.0 to enable GPU acceleration for training/testing.
 
 NeuSomatic first scans the genome to identify candidate variants and extract alignment information. 
 The binary for this step can be obtained at `neusomatic/bin` folder by running `./build.sh` (which requires cmake 3.13.2 and g++ 5.4.0).
 
 Python 3.7 and the following Python packages must be installed:
-* pytorch 1.0.1
-* torchvision 0.2.1
+* pytorch 1.1.0
+* torchvision 0.3.0
 * pybedtools 0.8.0
 * pysam 0.15.2
 * zlib 1.2.11
@@ -46,7 +51,7 @@ Python 3.7 and the following Python packages must be installed:
 * biopython 1.73
 
 It also depends on the following packages:
-* cudatoolkit 8.0 (if you want to use GPU)
+* cudatoolkit 9.0 (if you want to use GPU)
 * tabix 0.2.6
 * bedtools 2.27.1
 * samtools 1.9
@@ -55,7 +60,7 @@ You can install these packages using [anaconda](https://www.anaconda.com/downloa
 ```
 conda install zlib=1.2.11 numpy=1.15.4 scipy=1.2.0 cmake=3.13.2 imageio=2.5.0
 conda install pysam=0.15.2 pybedtools=0.8.0 samtools=1.9 tabix=0.2.6 bedtools=2.27.1 biopython=1.73 -c bioconda
-conda install pytorch=1.0.1 torchvision=0.2.1 cudatoolkit=8.0 -c pytorch
+conda install pytorch=1.1.0 torchvision=0.3.0 cudatoolkit=9.0 -c pytorch
 ```
 Then you can export the conda paths as:
 ```
@@ -87,13 +92,6 @@ For calling mode, the following inputs are required:
 * normal `.bam` alignment file
 * call region `.bed` file
 * trained model `.pth` file
-
-Reads in input `.bam` file should be sorted, indexed and have MD tags. If you are not sure that all you reads have MD tags, you should run the following command for both tumor and normal alignments:
-
-```
-samtools calmd -@ num_threads -b alignment.bam reference.fasta  > alignment.md.bam 
-samtools index alignment.md.bam
-```
 
 For the region `.bed` files, if you don't have any preferred target regions for training/calling, you can use the whole genome as the target region. Example bed files of major chromosomes for human hg38, hg19, and b37 references can be found at [resources](resources).
 
@@ -236,20 +234,25 @@ You can then used the synthetic tumor/normal pair and the known *in silico* spik
 
 ## Trained Network Models
 We provide a set of trained NeuSomatic network models for general purpose usage. Users should note that these models are trained for sepcific settings and are not supposed to work perfectly for all circumestances.
+
+The SEQC-II pretrained models are the recommended NeuSomatic models and are analyzed in detail in [Sahraeian et al. 2019](https://doi.org/10.1101/667261).
+
 The following models can be found at `neusomatic/models` folder:
 
 
 ### Latest models
 Model                                              | Mode         | Training Information                                                        
 ---------------------------------------------------|---------------|-----------------------------------------------------------------------
-`NeuSomatic_v0.1.3_standalone_Dream3.pth` |  Stand-alone  | WGS Dream Challenge Stage 3 (trained on multiple purity settings: 100T-100N/50T-100N/70T-95N/50T-95N/25T-95N, Illumina, BWA-MEM,  ~30x) 
-`NeuSomatic_v0.1.3_ensemble_Dream3.pth`   |  Ensemble     | WGS Dream Challenge Stage 3 (trained on multiple purity settings: 100T-100N/50T-100N/70T-95N/50T-95N/25T-95N, Illumina, BWA-MEM,  ~30x)
-
-
+`NeuSomatic_v0.1.4_standalone_SEQC-WGS-Spike.pth` |  Stand-alone  | SEQC-II (SEQC-WGS-Spike model) (trained on 20 WGS replicate pairs with in silico somatic mutations of 1%-100% AF, matched with both 95%N and 100%N, Illumina HiSeq and NovaSeq, BWA-MEM,  ~40x-220x)
+`NeuSomatic_v0.1.4_ensemble_SEQC-WGS-Spike.pth`   |  Ensemble     | SEQC-II (SEQC-WGS-Spike model) (trained on 20 WGS replicate pairs with in silico somatic mutations of 1%-100% AF, matched with both 95%N and 100%N, Illumina HiSeq and NovaSeq, BWA-MEM,  ~40x-220x)
+`NeuSomatic_v0.1.4_ensemble_SEQC-WGS-GT50-SpikeWGS10.pth` |  Stand-alone  | SEQC-II (SEQC-WGS-GT50-SpikeWGS10 model) (trained on combination of two datasets: (1) 50% of the genome for 24 real tumor-normal SEQC-II replicates using the HighConf truth set annotation, with multiple purity settings of 100T-100N/10T-100N/10T-95N, 1%-100% AF and (2) 10% of data used in `NeuSomatic_v0.1.4_standalone_SEQC-WGS-Spike.pth` model. Illumina HiSeq and NovaSeq, BWA-MEM,  ~40x-390x)
+`NeuSomatic_v0.1.4_ensemble_SEQC-WGS-GT50-SpikeWGS10.pth` |  Ensemble     | SEQC-II (SEQC-WGS-GT50-SpikeWGS10 model) (trained on combination of two datasets: (1) 50% of the genome for 24 real tumor-normal SEQC-II replicates using the HighConf truth set annotation, with multiple purity settings of 100T-100N/10T-100N/10T-95N, 1%-100% AF and (2) 10% of data used in `NeuSomatic_v0.1.4_ensemble_SEQC-WGS-Spike.pth` model. Illumina HiSeq and NovaSeq, BWA-MEM,  ~40x-390x)
 
 ### Older models
 Model                                              | Mode         | Training Information                                                        
 ---------------------------------------------------|---------------|-----------------------------------------------------------------------
+`NeuSomatic_v0.1.3_standalone_Dream3.pth` |  Stand-alone  | WGS Dream Challenge Stage 3 (trained on multiple purity settings: 100T-100N/50T-100N/70T-95N/50T-95N/25T-95N, Illumina, BWA-MEM,  ~30x)
+`NeuSomatic_v0.1.3_ensemble_Dream3.pth`   |  Ensemble     | WGS Dream Challenge Stage 3 (trained on multiple purity settings: 100T-100N/50T-100N/70T-95N/50T-95N/25T-95N, Illumina, BWA-MEM,  ~30x)
 `NeuSomatic_v0.1.0_standalone_Dream3_70purity.pth` |  Stand-alone  | WGS Dream Challenge Stage 3 (70% tumor and 95% normal purities, Illumina, BWA-MEM,  ~30x) 
 `NeuSomatic_v0.1.0_ensemble_Dream3_70purity.pth`   |  Ensemble     | WGS Dream Challenge Stage 3 (70% tumor and 95% normal purities, Illumina, BWA-MEM,  ~30x) 
 `NeuSomatic_v0.1.0_standalone_WEX_100purity.pth`   |  Stand-alone  | WEX (100% tumor and normal purities, Illumina, BWA-MEM,  ~125x)

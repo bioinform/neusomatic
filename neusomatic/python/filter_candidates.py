@@ -17,8 +17,8 @@ from utils import safe_read_info_dict
 
 def filter_candidates(candidate_record):
     candidates_vcf, filtered_candidates_vcf, reference, dbsnp, min_dp, max_dp, good_ao, \
-     min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af,  \
-     del_merge_min_af, ins_merge_min_af, merge_r = candidate_record
+        min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af,  \
+        del_merge_min_af, ins_merge_min_af, merge_r = candidate_record
     thread_logger = logging.getLogger(
         "{} ({})".format(filter_candidates.__name__, multiprocessing.current_process().name))
     try:
@@ -80,7 +80,7 @@ def filter_candidates(candidate_record):
                 afs = list(map(lambda x: x[6] / float(x[5] + x[6]), ins))
                 max_af = max(afs)
                 ins = list(filter(lambda x: x[6] / float(x[5] +
-                                                    x[6]) >= (max_af * merge_r), ins))
+                                                         x[6]) >= (max_af * merge_r), ins))
                 chrom, pos, ref = ins[0][0:3]
                 dp = max(map(lambda x: x[4], ins))
                 ro = max(map(lambda x: x[5], ins))
@@ -174,7 +174,7 @@ def filter_candidates(candidate_record):
                                     good_records.extend(dels)
                             else:
                                 afs = list(map(lambda x: x[6] /
-                                          float(x[5] + x[6]), dels))
+                                               float(x[5] + x[6]), dels))
                                 max_af = max(afs)
                                 merge_r_thr = merge_r * max_af
                                 dels = list(filter(
@@ -331,7 +331,7 @@ if __name__ == '__main__':
                         default=0.5)
     parser.add_argument('--min_dp', type=float, help='min depth', default=5)
     parser.add_argument('--max_dp', type=float,
-                        help='max depth', default=40000)
+                        help='max depth', default=100000)
 
     args = parser.parse_args()
     logger.info(args)

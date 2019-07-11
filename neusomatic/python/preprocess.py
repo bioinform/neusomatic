@@ -39,7 +39,9 @@ def split_dbsnp(record):
 
 def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp,
                          scan_window_size, scan_maf, min_mapq,
-                         filtered_candidates_vcf, min_dp, max_dp, good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
+                         filtered_candidates_vcf, min_dp, max_dp, 
+                         filter_duplicate,
+                         good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
                          ins_min_af, del_min_af, del_merge_min_af,
                          ins_merge_min_af, merge_r,
                          scan_alignments_binary, restart, num_threads, calc_qual, regions=[], dbsnp_regions=[]):
@@ -48,7 +50,7 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
     logger.info("Scan bam.")
     scan_outputs = scan_alignments(work, scan_alignments_binary, alignment_bam,
                                    region, reference, num_threads, scan_window_size, scan_maf,
-                                   min_mapq, max_dp, restart=restart, split_region_files=regions,
+                                   min_mapq, max_dp, filter_duplicate, restart=restart, split_region_files=regions,
                                    calc_qual=calc_qual)
     if filtered_candidates_vcf:
         logger.info("Filter candidates.")
@@ -200,14 +202,15 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                ins_min_af, del_min_af, del_merge_min_af,
                ins_merge_min_af, merge_r, truth_vcf, tsv_batch_size,
                matrix_width, matrix_base_pad, min_ev_frac_per_col,
-               ensemble_tsv, long_read, restart, first_do_without_qual, num_threads,
+               ensemble_tsv, long_read, restart, first_do_without_qual, 
+               filter_duplicate,
+               num_threads,
                scan_alignments_binary,):
     logger = logging.getLogger(preprocess.__name__)
 
     logger.info("----------------------Preprocessing------------------------")
     if restart or not os.path.exists(work):
         os.mkdir(work)
-
 
     original_tempdir = pybedtools.get_tempdir()
     pybedtmp = os.path.join(work, "pybedtmp_preprocess")
@@ -223,11 +226,12 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         raise Exception("No normal BAM file {}".format(normal_bam))
     if not os.path.exists(tumor_bam + ".bai"):
         logger.error("Aborting!")
-        raise Exception("No tumor .bai index file {}".format(tumor_bam + ".bai"))
+        raise Exception(
+            "No tumor .bai index file {}".format(tumor_bam + ".bai"))
     if not os.path.exists(normal_bam + ".bai"):
         logger.error("Aborting!")
-        raise Exception("No normal .bai index file {}".format(normal_bam + ".bai"))
-
+        raise Exception(
+            "No normal .bai index file {}".format(normal_bam + ".bai"))
 
     ensemble_bed = None
     if ensemble_tsv:
@@ -250,7 +254,9 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
 
         tumor_outputs_without_q = process_split_region("tumor", work_tumor_without_q, region_bed, reference, mode,
                                                        tumor_bam, dbsnp, scan_window_size, scan_maf, min_mapq,
-                                                       filtered_candidates_vcf_without_q, min_dp, max_dp, good_ao, min_ao,
+                                                       filtered_candidates_vcf_without_q, min_dp, max_dp, 
+                                                       filter_duplicate,
+                                                       good_ao, min_ao,
                                                        snp_min_af, -10000, snp_min_ao,
                                                        ins_min_af, del_min_af, del_merge_min_af,
                                                        ins_merge_min_af, merge_r,
@@ -273,7 +279,9 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     logger.info("Scan tumor bam (and extracting quality scores).")
     tumor_outputs = process_split_region("tumor", work_tumor, region_bed, reference, mode,
                                          tumor_bam, dbsnp, scan_window_size, scan_maf, min_mapq,
-                                         filtered_candidates_vcf, min_dp, max_dp, good_ao, min_ao,
+                                         filtered_candidates_vcf, min_dp, max_dp, 
+                                         filter_duplicate,
+                                         good_ao, min_ao,
                                          snp_min_af, snp_min_bq, snp_min_ao,
                                          ins_min_af, del_min_af, del_merge_min_af,
                                          ins_merge_min_af, merge_r,
@@ -300,7 +308,9 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     logger.info("Scan normal bam (and extracting quality scores).")
     normal_counts, _, _, _ = process_split_region("normal", work_normal, region_bed, reference, mode, normal_bam,
                                                   None, scan_window_size, 0.2, min_mapq,
-                                                  None, min_dp, max_dp, good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
+                                                  None, min_dp, max_dp, 
+                                                  filter_duplicate,
+                                                  good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
                                                   ins_min_af, del_min_af, del_merge_min_af,
                                                   ins_merge_min_af, merge_r,
                                                   scan_alignments_binary, restart, num_threads,
@@ -328,7 +338,6 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     pybedtools.set_tempdir(original_tempdir)
 
     logger.info("Preprocessing is Done.")
-
 
 
 if __name__ == '__main__':
@@ -360,7 +369,7 @@ if __name__ == '__main__':
                         help='minimum mapping quality', default=1)
     parser.add_argument('--min_dp', type=float, help='min depth', default=5)
     parser.add_argument('--max_dp', type=float,
-                        help='max depth', default=40000)
+                        help='max depth', default=100000)
     parser.add_argument('--good_ao', type=float,
                         help='good alternate count (ignores maf)', default=10)
     parser.add_argument('--min_ao', type=float,
@@ -402,6 +411,9 @@ if __name__ == '__main__':
     parser.add_argument('--first_do_without_qual',
                         help='Perform initial scan without calculating the quality stats',
                         action="store_true")
+    parser.add_argument('--filter_duplicate',
+                        help='filter duplicate reads when preparing pileup information',
+                        action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     parser.add_argument('--scan_alignments_binary', type=str,
@@ -417,7 +429,9 @@ if __name__ == '__main__':
                    args.ins_min_af, args.del_min_af, args.del_merge_min_af,
                    args.ins_merge_min_af, args.merge_r,
                    args.truth_vcf, args.tsv_batch_size, args.matrix_width, args.matrix_base_pad, args.min_ev_frac_per_col,
-                   args.ensemble_tsv, args.long_read, args.restart, args.first_do_without_qual, args.num_threads,
+                   args.ensemble_tsv, args.long_read, args.restart, args.first_do_without_qual, 
+                   args.filter_duplicate,
+                   args.num_threads,
                    args.scan_alignments_binary)
     except Exception as e:
         logger.error(traceback.format_exc())

@@ -23,7 +23,7 @@ from torchvision import transforms
 import torchvision
 
 from network import NeuSomaticNet
-from dataloader import NeuSomaticDataset
+from dataloader import NeuSomaticDataset, matrix_transform
 from utils import get_chromosomes_order, prob2phred
 from merge_tsvs import merge_tsvs
 
@@ -32,7 +32,8 @@ try:
     torch._utils._rebuild_tensor_v2
 except AttributeError:
     def _rebuild_tensor_v2(storage, storage_offset, size, stride, requires_grad, backward_hooks):
-        tensor = torch._utils._rebuild_tensor(storage, storage_offset, size, stride)
+        tensor = torch._utils._rebuild_tensor(
+            storage, storage_offset, size, stride)
         tensor.requires_grad = requires_grad
         tensor._backward_hooks = backward_hooks
         return tensor
@@ -89,7 +90,8 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
                 file_name = "{}/matrices_{}/{}.png".format(
                     out_dir, model_tag, path)
                 if not os.path.exists(file_name):
-                    imwrite(file_name, np.array(non_transformed_matrices[i, :, :, 0:3]))
+                    imwrite(file_name, np.array(
+                        non_transformed_matrices[i, :, :, 0:3]))
                 true_path[path] = file_name
                 final_preds[path] = [vartype_classes[predicted[i]], pos_pred[i], len_pred[i],
                                      list(map(lambda x: round(x, 4), F.softmax(
@@ -97,9 +99,9 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
                                      list(map(lambda x: round(x, 4), F.softmax(
                                          outputs3[i, :], 0).data.cpu().numpy())),
                                      list(map(lambda x: round(x, 4),
-                                         outputs1.data.cpu()[i].numpy())),
+                                              outputs1.data.cpu()[i].numpy())),
                                      list(map(lambda x: round(x, 4),
-                                         outputs3.data.cpu()[i].numpy()))]
+                                              outputs3.data.cpu()[i].numpy()))]
             else:
                 none_preds[path] = [vartype_classes[predicted[i]], pos_pred[i], len_pred[i],
                                     list(map(lambda x: round(x, 4), F.softmax(
@@ -107,9 +109,9 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
                                     list(map(lambda x: round(x, 4), F.softmax(
                                         outputs3[i, :], 0).data.cpu().numpy())),
                                     list(map(lambda x: round(x, 4),
-                                        outputs1.data.cpu()[i].numpy())),
+                                             outputs1.data.cpu()[i].numpy())),
                                     list(map(lambda x: round(x, 4),
-                                        outputs3.data.cpu()[i].numpy()))]
+                                             outputs3.data.cpu()[i].numpy()))]
         if (iii % 10 == 0):
             logger.info("Called {} candidates in this batch.".format(j))
     logger.info("Called {} candidates in this batch.".format(j))
@@ -384,6 +386,7 @@ def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_thr
                 ov.write(line)
                 lines.append(line)
 
+
 def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     batch_size, max_load_candidates, pass_threshold, lowqual_threshold,
                     ensemble,
@@ -402,8 +405,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         chroms = rf.references
 
     vartype_classes = ['DEL', 'INS', 'NONE', 'SNP']
-    data_transform = transforms.Compose(
-        [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    data_transform = matrix_transform((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     num_channels = 119 if ensemble else 26
     net = NeuSomaticNet(num_channels)
     if use_cuda:
@@ -411,7 +413,6 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         net.cuda()
     else:
         logger.info("CPU calling!")
-
 
     if torch.cuda.device_count() > 1:
         logger.info("We use {} GPUs!".format(torch.cuda.device_count()))
@@ -432,6 +433,10 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         shutil.rmtree(matrices_dir)
     os.mkdir(matrices_dir)
     coverage_thr = pretrained_dict["coverage_thr"]
+    if "normalize_channels" in pretrained_dict:
+        normalize_channels = pretrained_dict["normalize_channels"]
+    else:
+        normalize_channels = False
 
     model_dict = net.state_dict()
 
@@ -454,31 +459,37 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     # 3. load the new state dict
     net.load_state_dict(pretrained_state_dict)
 
-    new_split_tsvs_dir = os.path.join(out_dir,"split_tsvs")
+    new_split_tsvs_dir = os.path.join(out_dir, "split_tsvs")
     if os.path.exists(new_split_tsvs_dir):
-        logger.warning("Remove split candidates directory: {}".format(new_split_tsvs_dir))
+        logger.warning(
+            "Remove split candidates directory: {}".format(new_split_tsvs_dir))
         shutil.rmtree(new_split_tsvs_dir)
     os.mkdir(new_split_tsvs_dir)
     Ls = []
-    candidates_tsv_=[]
+    candidates_tsv_ = []
     split_i = 0
     for candidate_file in candidates_tsv:
         idx = pickle.load(open(candidate_file + ".idx", "rb"))
         if len(idx) > max_load_candidates / 2:
-            logger.info("Splitting {} of lenght {}".format(candidate_file, len(idx)))
-            new_split_tsvs_dir_i=os.path.join(new_split_tsvs_dir,"split_{}".format(split_i))
+            logger.info("Splitting {} of lenght {}".format(
+                candidate_file, len(idx)))
+            new_split_tsvs_dir_i = os.path.join(
+                new_split_tsvs_dir, "split_{}".format(split_i))
             if os.path.exists(new_split_tsvs_dir_i):
-                logger.warning("Remove split candidates directory: {}".format(new_split_tsvs_dir_i))
+                logger.warning("Remove split candidates directory: {}".format(
+                    new_split_tsvs_dir_i))
                 shutil.rmtree(new_split_tsvs_dir_i)
             os.mkdir(new_split_tsvs_dir_i)
-            candidate_file_splits = merge_tsvs(input_tsvs=[candidate_file], 
+            candidate_file_splits = merge_tsvs(input_tsvs=[candidate_file],
                                                out=new_split_tsvs_dir_i,
-                                               candidates_per_tsv=max(1, max_load_candidates/2),
+                                               candidates_per_tsv=max(
+                                                   1, max_load_candidates / 2),
                                                max_num_tsvs=100000,
                                                overwrite_merged_tsvs=True,
                                                keep_none_types=True)
             for candidate_file_split in candidate_file_splits:
-                idx_split = pickle.load(open(candidate_file_split + ".idx", "rb"))
+                idx_split = pickle.load(
+                    open(candidate_file_split + ".idx", "rb"))
                 candidates_tsv_.append(candidate_file_split)
                 Ls.append(len(idx_split) - 1)
             split_i += 1
@@ -499,7 +510,8 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                                          max_load_candidates=max_load_candidates,
                                          transform=data_transform, is_test=True,
                                          num_threads=num_threads,
-                                         coverage_thr=coverage_thr)
+                                         coverage_thr=coverage_thr,
+                                         normalize_channels=normalize_channels)
             call_loader = torch.utils.data.DataLoader(call_set,
                                                       batch_size=batch_size,
                                                       shuffle=True, pin_memory=True,
@@ -524,9 +536,9 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     all_vcf_records = dict(all_vcf_records)
     all_vcf_records_none = dict(all_vcf_records_none)
 
-
     if os.path.exists(new_split_tsvs_dir):
-        logger.warning("Remove split candidates directory: {}".format(new_split_tsvs_dir))
+        logger.warning(
+            "Remove split candidates directory: {}".format(new_split_tsvs_dir))
         shutil.rmtree(new_split_tsvs_dir)
 
     logger.info("Prepare Output VCF")
@@ -544,6 +556,9 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     if os.path.exists(matrices_dir):
         logger.warning("Remove matrices directory: {}".format(matrices_dir))
         shutil.rmtree(matrices_dir)
+
+    logger.info("Calling is Done.")
+
     return output_vcf
 
 if __name__ == '__main__':
