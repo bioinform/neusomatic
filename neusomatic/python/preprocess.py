@@ -209,6 +209,12 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         os.mkdir(work)
 
 
+    original_tempdir = pybedtools.get_tempdir()
+    pybedtmp = os.path.join(work, "pybedtmp_preprocess")
+    if not os.path.exists(pybedtmp):
+        os.mkdir(pybedtmp)
+    pybedtools.set_tempdir(pybedtmp)
+
     if not os.path.exists(tumor_bam):
         logger.error("Aborting!")
         raise Exception("No tumor BAM file {}".format(tumor_bam))
@@ -318,7 +324,12 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                     matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, num_threads,
                                     ensemble_beds[i] if ensemble_tsv else None, tsv_batch_size)
 
+    shutil.rmtree(pybedtmp)
+    pybedtools.set_tempdir(original_tempdir)
+
     logger.info("Preprocessing is Done.")
+
+
 
 if __name__ == '__main__':
     FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'

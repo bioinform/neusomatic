@@ -12,6 +12,7 @@ import traceback
 import pickle
 import zlib
 import logging
+import shutil
 
 import numpy as np
 import pybedtools
@@ -1404,6 +1405,14 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     if not os.path.exists(work):
         os.mkdir(work)
 
+
+    original_tempdir = pybedtools.get_tempdir()
+    pybedtmp = os.path.join(work, "pybedtmp")
+    if not os.path.exists(pybedtmp):
+        os.mkdir(pybedtmp)
+    pybedtools.set_tempdir(pybedtmp)
+
+
     if mode == "train" and not truth_vcf_file:
         raise(RuntimeError("--truth_vcf is needed for 'train' mode"))
 
@@ -1576,6 +1585,9 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     done_flag = "{}/done.txt".format(work)
     with open(done_flag, "w") as d_f:
         d_f.write("Done")
+
+    shutil.rmtree(pybedtmp)
+    pybedtools.set_tempdir(original_tempdir)
 
     logger.info("Generating dataset is Done.")
 
