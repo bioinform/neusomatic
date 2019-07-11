@@ -1,5 +1,5 @@
-#ifndef ALLAMERICAN_VARIANT_HPP
-#define ALLAMERICAN_VARIANT_HPP
+#ifndef BAM_VARIANT_HPP
+#define BAM_VARIANT_HPP
 
 #include <vector>
 #include <string>
@@ -12,6 +12,11 @@ inline bool IsNuc( char c )
    static const char alpha[] = "ACGTRYKMSWBDHVN";
    return ( std::strchr( alpha, c ) != NULL );
 }
+
+inline bool IsNumber(const std::string& s)
+{
+  return !s.empty() && std::find_if(s.begin(), s.end(), [](char c) { return !std::isdigit(c); }) == s.end();
+} 
 
 enum class MDType { MATCH = 0, SUB, DEL };
 inline std::ostream& operator<<(std::ostream & os, MDType & mdt) {
@@ -131,6 +136,9 @@ std::vector<neusomatic::bio::Variant<std::string, Contig>> GetSNVs(const BamReco
   bool status = bam.GetZTag("MD", mdstr);
   if (!status) {
     std::cerr<<"Warning: no MD tag!\n";
+    return result;
+  }
+  if (IsNumber(mdstr)) {
     return result;
   }
   std::transform(mdstr.begin(), mdstr.end(),mdstr.begin(), ::toupper);

@@ -1,5 +1,5 @@
-#ifndef LIB_INCLUDE_FRAGSTORESEQAN_HPP_
-#define LIB_INCLUDE_FRAGSTORESEQAN_HPP_
+#ifndef TARGET_LOADING_HPP
+#define TARGET_LOADING_HPP
 
 #include <vector>
 #include <map>
@@ -56,14 +56,17 @@ public:
           good = true;
         }
       } else {
-        if (rec.Position() < curr_ginv.right() && curr_ginv.left() <= rec.PositionEnd() && rec.MapQuality()>=opts_.min_mapq() && (!rec.SecondaryFlag())) { // overlapped
+        if (rec.Position() < curr_ginv.right() && curr_ginv.left() <= rec.PositionEnd() && rec.MapQuality()>=opts_.min_mapq() && (opts_.include_secondary() || !rec.SecondaryFlag())) { // overlapped
           good = true;
         }
       }
       if (good) {
         if(rec.GetCigar().size() == 0) {
           std::cerr << "warning: " << rec.Qname() << " has no cigar\n";
-        } else {
+        } else if (rec.Position() == rec.PositionEnd()) {
+          std::cerr << "warning: " << rec.Qname() << " has no acutall alignment\n";
+        }
+        else {
           records.push_back(rec);
         }
       } 
