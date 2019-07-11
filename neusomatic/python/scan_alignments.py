@@ -44,7 +44,7 @@ def run_scan_alignments(record):
             cmd = "{} --ref {} -b {} -L {} --out_vcf_file {}/candidates.vcf --out_count_file {}/count.bed \
                         --window_size {} --min_af {} --min_mapq {} --max_depth {} {}".format(
                 scan_alignments_binary, reference, input_bam, split_region_file,
-                work, work, window_size, maf, min_mapq, max_dp, filter_duplicate_str)
+                work, work, window_size, maf, min_mapq, max_dp*window_size/100.0, filter_duplicate_str)
             if calc_qual:
                 cmd += " --calculate_qual_stat"
             run_shell_command(cmd, stdout=os.path.join(work, "scan.out"),
@@ -174,7 +174,7 @@ if __name__ == '__main__':
     parser.add_argument('--min_mapq', type=int,
                         help='minimum mapping quality', default=1)
     parser.add_argument('--max_dp', type=float,
-                        help='max depth', default=40000)
+                        help='max depth', default=100000)
     parser.add_argument('--filter_duplicate',
                         help='filter duplicate reads when preparing pileup information',
                         action="store_true")

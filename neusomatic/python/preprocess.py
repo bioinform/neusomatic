@@ -369,7 +369,7 @@ if __name__ == '__main__':
                         help='minimum mapping quality', default=1)
     parser.add_argument('--min_dp', type=float, help='min depth', default=5)
     parser.add_argument('--max_dp', type=float,
-                        help='max depth', default=40000)
+                        help='max depth', default=100000)
     parser.add_argument('--good_ao', type=float,
                         help='good alternate count (ignores maf)', default=10)
     parser.add_argument('--min_ao', type=float,

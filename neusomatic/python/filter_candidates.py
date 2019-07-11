@@ -331,7 +331,7 @@ if __name__ == '__main__':
                         default=0.5)
     parser.add_argument('--min_dp', type=float, help='min depth', default=5)
     parser.add_argument('--max_dp', type=float,
-                        help='max depth', default=40000)
+                        help='max depth', default=100000)
 
     args = parser.parse_args()
     logger.info(args)

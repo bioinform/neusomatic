@@ -343,7 +343,7 @@ private:
   int min_mapq_ = 0;
   int window_size_ = 500;
   int num_threads_ = 1;
-  int max_depth_ = 40000;
+  int max_depth_ = 5000000;
   bool include_secondary_ = false;
   bool filter_duplicate_ = false;
   bool filter_QCfailed_ = false;
