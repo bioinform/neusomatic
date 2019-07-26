@@ -155,6 +155,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
                 lr_snp_min_af, lr_ins_min_af, lr_del_min_af, lr_match_score, lr_mismatch_penalty,
                 lr_gap_open_penalty, lr_gap_ext_penalty,
                 pass_threshold, lowqual_threshold,
+                filter_duplicate,
                 msa_binary, num_threads):
     logger = logging.getLogger(postprocess.__name__)
 
@@ -187,7 +188,8 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     logger.info("Resolve targets")
     if not long_read:
         resolve_variants(tumor_bam, resolved_vcf,
-                         reference, target_vcf, target_bed, num_threads)
+                         reference, target_vcf, target_bed, filter_duplicate,
+                         num_threads)
     else:
         work_lr_indel_realign = os.path.join(work, "work_lr_indel_realign")
         if os.path.exists(work_lr_indel_realign):
@@ -200,7 +202,9 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
                                lr_chunk_size, lr_chunk_scale, lr_snp_min_af,
                                lr_del_min_af, lr_ins_min_af,
                                lr_match_score, lr_mismatch_penalty, lr_gap_open_penalty,
-                               lr_gap_ext_penalty, msa_binary)
+                               lr_gap_ext_penalty, 
+                               filter_duplicate,
+                               msa_binary)
         resolve_scores(tumor_bam, ra_resolved_vcf, target_vcf, resolved_vcf)
 
     all_no_resolve = concatenate_files(
@@ -274,6 +278,9 @@ if __name__ == '__main__':
     parser.add_argument('--lowqual_threshold', type=float,
                         help='SCORE for LowQual (PASS for lowqual_threshold <= score < pass_threshold)',
                         default=0.4)
+    parser.add_argument('--filter_duplicate',
+                        help='filter duplicate reads in analysis',
+                        action="store_true")
     parser.add_argument('--msa_binary', type=str,
                         help='MSA binary', default="../bin/msa")
     parser.add_argument('--num_threads', type=int,
@@ -293,6 +300,7 @@ if __name__ == '__main__':
                                  args.lr_match_score, args.lr_mismatch_penalty,
                                  args.lr_gap_open_penalty,
                                  args.lr_gap_ext_penalty, args.pass_threshold, args.lowqual_threshold,
+                                 args.filter_duplicate,
                                  args.msa_binary, args.num_threads)
 
     except Exception as e:

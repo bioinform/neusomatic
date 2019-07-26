@@ -24,7 +24,7 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
 
     final_intervals = []
     for interval in ra_out.window(ra_target, w=5, v=True):
-        interval[5] = "0.5"
+        interval[5] = str(np.round(-10*np.log10(0.25),4))
         final_intervals.append(interval)
 
     intervals_dict = {}

@@ -279,7 +279,7 @@ def cigartuple_to_string(cigartuples):
     return "".join(map(lambda x: "%d%s" % (x[1], _CIGAR_OPS[x[0]]), cigartuples))
 
 
-def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i):
+def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i, filter_duplicate):
     logger = logging.getLogger(prepare_fasta.__name__)
     in_fasta_file = os.path.join(
         work, region.__str__() + "_split_{}".format(split_i) + "_0.fasta")
@@ -296,6 +296,8 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
                 cnt = 1
                 with pysam.Samfile(input_bam, "rb") as samfile:
                     for record in samfile.fetch(region.chrom, region.start, region.end + 1):
+                        if filter_duplicate and record.is_duplicate:
+                            continue
                         if record.is_supplementary and "SA" in dict(record.tags):
                             sas = dict(record.tags)["SA"].split(";")
                             sas = list(filter(None, sas))
@@ -371,11 +373,13 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
 
 
 def split_bam_to_chunks(work, region, input_bam, chunk_size=200,
-                        chunk_scale=1.5):
+                        chunk_scale=1.5, filter_duplicate=False):
     logger = logging.getLogger(split_bam_to_chunks.__name__)
     records = []
     with pysam.Samfile(input_bam, "rb") as samfile:
         for record in samfile.fetch(region.chrom, region.start, region.end + 1):
+            if filter_duplicate and record.is_duplicate:
+                continue
             if record.is_supplementary and "SA" in dict(record.tags):
                 sas = dict(record.tags)["SA"].split(";")
                 sas = list(filter(None, sas))
@@ -906,6 +910,7 @@ def run_realignment(input_record):
     work, ref_fasta_file, target_region, pad, chunk_size, chunk_scale, \
         snp_min_af, del_min_af, ins_min_af, len_chr, input_bam, \
         match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty, \
+        filter_duplicate, \
         msa_binary, get_var = input_record
 
     thread_logger = logging.getLogger(
@@ -922,7 +927,7 @@ def run_realignment(input_record):
         variant = []
         all_entries = []
         input_bam_splits, lens_splits = split_bam_to_chunks(
-            work, region, input_bam, chunk_size, chunk_scale)
+            work, region, input_bam, chunk_size, chunk_scale, filter_duplicate)
         new_seqs = []
         new_ref_seq = ""
         skipped = 0
@@ -933,7 +938,7 @@ def run_realignment(input_record):
         afss = []
         for i, i_bam in enumerate(input_bam_splits):
             in_fasta_file, info_file = prepare_fasta(
-                work, region, i_bam, ref_fasta_file, True, i)
+                work, region, i_bam, ref_fasta_file, True, i, filter_duplicate)
             if do_realign(region, info_file):
                 out_fasta_file_0 = run_msa(
                     in_fasta_file, match_score, mismatch_penalty, gap_open_penalty,
@@ -1168,6 +1173,7 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                            ref_fasta_file, num_threads, pad,
                            chunk_size, chunk_scale, snp_min_af, del_min_af, ins_min_af,
                            match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
+                           filter_duplicate,
                            msa_binary):
     logger = logging.getLogger(long_read_indelrealign.__name__)
 
@@ -1217,6 +1223,7 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                          chunk_scale, snp_min_af, del_min_af, ins_min_af,
                          chrom_lengths[target_region[0]], input_bam,
                          match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
+                         filter_duplicate,
                          msa_binary, get_var))
 
     shuffle(map_args)
@@ -1321,6 +1328,9 @@ if __name__ == '__main__':
                         help='penalty for opening a gap', default=8)
     parser.add_argument('--gap_ext_penalty', type=int,
                         help='penalty for extending a gap', default=6)
+    parser.add_argument('--filter_duplicate',
+                        help='filter duplicate reads in analysis',
+                        action="store_true")
     parser.add_argument('--msa_binary', type=str,
                         help='MSA binary', default="../bin/msa")
     args = parser.parse_args()
@@ -1333,7 +1343,9 @@ if __name__ == '__main__':
                                            args.chunk_scale, args.snp_min_af, args.del_min_af,
                                            args.ins_min_af, args.match_score,
                                            args.mismatch_penalty, args.gap_open_penalty,
-                                           args.gap_ext_penalty, args.msa_binary)
+                                           args.gap_ext_penalty, 
+                                           args.filter_duplicate,
+                                           args.msa_binary)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")

@@ -873,6 +873,7 @@ def find_records(input_record):
         records = []
         i = 0
         anns = {}
+        fasta_file = pysam.Fastafile(ref_file)
         if ensemble_bed:
             for record in not_in_ensemble_bed:
                 chrom, pos, ref, alt = [str(record[0]), int(
@@ -987,8 +988,15 @@ def find_records(input_record):
                 if line[0] == "#":
                     continue
                 record = line.strip().split()
+                pos = int(record[1])
+                if len(record[3]) != len(record[4]) and min(len(record[3]),len(record[4]))>0 and record[3][0] != record[4][0]:
+                    if pos > 1:
+                        l_base = fasta_file.fetch(record[0], pos - 2, pos - 1).upper()
+                        record[3] = l_base + record[3]
+                        record[4] = l_base + record[4]
+                        pos -= 1
                 truth_records.append(
-                    [record[0], int(record[1]), record[3], record[4], str(i)])
+                    [record[0], pos, record[3], record[4], str(i)])
                 i += 1
 
         truth_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
@@ -1011,7 +1019,6 @@ def find_records(input_record):
         record_center = {}
 
         chroms_order = get_chromosomes_order(reference=ref_file)
-        fasta_file = pysam.Fastafile(ref_file)
 
         good_records = {"INS": [], "DEL": [], "SNP": []}
         vtype = {}
