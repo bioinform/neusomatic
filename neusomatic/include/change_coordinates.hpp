@@ -1,6 +1,9 @@
 #ifndef CHANGE_COORDINATES_HPP
 #define CHANGE_COORDINATES_HPP
 
+// Given a reference string in gapped space (reference bases seperated by 0 or more gaps),
+// This class can calculate the gapped postion based on a ungapped postion, or vice versa.
+
 #include "SeqanUtils.h"
 
 namespace neusomatic {
