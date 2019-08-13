@@ -279,7 +279,7 @@ def cigartuple_to_string(cigartuples):
     return "".join(map(lambda x: "%d%s" % (x[1], _CIGAR_OPS[x[0]]), cigartuples))
 
 
-def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i, filter_duplicate):
+def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i, ds, filter_duplicate):
     logger = logging.getLogger(prepare_fasta.__name__)
     in_fasta_file = os.path.join(
         work, region.__str__() + "_split_{}".format(split_i) + "_0.fasta")
@@ -309,6 +309,8 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i,
                                                       (record.get_reference_positions(
                                                           full_length=True)))))
                         if not record.cigartuples:
+                            continue
+                        if np.random.rand() > ds:
                             continue
                         sc_start = (record.cigartuples[0][0] ==
                                     CIGAR_SOFTCLIP) * record.cigartuples[0][1]
@@ -373,7 +375,7 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i,
 
 
 def split_bam_to_chunks(work, region, input_bam, chunk_size=200,
-                        chunk_scale=1.5, filter_duplicate=False):
+                        chunk_scale=1.5, do_split=False, filter_duplicate=False):
     logger = logging.getLogger(split_bam_to_chunks.__name__)
     records = []
     with pysam.Samfile(input_bam, "rb") as samfile:
@@ -413,11 +415,13 @@ def split_bam_to_chunks(work, region, input_bam, chunk_size=200,
     if len(records) < chunk_size * chunk_scale:
         bams = [input_bam]
         lens = [len(records)]
-    else:
+        ds = [1]
+    elif do_split:
         n_splits = int(max(6, len(records) // chunk_size))
         new_chunk_size = len(records) // n_splits
         bams = []
         lens = []
+        ds = []
         n_split = (len(records) // new_chunk_size) + 1
         if 0 < (len(records) - ((n_split - 1) * new_chunk_size) + new_chunk_size) \
                 < new_chunk_size * chunk_scale:
@@ -441,7 +445,12 @@ def split_bam_to_chunks(work, region, input_bam, chunk_size=200,
 
             bams.append(split_input_bam)
             lens.append(i_end - i_start + 1)
-    return bams, lens
+            ds.append(1)
+    else:
+        bams = [input_bam]
+        lens = [chunk_size * chunk_scale]
+        ds = [chunk_size * chunk_scale / float(len(records))]
+    return bams, lens, ds
 
 
 def read_info(info_file):
@@ -813,7 +822,7 @@ def run_msa(in_fasta_file, match_score, mismatch_penalty, gap_open_penalty, gap_
     return out_fasta_file
 
 
-def do_realign(region, info_file, thr_realign=0.0135, max_N=1000):
+def do_realign(region, info_file, max_realign_dp, thr_realign=0.0135):
     logger = logging.getLogger(do_realign.__name__)
     sum_nm_snp = 0
     sum_nm_indel = 0
@@ -825,7 +834,7 @@ def do_realign(region, info_file, thr_realign=0.0135, max_N=1000):
             sum_nm_indel += int(x[-1])
             c += 1
     eps = 0.0001
-    if (c < max_N) and (
+    if (c < max_realign_dp) and (
             (sum_nm_snp + sum_nm_indel
              ) / float(c + eps) / float(region.span() + eps)
             > thr_realign):
@@ -910,15 +919,16 @@ def run_realignment(input_record):
     work, ref_fasta_file, target_region, pad, chunk_size, chunk_scale, \
         snp_min_af, del_min_af, ins_min_af, len_chr, input_bam, \
         match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty, \
+        max_realign_dp, \
         filter_duplicate, \
-        msa_binary, get_var = input_record
+        msa_binary, get_var, do_split = input_record
 
     thread_logger = logging.getLogger(
         "{} ({})".format(run_realignment.__name__, multiprocessing.current_process().name))
 
     try:
         region = Region(target_region, pad, len_chr)
-
+        not_realigned_region = None
         original_tempdir = pybedtools.get_tempdir()
         pybedtmp = os.path.join(work, "pybedtmp_{}".format(region.__str__()))
         if not os.path.exists(pybedtmp):
@@ -926,8 +936,8 @@ def run_realignment(input_record):
         pybedtools.set_tempdir(pybedtmp)
         variant = []
         all_entries = []
-        input_bam_splits, lens_splits = split_bam_to_chunks(
-            work, region, input_bam, chunk_size, chunk_scale, filter_duplicate)
+        input_bam_splits, lens_splits, ds_splits = split_bam_to_chunks(
+            work, region, input_bam, chunk_size, chunk_scale, do_split or not get_var, filter_duplicate)
         new_seqs = []
         new_ref_seq = ""
         skipped = 0
@@ -938,8 +948,8 @@ def run_realignment(input_record):
         afss = []
         for i, i_bam in enumerate(input_bam_splits):
             in_fasta_file, info_file = prepare_fasta(
-                work, region, i_bam, ref_fasta_file, True, i, filter_duplicate)
-            if do_realign(region, info_file):
+                work, region, i_bam, ref_fasta_file, True, i, ds_splits[i], filter_duplicate)
+            if do_realign(region, info_file, max_realign_dp):
                 out_fasta_file_0 = run_msa(
                     in_fasta_file, match_score, mismatch_penalty, gap_open_penalty,
                     gap_ext_penalty, msa_binary)
@@ -957,37 +967,41 @@ def run_realignment(input_record):
                     all_entries.extend(entries)
             else:
                 skipped += 1
-        if get_var and new_seqs:
-            for i in range(skipped):
+        if get_var:
+            if new_seqs:
+                for i in range(skipped):
+                    new_seqs = [new_ref_seq] + new_seqs
                 new_seqs = [new_ref_seq] + new_seqs
-            new_seqs = [new_ref_seq] + new_seqs
-            consensus_fasta = os.path.join(
-                work, region.__str__() + "_consensus.fasta")
-            with open(consensus_fasta, "w") as output_handle:
-                for i, seq in enumerate(new_seqs):
-                    record = SeqRecord(
-                        Seq(seq, DNAAlphabet.letters), id=str(i), description="")
-                    SeqIO.write(record, output_handle, "fasta")
-            consensus_fasta_aligned = run_msa(
-                consensus_fasta, match_score, mismatch_penalty, gap_open_penalty,
-                gap_ext_penalty, msa_binary)
-            ref_seq, alt_seq, afs = find_var(
-                consensus_fasta_aligned, snp_min_af, del_min_af, ins_min_af, 1)
-            if ref_seq != alt_seq:
-                ref, alt, pos = TrimREFALT(
-                    ref_seq, alt_seq, int(region.start) + 1)
-                a = int(np.ceil(np.max(afs) * len(afss)))
-                af = sum(sorted(map(lambda x:
-                                    np.max(x) if x.shape[0] > 0 else 0,
-                                    afss))[-a:]) / float(len(afss))
-                dp = sum(lens_splits)
-                ao = int(af * dp)
-                ro = dp - ao
-                variant = [region.chrom, pos, ref, alt, dp, ro, ao]
+                consensus_fasta = os.path.join(
+                    work, region.__str__() + "_consensus.fasta")
+                with open(consensus_fasta, "w") as output_handle:
+                    for i, seq in enumerate(new_seqs):
+                        record = SeqRecord(
+                            Seq(seq, DNAAlphabet.letters), id=str(i), description="")
+                        SeqIO.write(record, output_handle, "fasta")
+                consensus_fasta_aligned = run_msa(
+                    consensus_fasta, match_score, mismatch_penalty, gap_open_penalty,
+                    gap_ext_penalty, msa_binary)
+                ref_seq, alt_seq, afs = find_var(
+                    consensus_fasta_aligned, snp_min_af, del_min_af, ins_min_af, 1)
+                if ref_seq != alt_seq:
+                    ref, alt, pos = TrimREFALT(
+                        ref_seq, alt_seq, int(region.start) + 1)
+                    a = int(np.ceil(np.max(afs) * len(afss)))
+                    af = sum(sorted(map(lambda x:
+                                        np.max(x) if x.shape[0] > 0 else 0,
+                                        afss))[-a:]) / float(len(afss))
+                    dp = sum(lens_splits)
+                    ao = int(af * dp)
+                    ro = dp - ao
+                    variant = [region.chrom, pos, ref, alt, dp, ro, ao]
+            else:
+                if skipped>0 :
+                    not_realigned_region = target_region
 
         shutil.rmtree(pybedtmp)
         pybedtools.set_tempdir(original_tempdir)
-        return all_entries, variant
+        return all_entries, variant, not_realigned_region
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
         thread_logger.error(ex)
@@ -1169,10 +1183,13 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
         pybedtools.BedTool(intervals).sort().saveas(extended_region_bed_file)
 
 
-def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_file,
+def long_read_indelrealign(work, input_bam, output_bam, output_vcf, output_not_realigned_bed,
+                           region_bed_file,
                            ref_fasta_file, num_threads, pad,
                            chunk_size, chunk_scale, snp_min_af, del_min_af, ins_min_af,
                            match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
+                           max_realign_dp,
+                           do_split,
                            filter_duplicate,
                            msa_binary):
     logger = logging.getLogger(long_read_indelrealign.__name__)
@@ -1223,8 +1240,8 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                          chunk_scale, snp_min_af, del_min_af, ins_min_af,
                          chrom_lengths[target_region[0]], input_bam,
                          match_score, mismatch_penalty, gap_open_penalty, gap_ext_penalty,
-                         filter_duplicate,
-                         msa_binary, get_var))
+                         max_realign_dp, filter_duplicate,
+                         msa_binary, get_var, do_split))
 
     shuffle(map_args)
     try:
@@ -1244,6 +1261,8 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
 
     realign_variants = list(map(lambda x: x[1], realign_output))
     realign_variants = list(filter(None, realign_variants))
+    not_realigned_regions = list(map(lambda x: x[2], realign_output))
+    not_realigned_regions = list(filter(None, not_realigned_regions))
 
     if get_var:
         with open(output_vcf, "w") as o_f:
@@ -1259,6 +1278,9 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                                       "GT:DP:RO:AO", "0/1:{}:{}:{}".format(
                                           dp, ro, ao), ])
                     o_f.write(line + "\n")
+    with open(output_not_realigned_bed, "w") as o_f:
+        for x in not_realigned_regions:
+            o_f.write("\t".join(map(str, x)) + "\n")
 
     original_tempdir = pybedtools.get_tempdir()
     pybedtmp = os.path.join(work, "pybedtmp")
@@ -1298,6 +1320,8 @@ if __name__ == '__main__':
     parser.add_argument('--input_bam', type=str, help='input bam')
     parser.add_argument('--output_vcf', type=str,
                         help='output_vcf (needed for variant prediction)', default=None)
+    parser.add_argument('--output_not_realigned_bed', type=str,
+                        help='output_not_realigned_bed', required=True)
     parser.add_argument('--output_bam', type=str,
                         help='output_bam (needed for getting the realigned bam)', default=None)
     parser.add_argument('--region_bed', type=str,
@@ -1328,6 +1352,11 @@ if __name__ == '__main__':
                         help='penalty for opening a gap', default=8)
     parser.add_argument('--gap_ext_penalty', type=int,
                         help='penalty for extending a gap', default=6)
+    parser.add_argument('--max_realign_dp', type=int,
+                        help='max coverage for realign region', default=1000)
+    parser.add_argument('--do_split',
+                        help='Split bam for high coverage regions (in variant-calling mode).',
+                        action="store_true")
     parser.add_argument('--filter_duplicate',
                         help='filter duplicate reads in analysis',
                         action="store_true")
@@ -1338,12 +1367,16 @@ if __name__ == '__main__':
 
     try:
         processor = long_read_indelrealign(args.work, args.input_bam, args.output_bam,
-                                           args.output_vcf, args.region_bed, args.reference,
+                                           args.output_vcf, args.output_not_realigned_bed,
+                                           args.region_bed, args.reference,
                                            args.num_threads, args.pad, args.chunk_size,
                                            args.chunk_scale, args.snp_min_af, args.del_min_af,
                                            args.ins_min_af, args.match_score,
                                            args.mismatch_penalty, args.gap_open_penalty,
                                            args.gap_ext_penalty, 
+                                           args.gap_ext_penalty, 
+                                           args.max_realign_dp,
+                                           args.do_split,
                                            args.filter_duplicate,
                                            args.msa_binary)
     except Exception as e:
