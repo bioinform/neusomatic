@@ -114,7 +114,7 @@ def find_resolved_variants(input_record):
                                                      list(map(lambda x: x.split("---"), uniq_dels_count.keys())))).saveas()
                     new_bed = new_bed.sort().merge(c=[1], o="count")
                     out_variants.extend(list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
-                        x[1]) - 1, int(x[2])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])), "0/1", score], new_bed)))
+                        x[1]) - 1, int(x[2])).upper(), ref.fetch(x[0], int(x[1]) - 1, int(x[1])).upper(), "0/1", score], new_bed)))
             elif vartype == "INS":
                 intervals = []
                 inss = []
@@ -143,7 +143,7 @@ def find_resolved_variants(input_record):
                     new_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[2]), x[3]),
                                                      list(map(lambda x: x.split("---"), uniq_inss_count.keys())))).sort()
                     out_variants.extend(list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
-                        x[1]) - 1, int(x[1])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])) + x[3], "0/1", score], new_bed)))
+                        x[1]) - 1, int(x[1])).upper(), ref.fetch(x[0], int(x[1]) - 1, int(x[1])).upper() + x[3], "0/1", score], new_bed)))
         return out_variants
     except Exception as ex:
         thread_logger.error(traceback.format_exc())

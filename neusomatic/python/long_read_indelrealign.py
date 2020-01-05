@@ -290,7 +290,7 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i,
             with open(info_file, "w") as info_txt:
                 if include_ref:
                     ref_seq = ref_fasta.fetch(
-                        region.chrom, region.start, region.end + 1)
+                        region.chrom, region.start, region.end + 1).upper()
                     in_fasta.write(">0\n")
                     in_fasta.write("%s\n" % ref_seq.upper())
                 cnt = 1
@@ -345,7 +345,7 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i,
                                 (start_idx - sc_start):(end_idx - sc_start)]
                             non_ins = np.nonzero(positions_ >= 0)
                             refseq = ref_fasta.fetch(region.chrom, positions_[non_ins][0],
-                                                     positions_[non_ins][-1] + 1)
+                                                     positions_[non_ins][-1] + 1).upper()
                             q_seq = record.seq[start_idx:end_idx + 1]
                             non_ins_positions = positions_[non_ins]
                             mn, mx = min(non_ins_positions), max(
@@ -842,7 +842,7 @@ def do_realign(region, info_file, max_realign_dp, thr_realign=0.0135):
     return False
 
 
-def find_var(out_fasta_file, snp_min_af, del_min_af, ins_min_af, scale_maf):
+def find_var(out_fasta_file, snp_min_af, del_min_af, ins_min_af, scale_maf, simplify):
     logger = logging.getLogger(find_var.__name__)
     records = SeqIO.to_dict(SeqIO.parse(out_fasta_file, "fasta"))
     if set(map(int, records.keys())) ^ set(range(len(records))):
@@ -892,7 +892,27 @@ def find_var(out_fasta_file, snp_min_af, del_min_af, ins_min_af, scale_maf):
         map(lambda x: NUM_to_NUC[x], filter(lambda x: x > 0, ref_seq)))
     alt_seq_ = "".join(
         map(lambda x: NUM_to_NUC[x], filter(lambda x: x > 0, alt_seq)))
-    return ref_seq_, alt_seq_, afs
+    if not simplify:
+        variants = [[0, ref_seq_, alt_seq_, afs]]
+    else:
+        variants = []
+        bias = 0
+        for i, (r, a) in enumerate(zip(ref_seq, alt_seq)):
+            if r != a:
+                if i in i_afs:
+                    af = afs[i_afs.index(i)]
+                else:
+                    af = 0
+                rr = "".join(map(lambda x: NUM_to_NUC[
+                             x], filter(lambda x: x > 0, [r])))
+                aa = "".join(map(lambda x: NUM_to_NUC[
+                             x], filter(lambda x: x > 0, [a])))
+                logger.info("{} {} {} {}".format(bias, rr, aa, np.array([af])))
+                variants.append([bias, rr, aa, np.array([af])])
+            if r != 0:
+                bias += 1
+
+    return variants
 
 
 def TrimREFALT(ref, alt, pos):
@@ -923,6 +943,7 @@ def run_realignment(input_record):
         filter_duplicate, \
         msa_binary, get_var, do_split = input_record
 
+    ref_fasta = pysam.Fastafile(ref_fasta_file)
     thread_logger = logging.getLogger(
         "{} ({})".format(run_realignment.__name__, multiprocessing.current_process().name))
 
@@ -934,7 +955,7 @@ def run_realignment(input_record):
         if not os.path.exists(pybedtmp):
             os.mkdir(pybedtmp)
         pybedtools.set_tempdir(pybedtmp)
-        variant = []
+        variants = []
         all_entries = []
         input_bam_splits, lens_splits, ds_splits = split_bam_to_chunks(
             work, region, input_bam, chunk_size, chunk_scale, do_split or not get_var, filter_duplicate)
@@ -954,8 +975,10 @@ def run_realignment(input_record):
                     in_fasta_file, match_score, mismatch_penalty, gap_open_penalty,
                     gap_ext_penalty, msa_binary)
                 if get_var:
-                    ref_seq_, alt_seq_, afs = find_var(
-                        out_fasta_file_0, snp_min_af, del_min_af, ins_min_af, scale_maf)
+                    var = find_var(
+                        out_fasta_file_0, snp_min_af, del_min_af, ins_min_af, scale_maf, False)
+                    assert(len(var) == 1)
+                    _, ref_seq_, alt_seq_, afs = var[0]
                     afss.append(afs)
                     new_ref_seq = ref_seq_
                     new_seqs.append(alt_seq_)
@@ -982,26 +1005,41 @@ def run_realignment(input_record):
                 consensus_fasta_aligned = run_msa(
                     consensus_fasta, match_score, mismatch_penalty, gap_open_penalty,
                     gap_ext_penalty, msa_binary)
-                ref_seq, alt_seq, afs = find_var(
-                    consensus_fasta_aligned, snp_min_af, del_min_af, ins_min_af, 1)
-                if ref_seq != alt_seq:
-                    ref, alt, pos = TrimREFALT(
-                        ref_seq, alt_seq, int(region.start) + 1)
-                    a = int(np.ceil(np.max(afs) * len(afss)))
-                    af = sum(sorted(map(lambda x:
-                                        np.max(x) if x.shape[0] > 0 else 0,
-                                        afss))[-a:]) / float(len(afss))
-                    dp = sum(lens_splits)
-                    ao = int(af * dp)
-                    ro = dp - ao
-                    variant = [region.chrom, pos, ref, alt, dp, ro, ao]
+                vars_ = find_var(
+                    consensus_fasta_aligned, snp_min_af, del_min_af, ins_min_af, 1, True)
+                for var in vars_:
+                    pos_, ref_seq, alt_seq, afs = var
+                    if ref_seq != alt_seq:
+                        ref, alt, pos = TrimREFALT(
+                            ref_seq, alt_seq, int(region.start) + 1 + pos_)
+                        a = int(np.ceil(np.max(afs) * len(afss)))
+                        af = sum(sorted(map(lambda x:
+                                            np.max(x) if x.shape[0] > 0 else 0,
+                                            afss))[-a:]) / float(len(afss))
+                        dp = sum(lens_splits)
+                        ao = int(af * dp)
+                        ro = dp - ao
+                        if ref == "" and pos > 1:
+                            pos -= 1
+                            r_ = ref_fasta.fetch(
+                                region.chrom, pos - 1, pos).upper()
+                            ref = r_ + ref
+                            alt = r_ + alt
+                        if alt == "" and pos > 1:
+                            pos -= 1
+                            r_ = ref_fasta.fetch(
+                                region.chrom, pos - 1, pos).upper()
+                            ref = r_ + ref
+                            alt = r_ + alt
+                        variants.append(
+                            [region.chrom, pos, ref, alt, dp, ro, ao])
             else:
-                if skipped>0 :
+                if skipped > 0:
                     not_realigned_region = target_region
 
         shutil.rmtree(pybedtmp)
         pybedtools.set_tempdir(original_tempdir)
-        return all_entries, variant, not_realigned_region
+        return all_entries, variants, not_realigned_region
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
         thread_logger.error(ex)
@@ -1020,7 +1058,7 @@ class fasta_seq:
     def get_seq(self, start, end=[]):
         if not end:
             end = start + 1
-        return self.fasta_pysam.fetch(self.chrom, start, end)
+        return self.fasta_pysam.fetch(self.chrom, start, end).upper()
 
 
 def extend_regions_hp(region_bed_file, extended_region_bed_file, ref_fasta_file,
@@ -1260,6 +1298,7 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, output_not_r
     realign_entries = list(map(lambda x: x[0], realign_output))
 
     realign_variants = list(map(lambda x: x[1], realign_output))
+    realign_variants = [v for var in realign_variants for v in var]
     realign_variants = list(filter(None, realign_variants))
     not_realigned_regions = list(map(lambda x: x[2], realign_output))
     not_realigned_regions = list(filter(None, not_realigned_regions))
@@ -1373,8 +1412,8 @@ if __name__ == '__main__':
                                            args.chunk_scale, args.snp_min_af, args.del_min_af,
                                            args.ins_min_af, args.match_score,
                                            args.mismatch_penalty, args.gap_open_penalty,
-                                           args.gap_ext_penalty, 
-                                           args.gap_ext_penalty, 
+                                           args.gap_ext_penalty,
+                                           args.gap_ext_penalty,
                                            args.max_realign_dp,
                                            args.do_split,
                                            args.filter_duplicate,

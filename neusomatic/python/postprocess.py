@@ -154,8 +154,8 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
                 lr_pad, lr_chunk_size, lr_chunk_scale,
                 lr_snp_min_af, lr_ins_min_af, lr_del_min_af, lr_match_score, lr_mismatch_penalty,
                 lr_gap_open_penalty, lr_gap_ext_penalty, lr_max_realign_dp, lr_do_split,
-                pass_threshold, lowqual_threshold,
                 filter_duplicate,
+                pass_threshold, lowqual_threshold,
                 msa_binary, num_threads):
     logger = logging.getLogger(postprocess.__name__)
 
