@@ -897,23 +897,54 @@ def find_var(out_fasta_file, snp_min_af, del_min_af, ins_min_af, scale_maf, simp
     else:
         variants = []
         bias = 0
-        for i, (r, a) in enumerate(zip(ref_seq, alt_seq)):
-            if r != a:
-                if i in i_afs:
-                    af = afs[i_afs.index(i)]
+        current_ref = []
+        current_alt = []
+        current_af = []
+        current_bias = 0
+        is_ins = False
+        is_del = False
+        done = False
+        for i, (r, a) in enumerate(zip(list(ref_seq)+[0], list(alt_seq)+[0])):
+            if i in i_afs:
+                af = afs[i_afs.index(i)]
+            else:
+                af = 0
+            if r == a:
+                done=True
+            else:
+                if r==0 and a!=0:
+                    if not is_ins:
+                        done=True
+                elif r!=0 and a==0:
+                    if not is_del:
+                        done=True
                 else:
-                    af = 0
-                rr = "".join(map(lambda x: NUM_to_NUC[
-                             x], filter(lambda x: x > 0, [r])))
-                aa = "".join(map(lambda x: NUM_to_NUC[
-                             x], filter(lambda x: x > 0, [a])))
-                logger.info("{} {} {} {}".format(bias, rr, aa, np.array([af])))
-                variants.append([bias, rr, aa, np.array([af])])
+                    done=True
+            if done:
+                if current_alt:
+                    rr = "".join(map(lambda x: NUM_to_NUC[
+                             x], filter(lambda x: x > 0, current_ref)))
+                    aa = "".join(map(lambda x: NUM_to_NUC[
+                             x], filter(lambda x: x > 0, current_alt)))
+                    variants.append([current_bias, rr, aa, np.array(current_af)])
+                    done=False
+                    current_ref = []
+                    current_alt = []
+                    current_af = []
+                    current_bias = bias
+                    is_ins = False
+                    is_del = False
+                done = False
+            if not done:
+                current_ref.append(r)
+                current_alt.append(a)
+                current_af.append(af)
+                is_ins = r==0 and a!=0
+                is_del = r!=0 and a==0
             if r != 0:
                 bias += 1
 
     return variants
-
 
 def TrimREFALT(ref, alt, pos):
     logger = logging.getLogger(TrimREFALT.__name__)
@@ -1010,13 +1041,21 @@ def run_realignment(input_record):
                 for var in vars_:
                     pos_, ref_seq, alt_seq, afs = var
                     if ref_seq != alt_seq:
+                        ref, alt, pos = ref_seq, alt_seq, int(region.start) + 1 + pos_
+                        if pos > 1:
+                            num_add_before = min(40, pos-1)
+                            before = ref_fasta.fetch(region.chrom, pos - num_add_before, pos-1).upper()
+                            print(before)
+                            pos -= num_add_before-1
+                            ref = before + ref
+                            alt = before + alt
                         ref, alt, pos = TrimREFALT(
-                            ref_seq, alt_seq, int(region.start) + 1 + pos_)
+                            ref, alt, pos)
                         a = int(np.ceil(np.max(afs) * len(afss)))
                         af = sum(sorted(map(lambda x:
                                             np.max(x) if x.shape[0] > 0 else 0,
                                             afss))[-a:]) / float(len(afss))
-                        dp = sum(lens_splits)
+                        dp = int(sum(lens_splits))
                         ao = int(af * dp)
                         ro = dp - ao
                         if ref == "" and pos > 1:

@@ -8,6 +8,7 @@ import traceback
 import argparse
 import datetime
 import logging
+import copy
 
 import numpy as np
 import torch
@@ -88,6 +89,10 @@ def test(net, epoch, validation_loader, use_cuda):
     falses = []
     for data in validation_loader:
         (matrices, labels, _, var_len_s, _), (paths) = data
+
+        paths_ = copy.deepcopy(paths)
+        del paths 
+        paths = paths_
 
         matrices = Variable(matrices)
         if use_cuda:

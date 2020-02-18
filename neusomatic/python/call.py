@@ -11,6 +11,7 @@ import logging
 import shutil
 import pickle
 import multiprocessing
+import copy
 
 import pysam
 import numpy as np
@@ -68,6 +69,11 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
     for data in loader_:
         (matrices, labels, var_pos_s, var_len_s,
          non_transformed_matrices), (paths) = data
+
+        paths_ = copy.deepcopy(paths)
+        del paths
+        paths = paths_
+
         matrices = Variable(matrices)
         iii += 1
         j += len(paths[0])
