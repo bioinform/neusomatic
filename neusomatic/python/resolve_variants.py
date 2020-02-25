@@ -96,7 +96,7 @@ def find_resolved_variants(input_record):
                 dels = list(filter(lambda x: (
                     start <= x[1] <= end) or start <= x[2] <= end, dels))
                 if dels:
-                    del_strs = list(map(lambda x: "---".join(x[0:3]), dels))
+                    del_strs = list(map(lambda x: "---".join(map(str,x[0:3])), dels))
                     uniq_dels = list(set(del_strs))
                     uniq_dels_count = {}
                     for del_ in uniq_dels:
@@ -135,7 +135,7 @@ def find_resolved_variants(input_record):
                 inss = list(filter(lambda x: (
                     start <= x[1] <= end) or start <= x[2] <= end, inss))
                 if inss:
-                    ins_strs = list(map(lambda x: "---".join(x[0:4]), inss))
+                    ins_strs = list(map(lambda x: "---".join(map(str,x[0:4])), inss))
                     uniq_inss = list(set(ins_strs))
                     uniq_inss_count = {}
                     for ins_ in uniq_inss:
