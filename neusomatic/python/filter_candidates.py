@@ -28,6 +28,8 @@ def filter_candidates(candidate_record):
         records = {}
         with open(candidates_vcf) as v_f:
             for line in v_f:
+                if not line.strip():
+                    continue
                 if line[0] == "#":
                     continue
                 if len(line.strip().split()) != 10:
@@ -275,6 +277,8 @@ def filter_candidates(candidate_record):
             with open(dbsnp_tmp, "w") as f_o:
                 with open(dbsnp, "r") as f_i:
                     for line in f_i:
+                        if not line.strip():
+                            continue
                         if line[0] == "#":
                             continue
                         x = line.strip().split("\t")
@@ -298,10 +302,14 @@ def filter_candidates(candidate_record):
             non_in_dbsnp_ids = []
             with open(non_in_dbsnp_1) as i_f:
                 for line in i_f:
+                    if not line.strip():
+                        continue
                     x = line.strip().split("\t")
                     non_in_dbsnp_ids.append(int(x[5]))
             with open(non_in_dbsnp_2) as i_f:
                 for line in i_f:
+                    if not line.strip():
+                        continue
                     x = line.strip().split("\t")
                     non_in_dbsnp_ids.append(int(x[5]))
             final_records = list(map(lambda x: x[1], filter(

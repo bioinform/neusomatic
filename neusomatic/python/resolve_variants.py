@@ -119,6 +119,8 @@ def find_resolved_variants(input_record):
                     vs = []
                     with open(new_bed) as i_f:
                         for line in i_f:
+                            if not line.strip():
+                                continue
                             x = line.strip().split("\t")
                             vs.append([x[0], int(x[1]), ref.fetch(x[0], int(
                                 x[1]) - 1, int(x[2])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])), "0/1", score])
@@ -157,6 +159,8 @@ def find_resolved_variants(input_record):
                     vs = []
                     with open(new_bed) as i_f:
                         for line in i_f:
+                            if not line.strip():
+                                continue
                             x = line.strip().split("\t")
                             vs.append([x[0], int(x[1]), ref.fetch(x[0], int(
                                 x[1]) - 1, int(x[1])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])) + x[3], "0/1", score])
@@ -177,6 +181,8 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
     variants = {}
     with open(target_vcf_file) as tv_f:
         for line in tv_f:
+            if not line.strip():
+                continue
             if line[0] == "#":
                 continue
             fields = line.strip().split()
@@ -193,6 +199,8 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
     map_args = []
     with open(target_bed_file) as i_f:
         for line in i_f:
+            if not line.strip():
+                continue
             tb=line.strip().split("\t")
             chrom, start, end, id_ = tb[0:4]
             id_ = int(id_)

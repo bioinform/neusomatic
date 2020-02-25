@@ -102,6 +102,8 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
         total_len = 0
         with open(regions_bed) as r_f:
             for line in r_f:
+                if not line.strip():
+                    continue
                 chrom, st, en = line.strip().split("\t")[0:3]
                 total_len += int(en) - int(st) + 1
         if not restart:
@@ -110,6 +112,8 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
             for split_file in split_region_files:
                 with open(split_file) as s_f:
                     for line in s_f:
+                        if not line.strip():
+                            continue
                         chrom, st, en = line.strip().split("\t")[0:3]
                         spilt_total_len += int(en) - int(st)
             if spilt_total_len >= 0.98 * total_len:

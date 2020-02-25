@@ -194,6 +194,8 @@ def extract_candidate_split_regions(
         is_empty = True
         with open(filtered_vcf) as f_:
             for line in f_:
+                if not line.strip():
+                    continue
                 if line[0]!="#":
                     is_empty = False
                     break

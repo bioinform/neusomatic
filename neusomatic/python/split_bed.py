@@ -28,6 +28,8 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
     intervals = []
     with open(regions_bed) as r_f:
         for line in r_f:
+            if not line.strip():
+                continue
             chrom, start, end = line.strip().split("\t")[0:3]
             start, end = int(start), int(end)
             if end - start + 1 > max_region:

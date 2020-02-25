@@ -25,6 +25,8 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
     final_intervals = []
     with open(tmp_) as i_f:
         for line in i_f:
+            if not line.strip():
+                continue
             interval = line.strip().split("\t")
             interval[5] = "0.5"
             final_intervals.append(interval)
@@ -36,6 +38,8 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
     intervals_dict = {}
     with open(tmp_) as i_f:
         for line in i_f:
+            if not line.strip():
+                continue
             interval = line.strip().split("\t")
             id_ = "{}-{}-{}-{}".format(interval[0],
                                        interval[1], interval[3], interval[4])

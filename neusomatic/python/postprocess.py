@@ -95,6 +95,8 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
         if dd:
             with open(dd) as i_f:
                 for line in i_f:
+                    if not line.strip():
+                        continue
                     x = line.strip().split("\t")
                     tag = "-".join([str(chroms_order[x[0]]), x[1], x[3], x[4]])
                     scores[tag] = [x[5], x[6], x[7], x[9]]
@@ -118,6 +120,8 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
 
     with open(notin_any) as i_f:
         for line in i_f:
+            if not line.strip():
+                continue
             x = line.strip().split("\t")
             tag = "-".join([str(chroms_order[x[0]]), x[1], x[3], x[4]])
             fina_info_tag[tag] = [0, 0, 0, 0]

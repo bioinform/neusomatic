@@ -870,6 +870,8 @@ def find_records(input_record):
             with open(tmp_) as f_i:
                 with open(split_missed_ensemble_bed_file, "w") as f_o:
                     for line in f_i:
+                        if not line.strip():
+                            continue
                         x = line.strip().split("\t")
                         f_o.write("\t".join(map(str, [x[0], int(x[1]), int(x[1]) + 1, x[3], x[4], ".",
                                                       ".", ".", ".", "."])) + "\n")
@@ -899,6 +901,8 @@ def find_records(input_record):
         if ensemble_bed:
             with open(not_in_ensemble_bed) as ni_f:
                 for line in ni_f:
+                    if not line.strip():
+                        continue
                     if line[0] == "#":
                         continue
                     record = line.strip().split("\t")
@@ -922,6 +926,8 @@ def find_records(input_record):
             emit_flag = False
             with open(in_ensemble_bed) as ni_f:
                 for line in ni_f:
+                    if not line.strip():
+                        continue
                     if line[0] == "#":
                         continue
                     record = line.strip().split("\t")
@@ -1028,6 +1034,8 @@ def find_records(input_record):
         else:
             with open(split_pred_vcf_file, 'r') as vcf_reader:
                 for line in vcf_reader:
+                    if not line.strip():
+                        continue
                     if line[0] == "#":
                         continue
                     record = line.strip().split()
@@ -1059,6 +1067,8 @@ def find_records(input_record):
         i = 0
         with open(split_truth_vcf_file, 'r') as vcf_reader:
             for line in vcf_reader:
+                if not line.strip():
+                    continue
                 if line[0] == "#":
                     continue
                 record = line.strip().split()
@@ -1080,6 +1090,8 @@ def find_records(input_record):
         none_records_ids = []
         with open(none_records_0) as i_f:
             for line in i_f:
+                if not line.strip():
+                    continue
                 x = line.strip().split("\t")
                 none_records_ids.append(int(x[5]))
 
@@ -1091,6 +1103,8 @@ def find_records(input_record):
         map_truth_2_pred = {}
         with open(other_records) as i_f:
             for line in i_f:
+                if not line.strip():
+                    continue
                 record = line.strip().split("\t")
                 id_pred = int(record[5])
                 id_truth = int(record[11])
@@ -1375,6 +1389,8 @@ def extract_ensemble(work, ensemble_tsv):
                          "InDel_Length"]
     with open(ensemble_tsv) as s_f:
         for line in s_f:
+            if not line.strip():
+                continue
             if line[0:5] == "CHROM":
                 header_pos = line.strip().split()[0:5]
                 header = line.strip().split()[5:105]
@@ -1526,6 +1542,8 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     len_candids = 0
     with open(tmp_) as i_f:
         for line in i_f:
+            if not line.strip():
+                continue
             if line[0] != "#":
                 len_candids += 1
 
@@ -1535,6 +1553,8 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
         tmp_ = run_bedtools_cmd(cmd, run_logger=logger)
         with open(tmp_) as i_f:
             for line in i_f:
+                if not line.strip():
+                    continue
                 if line[0] != "#":
                     len_candids += 1
     logger.info("len_candids: {}".format(len_candids))
