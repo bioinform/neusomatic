@@ -88,7 +88,6 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
                 regions_bed)
             regions_bed = run_bedtools_cmd(cmd, run_logger=logger)
         else:
-            # intervals = []
             regions_bed = tempfile.NamedTemporaryFile(
                 prefix="tmpbed_", suffix=".bed", delete=False)
             regions_bed = regions_bed.name
