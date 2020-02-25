@@ -13,14 +13,14 @@ import pickle
 import zlib
 import logging
 import shutil
+import tempfile
 
 import numpy as np
-import pybedtools
 import pysam
 from scipy.misc import imresize
 
 from split_bed import split_region
-from utils import concatenate_vcfs, get_chromosomes_order
+from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd
 
 
 NUC_to_NUM_hp = {"A": 1, "C": 2, "G": 3, "T": 4, "N": 5}
@@ -835,8 +835,9 @@ def find_records(input_record):
         thread_logger.info(
             "Start find_records for worker {}".format(work_index))
 
-        split_bed = pybedtools.BedTool(
-            split_region_file).slop(g=ref_file + ".fai", b=5)
+        cmd = "bedtools slop -i {} -g {} -b {}".format(
+            split_region_file, ref_file + ".fai", 5)
+        split_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
         split_truth_vcf_file = os.path.join(
             work, "truth_{}.vcf".format(work_index))
         split_pred_vcf_file = os.path.join(
@@ -849,113 +850,181 @@ def find_records(input_record):
             work, "pred_with_missed_{}.bed".format(work_index))
         split_in_ensemble_bed = os.path.join(
             work, "in_ensemble_{}.bed".format(work_index))
-        pybedtools.BedTool(truth_vcf_file).intersect(
-            split_bed, u=True).saveas(split_truth_vcf_file)
-        pybedtools.BedTool(pred_vcf_file).intersect(
-            split_bed, u=True).saveas(split_pred_vcf_file)
+
+        cmd = "bedtools intersect -a {} -b {} -u".format(
+            truth_vcf_file, split_bed)
+        run_bedtools_cmd(cmd, output_fn=split_truth_vcf_file,
+                         run_logger=thread_logger)
+        cmd = "bedtools intersect -a {} -b {} -u".format(
+            pred_vcf_file, split_bed)
+        run_bedtools_cmd(cmd, output_fn=split_pred_vcf_file,
+                         run_logger=thread_logger)
         if ensemble_bed:
-            pybedtools.BedTool(ensemble_bed).intersect(
-                split_bed, u=True).saveas(split_ensemble_bed_file)
-            pybedtools.BedTool(split_ensemble_bed_file).window(split_pred_vcf_file, w=5, v=True).each(
-                lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[1]) + 1, x[3], x[4],
-                                              ".", otherfields=[".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8')])).saveas(split_missed_ensemble_bed_file)
+            cmd = "bedtools intersect -a {} -b {} -u".format(
+                ensemble_bed, split_bed)
+            run_bedtools_cmd(
+                cmd, output_fn=split_ensemble_bed_file, run_logger=thread_logger)
+            cmd = "bedtools window -a {} -b {} -w 5 -v".format(
+                split_ensemble_bed_file, split_pred_vcf_file)
+            tmp_ = run_bedtools_cmd(cmd, run_logger=thread_logger)
+            with open(tmp_) as f_i:
+                with open(split_missed_ensemble_bed_file, "w") as f_o:
+                    for line in f_i:
+                        x = line.strip().split("\t")
+                        f_o.write("\t".join(map(str, [x[0], int(x[1]), int(x[1]) + 1, x[3], x[4], ".",
+                                                      ".", ".", ".", "."])) + "\n")
             concatenate_vcfs(
                 [split_pred_vcf_file, split_missed_ensemble_bed_file], split_pred_with_missed_file)
-            pred_with_missed = pybedtools.BedTool(split_pred_with_missed_file).each(
-                lambda x: pybedtools.create_interval_from_list(
-                    [x[0], str(x[1]), ".", x[3], x[4], ".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8'), ".".encode('utf-8')])).sort().saveas(
+
+            cmd = '''awk '{{print $1"\t"$2"\t.\t"$4"\t"$5"\t.\t.\t.\t.\t."}}' {}'''.format(
                 split_pred_with_missed_file)
-            not_in_ensemble_bed = pybedtools.BedTool(
-                pred_with_missed).window(split_ensemble_bed_file, w=1, v=True)
-            in_ensemble_bed = pybedtools.BedTool(pred_with_missed).window(
-                split_ensemble_bed_file, w=1).saveas(split_in_ensemble_bed)
+            tmp_ = run_bedtools_cmd(
+                cmd, run_logger=thread_logger)
+            cmd = "bedtools sort -i {}".format(
+                tmp_)
+            run_bedtools_cmd(cmd, output_fn=split_pred_with_missed_file,
+                             run_logger=thread_logger)
+            cmd = "bedtools window -a {} -b {} -w 1 -v".format(
+                split_pred_with_missed_file, split_ensemble_bed_file)
+            not_in_ensemble_bed = run_bedtools_cmd(cmd,
+                                                   run_logger=thread_logger)
+            cmd = "bedtools window -a {} -b {} -w 1".format(
+                split_pred_with_missed_file, split_ensemble_bed_file)
+            in_ensemble_bed = run_bedtools_cmd(cmd, output_fn=split_in_ensemble_bed,
+                                               run_logger=thread_logger)
 
         records = []
         i = 0
         anns = {}
         if ensemble_bed:
-            for record in not_in_ensemble_bed:
-                chrom, pos, ref, alt = [str(record[0]), int(
-                    record[1]), record[3], record[4]]
-                r_ = []
-                if len(ref) == len(alt) and len(ref) > 1:
-                    for ii in range(len(ref)):
-                        ref_ = ref[ii]
-                        alt_ = alt[ii]
-                        if ref_ != alt_:
-                            r_.append([chrom, pos + ii, ref_, alt_])
-                else:
-                    r_ = [[chrom, pos, ref, alt]]
-                for rr in r_:
-                    records.append(rr + [str(i)])
-                    anns[i] = [0] * 93
-                    i += 1
+            with open(not_in_ensemble_bed) as ni_f:
+                for line in ni_f:
+                    if line[0] == "#":
+                        continue
+                    record = line.strip().split("\t")
+                    chrom, pos, ref, alt = [str(record[0]), int(
+                        record[1]), record[3], record[4]]
+                    r_ = []
+                    if len(ref) == len(alt) and len(ref) > 1:
+                        for ii in range(len(ref)):
+                            ref_ = ref[ii]
+                            alt_ = alt[ii]
+                            if ref_ != alt_:
+                                r_.append([chrom, pos + ii, ref_, alt_])
+                    else:
+                        r_ = [[chrom, pos, ref, alt]]
+                    for rr in r_:
+                        records.append(rr + [str(i)])
+                        anns[i] = [0] * 93
+                        i += 1
 
             curren_pos_records = []
             emit_flag = False
-            len_in_ensemble_bed = len(in_ensemble_bed)
-            for j in range(len_in_ensemble_bed + 1):
-
-                if j == (len_in_ensemble_bed):
-                    emit_flag = True
-                else:
-                    record = in_ensemble_bed[j]
+            with open(in_ensemble_bed) as ni_f:
+                for line in ni_f:
+                    if line[0] == "#":
+                        continue
+                    record = line.strip().split("\t")
                     if curren_pos_records:
-                        if record[0] == curren_pos_records[0][0] and record[1] == curren_pos_records[0][1]  \
-                                and record[3] == curren_pos_records[0][3] and record[4] == curren_pos_records[0][4]:
+                        if (record[0] == curren_pos_records[0][0] and record[1] == curren_pos_records[0][1] and
+                                record[3] == curren_pos_records[0][3] and record[4] == curren_pos_records[0][4]):
                             curren_pos_records.append(record)
                         else:
                             emit_flag = True
                     else:
                         curren_pos_records.append(record)
 
-                if emit_flag:
-                    if curren_pos_records:
-                        rrs = []
-                        for record_ in curren_pos_records:
-                            chrom, pos, ref, alt = [str(record_[0]), int(
-                                record_[1]), record_[3], record_[4]]
-                            r_ = []
-                            if len(ref) == len(alt) and len(ref) > 1:
-                                for ii in range(len(ref)):
-                                    ref_ = ref[ii]
-                                    alt_ = alt[ii]
-                                    if ref_ != alt_:
-                                        r_.append(
-                                            [chrom, pos + ii, ref_, alt_])
-                            else:
-                                r_ = [[chrom, pos, ref, alt]]
+                    if emit_flag:
+                        if curren_pos_records:
+                            rrs = []
+                            for record_ in curren_pos_records:
+                                chrom, pos, ref, alt = [str(record_[0]), int(
+                                    record_[1]), record_[3], record_[4]]
+                                r_ = []
+                                if len(ref) == len(alt) and len(ref) > 1:
+                                    for ii in range(len(ref)):
+                                        ref_ = ref[ii]
+                                        alt_ = alt[ii]
+                                        if ref_ != alt_:
+                                            r_.append(
+                                                [chrom, pos + ii, ref_, alt_])
+                                else:
+                                    r_ = [[chrom, pos, ref, alt]]
 
-                            ann = [0] * 93
-                            if record_[1] == record_[11]:
-                                if record_[3] == record_[13] and record_[4] == record_[14]:
-                                    ann = record_[15:]
-                                elif len(record_[3]) > len(record_[4]) and len(record_[13]) > len(record_[14]) and \
-                                        (record_[4]) == (record_[14]):
-                                    if (len(record_[3]) > len(record_[13]) and record_[3][0:len(record_[13])] == record_[13]) or (
-                                            len(record_[13]) > len(record_[3]) and record_[13][0:len(record_[3])] == record_[3]):
+                                ann = [0] * 93
+                                if record_[1] == record_[11]:
+                                    if record_[3] == record_[13] and record_[4] == record_[14]:
                                         ann = record_[15:]
-                                elif len(record_[3]) < len(record_[4]) and len(record_[13]) < len(record_[14]) and \
-                                        (record_[3]) == (record_[13]):
-                                    if (len(record_[4]) > len(record_[14]) and record_[4][0:len(record_[14])] == record_[14]) or (
-                                            len(record_[14]) > len(record_[4]) and record_[14][0:len(record_[4])] == record_[4]):
-                                        ann = record_[15:]
-                            if ann:
-                                ann = list(map(float, ann))
-                            rrs.append([r_, ann])
-                        max_ann = max(map(lambda x: sum(x[1]), rrs))
-                        if max_ann > 0:
-                            rrs = list(filter(lambda x: sum(x[1]) > 0, rrs))
-                        elif max_ann == 0:
-                            rrs = rrs[0:1]
-                        for r_, ann in rrs:
-                            for rr in r_:
-                                records.append(rr + [str(i)])
-                                anns[i] = ann
-                                i += 1
-                    emit_flag = False
-                    if j < len_in_ensemble_bed:
+                                    elif (len(record_[3]) > len(record_[4]) and len(record_[13]) > len(record_[14]) and
+                                            (record_[4]) == (record_[14])):
+                                        if ((len(record_[3]) > len(record_[13]) and record_[3][0:len(record_[13])] == record_[13]) or (
+                                                len(record_[13]) > len(record_[3]) and record_[13][0:len(record_[3])] == record_[3])):
+                                            ann = record_[15:]
+                                    elif (len(record_[3]) < len(record_[4]) and len(record_[13]) < len(record_[14]) and
+                                            (record_[3]) == (record_[13])):
+                                        if ((len(record_[4]) > len(record_[14]) and record_[4][0:len(record_[14])] == record_[14]) or (
+                                                len(record_[14]) > len(record_[4]) and record_[14][0:len(record_[4])] == record_[4])):
+                                            ann = record_[15:]
+                                if ann:
+                                    ann = list(map(float, ann))
+                                rrs.append([r_, ann])
+                            max_ann = max(map(lambda x: sum(x[1]), rrs))
+                            if max_ann > 0:
+                                rrs = list(
+                                    filter(lambda x: sum(x[1]) > 0, rrs))
+                            elif max_ann == 0:
+                                rrs = rrs[0:1]
+                            for r_, ann in rrs:
+                                for rr in r_:
+                                    records.append(rr + [str(i)])
+                                    anns[i] = ann
+                                    i += 1
+                        emit_flag = False
                         curren_pos_records = [record]
+                if curren_pos_records:
+                    rrs = []
+                    for record_ in curren_pos_records:
+                        chrom, pos, ref, alt = [str(record_[0]), int(
+                            record_[1]), record_[3], record_[4]]
+                        r_ = []
+                        if len(ref) == len(alt) and len(ref) > 1:
+                            for ii in range(len(ref)):
+                                ref_ = ref[ii]
+                                alt_ = alt[ii]
+                                if ref_ != alt_:
+                                    r_.append(
+                                        [chrom, pos + ii, ref_, alt_])
+                        else:
+                            r_ = [[chrom, pos, ref, alt]]
+
+                        ann = [0] * 93
+                        if record_[1] == record_[11]:
+                            if record_[3] == record_[13] and record_[4] == record_[14]:
+                                ann = record_[15:]
+                            elif (len(record_[3]) > len(record_[4]) and len(record_[13]) > len(record_[14]) and
+                                    (record_[4]) == (record_[14])):
+                                if ((len(record_[3]) > len(record_[13]) and record_[3][0:len(record_[13])] == record_[13]) or (
+                                        len(record_[13]) > len(record_[3]) and record_[13][0:len(record_[3])] == record_[3])):
+                                    ann = record_[15:]
+                            elif (len(record_[3]) < len(record_[4]) and len(record_[13]) < len(record_[14]) and
+                                    (record_[3]) == (record_[13])):
+                                if ((len(record_[4]) > len(record_[14]) and record_[4][0:len(record_[14])] == record_[14]) or (
+                                        len(record_[14]) > len(record_[4]) and record_[14][0:len(record_[4])] == record_[4])):
+                                    ann = record_[15:]
+                        if ann:
+                            ann = list(map(float, ann))
+                        rrs.append([r_, ann])
+                    max_ann = max(map(lambda x: sum(x[1]), rrs))
+                    if max_ann > 0:
+                        rrs = list(filter(lambda x: sum(x[1]) > 0, rrs))
+                    elif max_ann == 0:
+                        rrs = rrs[0:1]
+                    for r_, ann in rrs:
+                        for rr in r_:
+                            records.append(rr + [str(i)])
+                            anns[i] = ann
+                            i += 1
+
         else:
             with open(split_pred_vcf_file, 'r') as vcf_reader:
                 for line in vcf_reader:
@@ -977,8 +1046,14 @@ def find_records(input_record):
                     for rr in r_:
                         records.append(rr + [str(i)])
                         i += 1
-        records_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
-            x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), records)).saveas()
+
+        records_bed = tempfile.NamedTemporaryFile(
+            prefix="tmpbed_", suffix=".bed", delete=False)
+        records_bed = records_bed.name
+        with open(records_bed, "w") as r_b:
+            for x in records:
+                r_b.write(
+                    "\t".join(map(str, [x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]])) + "\n")
 
         truth_records = []
         i = 0
@@ -991,22 +1066,40 @@ def find_records(input_record):
                     [record[0], int(record[1]), record[3], record[4], str(i)])
                 i += 1
 
-        truth_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
-            x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), truth_records)).saveas()
-        none_records_0 = records_bed.window(truth_bed, w=5, v=True)
-        none_records_ids = list(map(lambda x: int(x[5]), none_records_0))
-        other_records = records_bed.window(truth_bed, w=5)
+        truth_bed = tempfile.NamedTemporaryFile(
+            prefix="tmpbed_", suffix=".bed", delete=False)
+        truth_bed = truth_bed.name
+        with open(truth_bed, "w") as t_b:
+            for x in truth_records:
+                t_b.write(
+                    "\t".join(map(str, [x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]])) + "\n")
+
+        cmd = "bedtools window -a {} -b {} -w 5 -v".format(
+            records_bed, truth_bed)
+        none_records_0 = run_bedtools_cmd(cmd, run_logger=thread_logger)
+        none_records_ids = []
+        with open(none_records_0) as i_f:
+            for line in i_f:
+                x = line.strip().split("\t")
+                none_records_ids.append(int(x[5]))
+
+        cmd = "bedtools window -a {} -b {} -w 5".format(
+            records_bed, truth_bed)
+        other_records = run_bedtools_cmd(cmd, run_logger=thread_logger)
+
         map_pred_2_truth = {}
         map_truth_2_pred = {}
-        for record in other_records:
-            id_pred = int(record[5])
-            id_truth = int(record[11])
-            if id_pred not in map_pred_2_truth:
-                map_pred_2_truth[id_pred] = []
-            map_pred_2_truth[id_pred].append(id_truth)
-            if id_truth not in map_truth_2_pred:
-                map_truth_2_pred[id_truth] = []
-            map_truth_2_pred[id_truth].append(id_pred)
+        with open(other_records) as i_f:
+            for line in i_f:
+                record = line.strip().split("\t")
+                id_pred = int(record[5])
+                id_truth = int(record[11])
+                if id_pred not in map_pred_2_truth:
+                    map_pred_2_truth[id_pred] = []
+                map_pred_2_truth[id_pred].append(id_truth)
+                if id_truth not in map_truth_2_pred:
+                    map_truth_2_pred[id_truth] = []
+                map_truth_2_pred[id_truth].append(id_pred)
 
         record_center = {}
 
@@ -1237,8 +1330,6 @@ def find_records(input_record):
         good_records_idx = [i for w in list(good_records.values()) for i in w]
 
         records_r = [records[x] for k, w in good_records.items() for x in w]
-        records_r_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
-            x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), records_r)).saveas()
 
         N_none = len(none_records_ids)
         thread_logger.info("N_none: {} ".format(N_none))
@@ -1409,11 +1500,11 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     if not os.path.exists(work):
         os.mkdir(work)
 
-    original_tempdir = pybedtools.get_tempdir()
-    pybedtmp = os.path.join(work, "pybedtmp")
-    if not os.path.exists(pybedtmp):
-        os.mkdir(pybedtmp)
-    pybedtools.set_tempdir(pybedtmp)
+    original_tempdir = tempfile.tempdir
+    bed_tempdir = os.path.join(work, "bed_tempdir")
+    if not os.path.exists(bed_tempdir):
+        os.mkdir(bed_tempdir)
+    tempfile.tempdir = bed_tempdir
 
     if mode == "train" and not truth_vcf_file:
         raise(RuntimeError("--truth_vcf is needed for 'train' mode"))
@@ -1429,11 +1520,23 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     if ensemble_tsv and not ensemble_bed:
         ensemble_bed = extract_ensemble(work, ensemble_tsv)
 
-    len_candids = len(pybedtools.BedTool(
-        tumor_pred_vcf_file).intersect(region_bed_file, u=True))
+    cmd = "bedtools intersect -a {} -b {} -u".format(
+        tumor_pred_vcf_file, region_bed_file)
+    tmp_ = run_bedtools_cmd(cmd, run_logger=logger)
+    len_candids = 0
+    with open(tmp_) as i_f:
+        for line in i_f:
+            if line[0] != "#":
+                len_candids += 1
+
     if ensemble_bed:
-        len_candids += len(pybedtools.BedTool(ensemble_bed)
-                           .intersect(region_bed_file, u=True))
+        cmd = "bedtools intersect -a {} -b {} -u".format(
+            ensemble_bed, region_bed_file)
+        tmp_ = run_bedtools_cmd(cmd, run_logger=logger)
+        with open(tmp_) as i_f:
+            for line in i_f:
+                if line[0] != "#":
+                    len_candids += 1
     logger.info("len_candids: {}".format(len_candids))
     num_splits = max(len_candids // split_batch_size, num_threads)
     split_region_files = split_region(
@@ -1588,8 +1691,8 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     with open(done_flag, "w") as d_f:
         d_f.write("Done")
 
-    shutil.rmtree(pybedtmp)
-    pybedtools.set_tempdir(original_tempdir)
+    shutil.rmtree(bed_tempdir)
+    tempfile.tempdir = original_tempdir
 
     logger.info("Generating dataset is Done.")
 

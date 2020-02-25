@@ -13,15 +13,15 @@ import os
 import traceback
 import logging
 import shutil
+import tempfile
 
-import pybedtools
 import pysam
 import numpy as np
 
 from extract_postprocess_targets import extract_postprocess_targets
 from merge_post_vcfs import merge_post_vcfs
 from resolve_variants import resolve_variants
-from utils import concatenate_files, get_chromosomes_order
+from utils import concatenate_files, get_chromosomes_order, run_bedtools_cmd
 from long_read_indelrealign import long_read_indelrealign
 from resolve_scores import resolve_scores
 from _version import __version__
@@ -29,9 +29,9 @@ from _version import __version__
 
 def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
                  output_vcf, pass_threshold, lowqual_threshold):
-    merged_vcf = pybedtools.BedTool(merged_vcf)
-    candidates_vcf = pybedtools.BedTool(candidates_vcf)
-    ensemble_candids_vcf = []
+    logger = logging.getLogger(add_vcf_info.__name__)
+
+    ensemble_candids_vcf = None
     if ensemble_tsv:
         ensemble_candids_vcf = os.path.join(work, "ensemble_candids.vcf")
         with open(ensemble_tsv) as e_f:
@@ -68,11 +68,23 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
                     c_f.write(
                         "\t".join(map(str, [chrom, pos, ".", ref, alt, ".", ".", ".", "GT:DP:RO:AO:AF", ":".join(map(str, ["0/1", dp, ro, ao, af]))])) + "\n")
 
-    ensemble_candids_vcf = pybedtools.BedTool(ensemble_candids_vcf)
-    in_candidates = merged_vcf.window(candidates_vcf, w=5)
-    notin_candidates = merged_vcf.window(candidates_vcf, w=5, v=True)
-    in_ensemble = merged_vcf.window(ensemble_candids_vcf, w=5)
-    notin_any = notin_candidates.window(ensemble_candids_vcf, w=5, v=True)
+    cmd = "bedtools window -a {} -b {} -w 5".format(
+        merged_vcf, candidates_vcf)
+    in_candidates = run_bedtools_cmd(cmd, run_logger=logger)
+    cmd = "bedtools window -a {} -b {} -w 5 -v".format(
+        merged_vcf, candidates_vcf)
+    notin_candidates = run_bedtools_cmd(cmd, run_logger=logger)
+    if ensemble_tsv:
+        cmd = "bedtools window -a {} -b {} -w 5".format(
+            merged_vcf, ensemble_candids_vcf)
+        in_ensemble = run_bedtools_cmd(cmd, run_logger=logger)
+        cmd = "bedtools window -a {} -b {} -w 5 -v".format(
+            notin_candidates, ensemble_candids_vcf)
+        notin_any = run_bedtools_cmd(cmd, run_logger=logger)
+    else:
+        in_ensemble = None
+        notin_any = notin_candidates
+
     chroms_order = get_chromosomes_order(reference=reference)
     with pysam.FastaFile(reference) as rf:
         chroms = rf.references
@@ -80,30 +92,36 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
     scores = {}
     tags_info = {}
     for s_e, dd in [0, in_candidates], [1, in_ensemble]:
-        for x in dd:
-            tag = "-".join([str(chroms_order[x[0]]), x[1], x[3], x[4]])
-            scores[tag] = [x[5], x[6], x[7], x[9]]
-            if tag not in tags_info:
-                tags_info[tag] = []
-            info = x[19].split(":")
-            dp, ro, ao = list(map(int, info[1:4]))
-            af = float(info[4])
-            is_same = x[1] == x[11] and x[3] == x[13] and x[4] == x[14]
-            is_same_type = np.sign(
-                len(x[3]) - len(x[13])) == np.sign(len(x[4]) - len(x[14]))
-            dist = abs(int(x[1]) - int(x[11]))
-            len_diff = abs((len(x[3]) - len(x[13])) - (len(x[4]) - len(x[14])))
-            tags_info[tag].append(
-                [~is_same, ~is_same_type, dist, len_diff, s_e, dp, ro, ao, af])
+        if dd:
+            with open(dd) as i_f:
+                for line in i_f:
+                    x = line.strip().split("\t")
+                    tag = "-".join([str(chroms_order[x[0]]), x[1], x[3], x[4]])
+                    scores[tag] = [x[5], x[6], x[7], x[9]]
+                    if tag not in tags_info:
+                        tags_info[tag] = []
+                    info = x[19].split(":")
+                    dp, ro, ao = list(map(int, info[1:4]))
+                    af = float(info[4])
+                    is_same = x[1] == x[11] and x[3] == x[13] and x[4] == x[14]
+                    is_same_type = np.sign(
+                        len(x[3]) - len(x[13])) == np.sign(len(x[4]) - len(x[14]))
+                    dist = abs(int(x[1]) - int(x[11]))
+                    len_diff = abs(
+                        (len(x[3]) - len(x[13])) - (len(x[4]) - len(x[14])))
+                    tags_info[tag].append(
+                        [~is_same, ~is_same_type, dist, len_diff, s_e, dp, ro, ao, af])
     fina_info_tag = {}
     for tag, hits in tags_info.items():
         hits = sorted(hits, key=lambda x: x[0:5])
         fina_info_tag[tag] = hits[0][5:]
 
-    for x in notin_any:
-        tag = "-".join([str(chroms_order[x[0]]), x[1], x[3], x[4]])
-        fina_info_tag[tag] = [0, 0, 0, 0]
-        scores[tag] = [x[5], x[6], x[7], x[9]]
+    with open(notin_any) as i_f:
+        for line in i_f:
+            x = line.strip().split("\t")
+            tag = "-".join([str(chroms_order[x[0]]), x[1], x[3], x[4]])
+            fina_info_tag[tag] = [0, 0, 0, 0]
+            scores[tag] = [x[5], x[6], x[7], x[9]]
 
     tags = sorted(fina_info_tag.keys(), key=lambda x: list(map(int, x.split("-")[0:2]
                                                                )))
@@ -162,17 +180,21 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     if not os.path.exists(work):
         os.mkdir(work)
 
-    original_tempdir = pybedtools.get_tempdir()
-    pybedtmp = os.path.join(work, "pybedtmp_postprocess")
-    if not os.path.exists(pybedtmp):
-        os.mkdir(pybedtmp)
-    pybedtools.set_tempdir(pybedtmp)
+    original_tempdir = tempfile.tempdir
+    bed_tempdir = os.path.join(work, "bed_tempdir_postprocess")
+    if not os.path.exists(bed_tempdir):
+        os.mkdir(bed_tempdir)
+    tempfile.tempdir = bed_tempdir
 
     candidates_preds = os.path.join(work, "candidates_preds.vcf")
     ensembled_preds = os.path.join(work, "ensembled_preds.vcf")
-    pred_vcf = pybedtools.BedTool(pred_vcf_file)
-    pred_vcf.window(candidates_vcf, w=5, v=True).saveas(ensembled_preds)
-    pred_vcf.window(candidates_vcf, w=5, u=True).saveas(candidates_preds)
+
+    cmd = "bedtools window -a {} -b {} -w 5 -v".format(
+        pred_vcf_file, candidates_vcf)
+    run_bedtools_cmd(cmd, output_fn=ensembled_preds, run_logger=logger)
+    cmd = "bedtools window -a {} -b {} -w 5 -u".format(
+        pred_vcf_file, candidates_vcf)
+    run_bedtools_cmd(cmd, output_fn=candidates_preds, run_logger=logger)
 
     logger.info("Extract targets")
     postprocess_pad = 1 if not long_read else 10
@@ -217,8 +239,8 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
 
     logger.info("Output NeuSomatic prediction at {}".format(output_vcf))
 
-    shutil.rmtree(pybedtmp)
-    pybedtools.set_tempdir(original_tempdir)
+    shutil.rmtree(bed_tempdir)
+    tempfile.tempdir = original_tempdir
 
     logger.info("Postprocessing is Done.")
     return output_vcf

@@ -11,7 +11,6 @@ import argparse
 import pickle
 import traceback
 
-import pybedtools
 import numpy as np
 
 

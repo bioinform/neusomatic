@@ -14,12 +14,12 @@ import shutil
 import traceback
 import logging
 
-import pybedtools
+import tempfile
 
 from filter_candidates import filter_candidates
 from generate_dataset import generate_dataset, extract_ensemble
 from scan_alignments import scan_alignments
-from utils import concatenate_vcfs
+from utils import concatenate_vcfs, run_bedtools_cmd
 
 
 def split_dbsnp(record):
@@ -28,8 +28,9 @@ def split_dbsnp(record):
         "{} ({})".format(split_dbsnp.__name__, multiprocessing.current_process().name))
     try:
         if restart or not os.path.exists(dbsnp_region_vcf):
-            pybedtools.BedTool(dbsnp).intersect(
-                region_bed, u=True).saveas(dbsnp_region_vcf)
+            cmd = "bedtools intersect -a {} -b {} -u".format(dbsnp, region_bed)
+            run_bedtools_cmd(cmd, output_fn=dbsnp_region_vcf,
+                             run_logger=thread_logger)
         return dbsnp_region_vcf
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
@@ -39,7 +40,7 @@ def split_dbsnp(record):
 
 def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp,
                          scan_window_size, scan_maf, min_mapq,
-                         filtered_candidates_vcf, min_dp, max_dp, 
+                         filtered_candidates_vcf, min_dp, max_dp,
                          filter_duplicate,
                          good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
                          ins_min_af, del_min_af, del_merge_min_af,
@@ -134,9 +135,14 @@ def get_ensemble_region(record):
     thread_logger = logging.getLogger(
         "{} ({})".format(get_ensemble_region.__name__, multiprocessing.current_process().name))
     try:
-        pybedtools.BedTool(ensemble_bed).intersect(
-            pybedtools.BedTool(region).slop(
-                g=reference + ".fai", b=matrix_base_pad + 3), u=True).saveas(ensemble_bed_region_file)
+        cmd = "bedtools slop -i {} -g {} -b {}".format(region, reference + ".fai",
+                                                       matrix_base_pad + 3)
+        ensemble_bed_region_file_tmp = run_bedtools_cmd(
+            cmd, run_logger=thread_logger)
+        cmd = "bedtools intersect -a {} -b {} -u".format(
+            ensemble_bed, ensemble_bed_region_file_tmp)
+        run_bedtools_cmd(cmd, output_fn=ensemble_bed_region_file,
+                         run_logger=thread_logger)
         return ensemble_bed_region_file
 
     except Exception as ex:
@@ -184,14 +190,57 @@ def extract_candidate_split_regions(
                                                           split_regions)):
         candidates_region_file = os.path.join(
             work, "candidates_region_{}.bed".format(i))
-        candidates_bed = pybedtools.BedTool(filtered_vcf).each(
-            lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[1]) + len(x[3]))).sort().slop(
-            g=reference + ".fai", b=matrix_base_pad + 3).merge(d=merge_d_for_short_read)
+
+        is_empty = True
+        with open(filtered_vcf) as f_:
+            for line in f_:
+                if line[0]!="#":
+                    is_empty = False
+                    break
+        logger.info([filtered_vcf,is_empty])
+        if not is_empty:
+            cmd = '''grep -v "#" {}'''.format(filtered_vcf)
+            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            cmd = '''awk '{{print $1"\t"$2"\t"$2+length($4)}}' {}'''.format(
+                candidates_bed)
+            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            cmd = "bedtools sort -i {}".format(candidates_bed)
+            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            cmd = "bedtools slop -i {} -g {} -b {}".format(candidates_bed,
+                                                           reference + ".fai", matrix_base_pad + 3)
+            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            cmd = "bedtools merge -i {} -d {}".format(
+                candidates_bed, merge_d_for_short_read)
+            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+        else:
+            candidates_bed = tempfile.NamedTemporaryFile(
+                prefix="tmpbed_", suffix=".bed", delete=False)
+            candidates_bed = candidates_bed.name
+
+
         if ensemble_beds:
-            candidates_bed = candidates_bed.cat(ensemble_beds[i], postmerge=False).sort(
-            ).merge(d=merge_d_for_short_read)
-        candidates_bed.intersect(split_region_).sort().saveas(
-            candidates_region_file)
+            cmd = "cat {} {}".format(
+                candidates_bed,
+                ensemble_beds[i])
+            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            cmd = "cut -f 1,2,3 {}".format(
+                candidates_bed)
+            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            cmd = "bedtools sort -i {}".format(
+                candidates_bed)
+            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            cmd = "bedtools merge -i {} -d {} ".format(
+                candidates_bed, merge_d_for_short_read)
+            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+
+        cmd = "bedtools intersect -a {} -b {}".format(
+            candidates_bed, split_region_)
+        candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+        cmd = "bedtools sort -i {}".format(
+            candidates_bed)
+        run_bedtools_cmd(cmd, output_fn=candidates_region_file,
+                         run_logger=logger)
+
         candidates_split_regions.append(candidates_region_file)
     return candidates_split_regions
 
@@ -202,7 +251,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                ins_min_af, del_min_af, del_merge_min_af,
                ins_merge_min_af, merge_r, truth_vcf, tsv_batch_size,
                matrix_width, matrix_base_pad, min_ev_frac_per_col,
-               ensemble_tsv, long_read, restart, first_do_without_qual, 
+               ensemble_tsv, long_read, restart, first_do_without_qual,
                filter_duplicate,
                num_threads,
                scan_alignments_binary,):
@@ -212,11 +261,11 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     if restart or not os.path.exists(work):
         os.mkdir(work)
 
-    original_tempdir = pybedtools.get_tempdir()
-    pybedtmp = os.path.join(work, "pybedtmp_preprocess")
-    if not os.path.exists(pybedtmp):
-        os.mkdir(pybedtmp)
-    pybedtools.set_tempdir(pybedtmp)
+    original_tempdir = tempfile.tempdir
+    bed_tempdir = os.path.join(work, "bed_tempdir_preprocess")
+    if not os.path.exists(bed_tempdir):
+        os.mkdir(bed_tempdir)
+    tempfile.tempdir = bed_tempdir
 
     if not os.path.exists(tumor_bam):
         logger.error("Aborting!")
@@ -254,7 +303,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
 
         tumor_outputs_without_q = process_split_region("tumor", work_tumor_without_q, region_bed, reference, mode,
                                                        tumor_bam, dbsnp, scan_window_size, scan_maf, min_mapq,
-                                                       filtered_candidates_vcf_without_q, min_dp, max_dp, 
+                                                       filtered_candidates_vcf_without_q, min_dp, max_dp,
                                                        filter_duplicate,
                                                        good_ao, min_ao,
                                                        snp_min_af, -10000, snp_min_ao,
@@ -279,7 +328,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     logger.info("Scan tumor bam (and extracting quality scores).")
     tumor_outputs = process_split_region("tumor", work_tumor, region_bed, reference, mode,
                                          tumor_bam, dbsnp, scan_window_size, scan_maf, min_mapq,
-                                         filtered_candidates_vcf, min_dp, max_dp, 
+                                         filtered_candidates_vcf, min_dp, max_dp,
                                          filter_duplicate,
                                          good_ao, min_ao,
                                          snp_min_af, snp_min_bq, snp_min_ao,
@@ -308,7 +357,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     logger.info("Scan normal bam (and extracting quality scores).")
     normal_counts, _, _, _ = process_split_region("normal", work_normal, region_bed, reference, mode, normal_bam,
                                                   None, scan_window_size, 0.2, min_mapq,
-                                                  None, min_dp, max_dp, 
+                                                  None, min_dp, max_dp,
                                                   filter_duplicate,
                                                   good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
                                                   ins_min_af, del_min_af, del_merge_min_af,
@@ -334,8 +383,8 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                     matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, num_threads,
                                     ensemble_beds[i] if ensemble_tsv else None, tsv_batch_size)
 
-    shutil.rmtree(pybedtmp)
-    pybedtools.set_tempdir(original_tempdir)
+    shutil.rmtree(bed_tempdir)
+    tempfile.tempdir = original_tempdir
 
     logger.info("Preprocessing is Done.")
 
@@ -429,7 +478,7 @@ if __name__ == '__main__':
                    args.ins_min_af, args.del_min_af, args.del_merge_min_af,
                    args.ins_merge_min_af, args.merge_r,
                    args.truth_vcf, args.tsv_batch_size, args.matrix_width, args.matrix_base_pad, args.min_ev_frac_per_col,
-                   args.ensemble_tsv, args.long_read, args.restart, args.first_do_without_qual, 
+                   args.ensemble_tsv, args.long_read, args.restart, args.first_do_without_qual,
                    args.filter_duplicate,
                    args.num_threads,
                    args.scan_alignments_binary)
