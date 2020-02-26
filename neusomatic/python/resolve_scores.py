@@ -8,10 +8,9 @@ import argparse
 import logging
 import traceback
 
-import pybedtools
 import numpy as np
 
-from utils import get_chromosomes_order
+from utils import get_chromosomes_order, run_bedtools_cmd
 
 
 def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
@@ -19,21 +18,34 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
 
     logger.info("-----Resolve Prediction Scores for Realigned Variants------")
 
-    ra_out = pybedtools.BedTool(ra_vcf)
-    ra_target = pybedtools.BedTool(target_vcf)
+    cmd = "bedtools window -a {} -b {} -w 5 -v".format(
+        ra_vcf, target_vcf)
+    tmp_=run_bedtools_cmd(cmd, run_logger=logger)
 
     final_intervals = []
-    for interval in ra_out.window(ra_target, w=5, v=True):
-        interval[5] = str(np.round(-10*np.log10(0.25),4))
-        final_intervals.append(interval)
+    with open(tmp_) as i_f:
+        for line in i_f:
+            if not line.strip():
+                continue
+            interval = line.strip().split("\t")
+            interval[5] = str(np.round(-10*np.log10(0.25),4))
+            final_intervals.append(interval)
+
+    cmd = "bedtools window -a {} -b {} -w 5".format(
+        ra_vcf, target_vcf)
+    tmp_=run_bedtools_cmd(cmd, run_logger=logger)
 
     intervals_dict = {}
-    for interval in ra_out.window(ra_target, w=5):
-        id_ = "{}-{}-{}-{}".format(interval[0],
-                                   interval[1], interval[3], interval[4])
-        if id_ not in intervals_dict:
-            intervals_dict[id_] = []
-        intervals_dict[id_].append(interval)
+    with open(tmp_) as i_f:
+        for line in i_f:
+            if not line.strip():
+                continue
+            interval = line.strip().split("\t")
+            id_ = "{}-{}-{}-{}".format(interval[0],
+                                       interval[1], interval[3], interval[4])
+            if id_ not in intervals_dict:
+                intervals_dict[id_] = []
+            intervals_dict[id_].append(interval)
 
     for id_, intervals in intervals_dict.items():
         if len(intervals) == 1:

@@ -7,6 +7,8 @@ import shutil
 import shlex
 import subprocess
 import logging
+import traceback
+import tempfile
 
 import pysam
 import numpy as np
@@ -79,6 +81,29 @@ def get_chromosomes_order(reference=None, bam=None):
 
 def safe_read_info_dict(d, field, t=str, default_val=""):
     return t(d[field]) if field in d else default_val
+
+
+def run_bedtools_cmd(command, output_fn=None, run_logger=None):
+    run_logger.error("BCommand {}.".format(command))
+    if output_fn is None:
+        tmpfn = tempfile.NamedTemporaryFile(
+            prefix="tmpbed_", suffix=".bed", delete=False)
+        output_fn = tmpfn.name
+    stderr_file = output_fn + ".stderr"
+    if run_logger is None:
+        run_logger = logger
+    try:
+        returncode = run_shell_command(command, stdout=output_fn, stderr=stderr_file,
+                                       run_logger=run_logger)
+        os.remove(stderr_file)
+        return output_fn
+    except Exception as ex:
+        run_logger.error(traceback.format_exc())
+        run_logger.error(ex)
+        err_msg = "Command {} failed.".format(command)
+        if os.path.exists(stderr_file) and os.path.getsize(stderr_file):
+            err_msg += "\nPlease check error log at {}".format(stderr_file)
+        raise Exception(err_msg)
 
 
 def prob2phred(p, max_phred=100):

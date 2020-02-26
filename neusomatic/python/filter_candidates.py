@@ -7,12 +7,12 @@ import argparse
 import traceback
 import logging
 import multiprocessing
+import tempfile
 
 import pysam
-import pybedtools
 import numpy as np
 
-from utils import safe_read_info_dict
+from utils import safe_read_info_dict, run_bedtools_cmd
 
 
 def filter_candidates(candidate_record):
@@ -28,6 +28,8 @@ def filter_candidates(candidate_record):
         records = {}
         with open(candidates_vcf) as v_f:
             for line in v_f:
+                if not line.strip():
+                    continue
                 if line[0] == "#":
                     continue
                 if len(line.strip().split()) != 10:
@@ -259,25 +261,57 @@ def filter_candidates(candidate_record):
                 final_records.append([chrom, pos - 1, ref, alt, line])
         final_records = sorted(final_records, key=lambda x: x[0:2])
         if dbsnp:
-            filtered_bed = pybedtools.BedTool(map(lambda x:
-                                                  pybedtools.Interval(x[1][0], int(x[1][1]),
-                                                                      int(x[1][
-                                                                          1]) + 1,
-                                                                      x[1][2], x[1][3], str(x[0])),
-                                                  enumerate(final_records))).sort()
-            dbsnp = pybedtools.BedTool(dbsnp).each(lambda x:
-                                                   pybedtools.Interval(x[0], int(x[1]),
-                                                                       int(x[
-                                                                           1]) + 1,
-                                                                       x[3], x[4])).sort()
-            non_in_dbsnp_1 = filtered_bed.window(dbsnp, w=0, v=True)
-            non_in_dbsnp_2 = filtered_bed.window(dbsnp, w=0).filter(
-                lambda x: x[1] != x[7] or x[3] != x[9] or x[4] != x[10]).sort()
+            filtered_bed = tempfile.NamedTemporaryFile(
+                prefix="tmpbed_", suffix=".bed", delete=False)
+            filtered_bed = filtered_bed.name
+            with open(filtered_bed, "w") as f_o:
+                for x in enumerate(final_records):
+                    f_o.write("\t".join(map(str, [x[1][0], int(x[1][1]), int(
+                        x[1][1]) + 1, x[1][2], x[1][3], str(x[0])])) + "\n")
+            cmd = "bedtools sort -i {}".format(filtered_bed)
+            filtered_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
+
+            dbsnp_tmp = tempfile.NamedTemporaryFile(
+                prefix="tmpbed_", suffix=".bed", delete=False)
+            dbsnp_tmp = dbsnp_tmp.name
+            with open(dbsnp_tmp, "w") as f_o:
+                with open(dbsnp, "r") as f_i:
+                    for line in f_i:
+                        if not line.strip():
+                            continue
+                        if line[0] == "#":
+                            continue
+                        x = line.strip().split("\t")
+                        f_o.write(
+                            "\t".join(map(str, [x[0], int(x[1]), int(x[1]) + 1, x[3], x[4]])) + "\n")
+            cmd = "bedtools sort -i {}".format(dbsnp_tmp)
+            run_bedtools_cmd(cmd, output_fn=dbsnp, run_logger=thread_logger)
+
+            cmd = "bedtools window -a {} -b {} -w 0 -v".format(
+                filtered_bed, dbsnp)
+            non_in_dbsnp_1 = run_bedtools_cmd(cmd, run_logger=thread_logger)
+            cmd = "bedtools window -a {} -b {} -w 0".format(
+                filtered_bed, dbsnp)
+            non_in_dbsnp_2 = run_bedtools_cmd(cmd, run_logger=thread_logger)
+            cmd = '''awk '($2!=$8)||($4!=$10)||($5!=$11){{print $0}}' {}'''.format(
+                non_in_dbsnp_2)
+            non_in_dbsnp_2 = run_bedtools_cmd(cmd, run_logger=thread_logger)
+            cmd = "bedtools sort -i {}".format(non_in_dbsnp_2)
+            non_in_dbsnp_2 = run_bedtools_cmd(cmd, run_logger=thread_logger)
+
             non_in_dbsnp_ids = []
-            for x in non_in_dbsnp_1:
-                non_in_dbsnp_ids.append(int(x[5]))
-            for x in non_in_dbsnp_2:
-                non_in_dbsnp_ids.append(int(x[5]))
+            with open(non_in_dbsnp_1) as i_f:
+                for line in i_f:
+                    if not line.strip():
+                        continue
+                    x = line.strip().split("\t")
+                    non_in_dbsnp_ids.append(int(x[5]))
+            with open(non_in_dbsnp_2) as i_f:
+                for line in i_f:
+                    if not line.strip():
+                        continue
+                    x = line.strip().split("\t")
+                    non_in_dbsnp_ids.append(int(x[5]))
             final_records = list(map(lambda x: x[1], filter(
                 lambda x: x[0] in non_in_dbsnp_ids, enumerate(final_records))))
         with open(filtered_candidates_vcf, "w") as o_f:

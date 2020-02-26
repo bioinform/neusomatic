@@ -66,6 +66,8 @@ def extract_info_tsv(record):
         n_none = 0
         with open(tsv, "r") as i_f:
             for line in i_f:
+                if not line.strip():
+                    continue
                 tag = line.strip().split()[2]
                 n_none += (1 if "NONE" in tag else 0)
         n_var = L - n_none
@@ -85,6 +87,8 @@ def extract_info_tsv(record):
         with open(tsv, "r") as i_f:
             i = -1
             for i, line in enumerate(i_f):
+                if not line.strip():
+                    continue
                 fields = line.strip().split()
                 ii = int(fields[0])
                 assert ii == i
