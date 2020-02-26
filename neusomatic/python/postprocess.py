@@ -238,7 +238,10 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
         resolve_scores(tumor_bam, ra_resolved_vcf, target_vcf, resolved_vcf)
 
         not_resolved_vcf = os.path.join(work, "candidates_preds.not_ra_resolved.vcf")
-        pybedtools.BedTool(target_vcf).intersect(not_resolved_bed, u=True).saveas(not_resolved_vcf)
+        cmd = "bedtools intersect -a {} -b {} -u".format(
+            target_vcf, not_resolved_bed)
+        run_bedtools_cmd(cmd, output_fn=not_resolved_vcf, run_logger=logger)
+
         
         all_no_resolve = concatenate_files(
             [no_resolve, ensembled_preds, not_resolved_vcf], os.path.join(work, "no_resolve.vcf"))
