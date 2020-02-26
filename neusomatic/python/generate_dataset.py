@@ -17,7 +17,7 @@ import shutil
 import numpy as np
 import pybedtools
 import pysam
-from scipy.misc import imresize
+from PIL import Image
 
 from split_bed import split_region
 from utils import concatenate_vcfs, get_chromosomes_order
@@ -520,39 +520,43 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
     else:
         col_pos_map = {i: int(round(v / float(ncols) * matrix_width))
                        for i, v in col_pos_map.items()}
-        tumor_count_matrix = imresize(
-            tumor_matrix, (5, matrix_width)).astype(int)
-        bq_tumor_count_matrix = imresize(
-            bq_tumor_matrix, (5, matrix_width)).astype(int)
-        mq_tumor_count_matrix = imresize(
-            mq_tumor_matrix, (5, matrix_width)).astype(int)
-        st_tumor_count_matrix = imresize(
-            st_tumor_matrix, (5, matrix_width)).astype(int)
-        lsc_tumor_count_matrix = imresize(
-            lsc_tumor_matrix, (5, matrix_width)).astype(int)
-        rsc_tumor_count_matrix = imresize(
-            rsc_tumor_matrix, (5, matrix_width)).astype(int)
+        tumor_count_matrix = np.array(Image.fromarray(
+            tumor_matrix).resize((matrix_width, 5), 2)).astype(int)
+        bq_tumor_count_matrix = np.array(Image.fromarray(
+            bq_tumor_matrix).resize((matrix_width, 5), 2)).astype(int)
+        mq_tumor_count_matrix = np.array(Image.fromarray(
+            mq_tumor_matrix).resize((matrix_width, 5), 2)).astype(int)
+        st_tumor_count_matrix = np.array(Image.fromarray(
+            st_tumor_matrix).resize((matrix_width, 5), 2)).astype(int)
+        lsc_tumor_count_matrix = np.array(Image.fromarray(
+            lsc_tumor_matrix).resize((matrix_width, 5), 2)).astype(int)
+        rsc_tumor_count_matrix = np.array(Image.fromarray(
+            rsc_tumor_matrix).resize((matrix_width, 5), 2)).astype(int)
+
         tag_tumor_count_matrices = []
         for iii in range(len(tag_tumor_matrices)):
             tag_tumor_count_matrices.append(
-                imresize(tag_tumor_matrices[iii], (5, matrix_width)).astype(int))
-        normal_count_matrix = imresize(
-            normal_matrix, (5, matrix_width)).astype(int)
-        bq_normal_count_matrix = imresize(
-            bq_normal_matrix, (5, matrix_width)).astype(int)
-        mq_normal_count_matrix = imresize(
-            mq_normal_matrix, (5, matrix_width)).astype(int)
-        st_normal_count_matrix = imresize(
-            st_normal_matrix, (5, matrix_width)).astype(int)
-        lsc_normal_count_matrix = imresize(
-            lsc_normal_matrix, (5, matrix_width)).astype(int)
-        rsc_normal_count_matrix = imresize(
-            rsc_normal_matrix, (5, matrix_width)).astype(int)
+                np.array(Image.fromarray(tag_tumor_matrices[iii]).resize((matrix_width, 5), 2)).astype(int))
+
+        normal_count_matrix = np.array(Image.fromarray(
+            normal_matrix).resize((matrix_width, 5), 2)).astype(int)
+        bq_normal_count_matrix = np.array(Image.fromarray(
+            bq_normal_matrix).resize((matrix_width, 5), 2)).astype(int)
+        mq_normal_count_matrix = np.array(Image.fromarray(
+            mq_normal_matrix).resize((matrix_width, 5), 2)).astype(int)
+        st_normal_count_matrix = np.array(Image.fromarray(
+            st_normal_matrix).resize((matrix_width, 5), 2)).astype(int)
+        lsc_normal_count_matrix = np.array(Image.fromarray(
+            lsc_normal_matrix).resize((matrix_width, 5), 2)).astype(int)
+        rsc_normal_count_matrix = np.array(Image.fromarray(
+            rsc_normal_matrix).resize((matrix_width, 5), 2)).astype(int)
+
         tag_normal_count_matrices = []
         for iii in range(len(tag_normal_matrices)):
             tag_normal_count_matrices.append(
-                imresize(tag_normal_matrices[iii], (5, matrix_width)).astype(int))
-        ref_count_matrix = imresize(ref_matrix, (5, matrix_width)).astype(int)
+                np.array(Image.fromarray(tag_normal_matrices[iii]).resize((matrix_width, 5), 2)).astype(int))
+        ref_count_matrix = np.array(Image.fromarray(
+            ref_matrix).resize((matrix_width, 5), 2)).astype(int)
 
     if int(pos) + rcenter[0] not in col_pos_map:
         center = min(col_pos_map.values()) + rcenter[0] - 1 + rcenter[1]
@@ -989,9 +993,10 @@ def find_records(input_record):
                     continue
                 record = line.strip().split()
                 pos = int(record[1])
-                if len(record[3]) != len(record[4]) and min(len(record[3]),len(record[4]))>0 and record[3][0] != record[4][0]:
+                if len(record[3]) != len(record[4]) and min(len(record[3]), len(record[4])) > 0 and record[3][0] != record[4][0]:
                     if pos > 1:
-                        l_base = fasta_file.fetch(record[0], pos - 2, pos - 1).upper()
+                        l_base = fasta_file.fetch(
+                            record[0], pos - 2, pos - 1).upper()
                         record[3] = l_base + record[3]
                         record[4] = l_base + record[4]
                         pos -= 1
