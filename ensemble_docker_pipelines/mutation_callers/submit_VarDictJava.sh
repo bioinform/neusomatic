@@ -3,7 +3,7 @@
 
 set -e
 
-OPTS=`getopt -o o: --long out-dir:,out-vcf:,tumor-bam:,normal-bam:,human-reference:,selector:,extra-arguments:,action:,VAF:,MEM: -n 'submit_VarDictJava.sh'  -- "$@"`
+OPTS=`getopt -o o: --long out-dir:,out-vcf:,tumor-bam:,normal-bam:,human-reference:,selector:,extra-arguments:,action:,VAF:,MEM:,singularity -n 'submit_VarDictJava.sh'  -- "$@"`
 
 if [ $? != 0 ] ; then echo "Failed parsing options." >&2 ; exit 1 ; fi
 
@@ -15,6 +15,8 @@ MYDIR="$( cd "$( dirname "$0" )" && pwd )"
 VAF=0.05
 action=echo
 MEM=14
+
+singularity=''
 
 while true; do
     case "$1" in
@@ -78,6 +80,9 @@ while true; do
             *) action=$2 ; shift 2 ;;
         esac ;;
 
+    --singularity )
+        singularity=1 ; shift ;;
+
     -- ) shift; break ;;
     * ) break ;;
     esac
@@ -109,7 +114,11 @@ num_lines=`cat ${SELECTOR} | wc -l`
 input_bed=${SELECTOR}
 if [[ $(( $total_bases / $num_lines )) -gt 50000 ]]
 then
-    echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G lethalfang/somaticseq:2.7.2 \\" >> $out_script
+    if [[ $singularity ]]; then
+        echo "singularity exec --bind /:/mnt docker://lethalfang/somaticseq:3.3.0 \\" >> $out_script
+    else
+        echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G lethalfang/somaticseq:3.3.0 \\" >> $out_script
+    fi
     echo "/opt/somaticseq/utilities/split_mergedBed.py \\" >> $out_script
     echo "-infile /mnt/${SELECTOR} -outfile /mnt/${outdir}/split_regions.bed" >> $out_script
     echo "" >> $out_script
@@ -118,8 +127,12 @@ then
 fi
 
 
-echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G lethalfang/vardictjava:1.5.1 bash -c \\" >> $out_script
-echo "\"/opt/VarDict-1.5.1/bin/VarDict \\" >> $out_script
+if [[ $singularity ]]; then
+    echo "singularity exec --bind /:/mnt docker://lethalfang/vardictjava:1.5.2 bash -c \\" >> $out_script
+else
+    echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G lethalfang/vardictjava:1.5.2 bash -c \\" >> $out_script
+fi
+echo "\"/opt/VarDict-1.5.2/bin/VarDict \\" >> $out_script
 echo "${extra_arguments} \\" >> $out_script
 echo "-G /mnt/${HUMAN_REFERENCE} \\" >> $out_script
 echo "-f $VAF -h \\" >> $out_script
@@ -128,7 +141,11 @@ echo "-Q 1 -c 1 -S 2 -E 3 -g 4 /mnt/${input_bed} \\" >> $out_script
 echo "> /mnt/${outdir}/vd.var\"" >> $out_script
 echo "" >> $out_script
 
-echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G lethalfang/vardictjava:1.5.1 \\" >> $out_script
+if [[ $singularity ]]; then
+    echo "singularity exec --bind /:/mnt docker://lethalfang/vardictjava:1.5.2 \\" >> $out_script
+else
+    echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G lethalfang/vardictjava:1.5.2 \\" >> $out_script
+fi
 echo "bash -c \"cat /mnt/${outdir}/vd.var | awk 'NR!=1' | /opt/VarDict/testsomatic.R | /opt/VarDict/var2vcf_paired.pl -N 'TUMOR|NORMAL' -f $VAF \\" >> $out_script
 echo "> /mnt/${outdir}/${outvcf}\"" >> $out_script
 

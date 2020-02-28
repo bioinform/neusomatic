@@ -3,7 +3,7 @@
 
 set -e
 
-OPTS=`getopt -o o: --long out-dir:,tumor-bam:,normal-bam:,human-reference:,selector:,exclude:,dbsnp:,cosmic:,MEM:,action:,mutect2:,varscan-snv:,varscan-indel:,sniper:,vardict:,muse:,strelka-snv:,strelka-indel:,extra-arguments: -n 'submit_SomaticSeq.sh'  -- "$@"`
+OPTS=`getopt -o o: --long out-dir:,tumor-bam:,normal-bam:,human-reference:,selector:,exclude:,dbsnp:,cosmic:,MEM:,action:,mutect2:,varscan-snv:,varscan-indel:,sniper:,vardict:,muse:,strelka-snv:,strelka-indel:,extra-arguments:,singularity -n 'submit_SomaticSeq.sh'  -- "$@"`
 
 if [ $? != 0 ] ; then echo "Failed parsing options." >&2 ; exit 1 ; fi
 
@@ -14,6 +14,8 @@ MYDIR="$( cd "$( dirname "$0" )" && pwd )"
 
 action=echo
 MEM=6
+
+singularity=''
 
 while true; do
     case "$1" in
@@ -131,6 +133,9 @@ while true; do
             "") shift 2 ;;
             *) extra_arguments=$2 ; shift 2 ;;
         esac ;;
+
+    --singularity )
+        singularity=1 ; shift ;;
         
     -- ) shift; break ;;
     * ) break ;;
@@ -187,10 +192,11 @@ echo "" >> $out_script
 echo 'echo -e "Start at `date +"%Y/%m/%d %H:%M:%S"`" 1>&2' >> $out_script
 echo "" >> $out_script
 
-echo "docker pull lethalfang/somaticseq:2.7.2" >> $out_script
-echo "" >> $out_script
-
-echo "docker run --rm -v /:/mnt -u $UID --memory 24g lethalfang/somaticseq:2.7.2 \\" >> $out_script
+if [[ $singularity ]]; then
+    echo "singularity exec --bind /:/mnt   docker://lethalfang/somaticseq:3.3.0 \\" >> $out_script
+else
+    echo "docker run --rm -v /:/mnt -u $UID --memory 24g lethalfang/somaticseq:3.3.0 \\" >> $out_script
+fi
 echo "/opt/somaticseq/SomaticSeq.Wrapper.sh \\" >> $out_script
 echo "--output-dir       /mnt/${outdir} \\" >> $out_script
 echo "--genome-reference /mnt/${HUMAN_REFERENCE} \\" >> $out_script

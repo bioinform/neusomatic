@@ -24,6 +24,8 @@ prepare_callers_scripts.sh \
 --selector /ABSOLUTE/PATH/TO/region.bed \
 --mutect2 --somaticsniper --vardict --varscan2 --muse --strelka --wrapper
 ```
+**NOTE:** If you want to use Singulariy instead of Docker, please use `--singularity` argument.
+
 This command will create sub-folders with the following sctructure for the split regions:
 ```
 output
@@ -79,13 +81,13 @@ done
 ```
 This will generate "Ensemble.sSNV.tsv" and "Ensemble.sINDEL.tsv" under each region subfolder (e.g. under 'output/{1,2,3,...}/Wrapper/'). 
 
-Now you can combine these files to generate `enemble_ann.tsv` file.
+Now you can combine these files to generate `ensemble_ann.tsv` file.
 ```
 cat <(cat output/*/Wrapper/Ensemble.s*.tsv |grep CHROM|head -1) \
     <(cat output/*/Wrapper/Ensemble.s*.tsv |grep -v CHROM) | sed "s/nan/0/g" > ensemble_ann.tsv
 
 ```
-and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
+and provide `ensemble_ann.tsv` as `--ensemble_tsv` argument in `preprocess.py`.
 
 
 
@@ -119,11 +121,13 @@ and provide `enemble_ann.tsv` as `--enemble_ann` argument in `preprocess.py`.
 * `--strelka-config-arguments`    (Extra parameters to pass onto Strelka's config command)
 * `--strelka-run-arguments`       (Extra parameters to pass onto Strekla's run command)
 * `--wrapper-arguments`           (Extra parameters to pass onto SomaticSeq.Wrapper.sh)
+* `--singularity`                 (Optional flag to use Singulariy instead of Docker)
 
 
 
 
 ### NOTES
+* If you want to use Singulariy instead of Docker, please use `--singularity` argument in `prepare_callers_scripts`.
 * Due to the way those run scripts are written, the Sun Grid Engine's standard error log will record the time the task completes (i.e., `Done at 2017/10/30 29:03:02`), and it will only do so when the task is completed with an exit code of 0. It can be a quick way to check if a task is done, by looking at the final line of the standard error log file.
 * If you don't provide a region file, each split BED file represents 1/N (For N splits) of the total base pairs in the human genome (obtained from the .fa.fai file, but only including 1, 2, 3, ..., MT, or chr1, chr2, ..., chrM contigs).
 * Parallelization (i.e., splitting) is not turned on for SomaticSniper because 1) it's manageable on a single split (even for WGS), and 2) it doesn't support partial processing with BED file, so it may not be worth the time to split the BAM. After SomaticSniper finishes, the result VCF files will be split into each of the regions sub-folders `output/{1,2,3,...}`.

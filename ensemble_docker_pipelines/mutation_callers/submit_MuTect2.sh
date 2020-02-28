@@ -3,7 +3,7 @@
 
 set -e
 
-OPTS=`getopt -o o: --long out-dir:,out-vcf:,tumor-bam:,normal-bam:,tumor-name:,normal-name:,human-reference:,selector:,dbsnp:,MEM:,threads:,extra-arguments:,extra-filter-arguments:,action: -n 'submit_MuTect.sh'  -- "$@"`
+OPTS=`getopt -o o: --long out-dir:,out-vcf:,tumor-bam:,normal-bam:,tumor-name:,normal-name:,human-reference:,selector:,MEM:,threads:,extra-arguments:,extra-filter-arguments:,action:,singularity -n 'submit_MuTect.sh'  -- "$@"`
 
 if [ $? != 0 ] ; then echo "Failed parsing options." >&2 ; exit 1 ; fi
 
@@ -15,6 +15,8 @@ MYDIR="$( cd "$( dirname "$0" )" && pwd )"
 action=echo
 MEM=7
 threads=4
+
+singularity=''
 
 while true; do
     case "$1" in
@@ -66,12 +68,6 @@ while true; do
             *) SELECTOR=$2 ; shift 2 ;;
         esac ;;
 
-    --dbsnp )
-        case "$2" in
-            "") shift 2 ;;
-            *)  dbsnp=$2 ; shift 2 ;;
-        esac ;;
-
     --MEM )
         case "$2" in
             "") shift 2 ;;
@@ -102,6 +98,8 @@ while true; do
             *)  action=$2 ; shift 2 ;;
         esac ;;
 
+    --singularity )
+        singularity=1 ; shift ;;
 
     -- ) shift; break ;;
     * ) break ;;
@@ -117,11 +115,6 @@ out_script=${outdir}/logs/mutect2.cmd
 selector_text=''
 if [[ -r $SELECTOR ]]; then
     selector_text="--intervals /mnt/${SELECTOR}"
-fi
-
-dbsnp_text=''
-if [[ -r $dbsnp ]]; then
-    dbsnp_text="--dbsnp /mnt/${dbsnp}"
 fi
 
 
@@ -144,35 +137,50 @@ if [[ $tumor_name ]]
 then
     echo "tumor_name=${tumor_name}" >> $out_script
 else
-    echo "tumor_name=\`docker run --rm -v /:/mnt -u $UID --memory 1g lethalfang/samtools:0.1.19 samtools view -H /mnt/${tumor_bam} | egrep -w '^@RG' | grep -Po 'SM:[^\t$]+' | sed 's/SM://' | uniq | sed -e 's/[[:space:]]*$//'\`" >> $out_script
+    if [[ $singularity ]]; then
+        echo "tumor_name=\`singularity exec --bind /:/mnt docker://lethalfang/samtools:1.7 samtools view -H /mnt/${tumor_bam} | egrep -w '^@RG' | grep -Po 'SM:[^\t$]+' | sed 's/SM://' | uniq | sed -e 's/[[:space:]]*$//'\`" >> $out_script
+    else
+        echo "tumor_name=\`docker run --rm -v /:/mnt -u $UID --memory 1g lethalfang/samtools:1.7 samtools view -H /mnt/${tumor_bam} | egrep -w '^@RG' | grep -Po 'SM:[^\t$]+' | sed 's/SM://' | uniq | sed -e 's/[[:space:]]*$//'\`" >> $out_script
+    fi
 fi
 
 if [[ $normal_name ]]
 then
     echo "normal_name=${normal_name}" >> $out_script
 else
-    echo "normal_name=\`docker run --rm -v /:/mnt -u $UID --memory 1g lethalfang/samtools:0.1.19 samtools view -H /mnt/${normal_bam} | egrep -w '^@RG' | grep -Po 'SM:[^\t$]+' | sed 's/SM://' | uniq | sed -e 's/[[:space:]]*$//'\`" >> $out_script
+    if [[ $singularity ]]; then
+        echo "normal_name=\`singularity exec --bind /:/mnt docker://lethalfang/samtools:1.7 samtools view -H /mnt/${normal_bam} | egrep -w '^@RG' | grep -Po 'SM:[^\t$]+' | sed 's/SM://' | uniq | sed -e 's/[[:space:]]*$//'\`" >> $out_script
+    else
+        echo "normal_name=\`docker run --rm -v /:/mnt -u $UID --memory 1g lethalfang/samtools:1.7 samtools view -H /mnt/${normal_bam} | egrep -w '^@RG' | grep -Po 'SM:[^\t$]+' | sed 's/SM://' | uniq | sed -e 's/[[:space:]]*$//'\`" >> $out_script
+    fi
     echo "" >> $out_script
 fi
 
 echo "" >> $out_script
 
-echo "docker run --rm -v /:/mnt -u $UID --memory $(( MEM * threads ))G broadinstitute/gatk:4.0.0.0 \\" >> $out_script
-echo "java -Xmx${MEM}g -jar gatk.jar Mutect2 \\" >> $out_script
+if [[ $singularity ]]; then
+    echo "singularity exec --bind /:/mnt docker://broadinstitute/gatk:4.0.5.2 \\" >> $out_script
+else
+    echo "docker run --rm -v /:/mnt -u $UID --memory $(( MEM * threads ))G broadinstitute/gatk:4.0.5.2 \\" >> $out_script
+fi
+echo "java -Xmx${MEM}g -jar /gatk/gatk.jar Mutect2 \\" >> $out_script
 echo "--reference /mnt/${HUMAN_REFERENCE} \\" >> $out_script
 echo "$selector_text \\" >> $out_script
 echo "--input /mnt/${normal_bam} \\" >> $out_script
 echo "--input /mnt/${tumor_bam} \\" >> $out_script
 echo "--normal-sample \${normal_name} \\" >> $out_script
 echo "--tumor-sample \${tumor_name} \\" >> $out_script
-echo "$dbsnp_text \\" >> $out_script
 echo "--native-pair-hmm-threads ${threads} \\" >> $out_script
 echo "${extra_arguments} \\" >> $out_script
 echo "--output /mnt/${outdir}/unfiltered.${outvcf}" >> $out_script
 echo "" >> $out_script
 
-echo "docker run --rm -v /:/mnt -u $UID --memory 6g broadinstitute/gatk:4.0.0.0 \\" >> $out_script
-echo "java -Xmx${MEM}g -jar gatk.jar FilterMutectCalls \\" >> $out_script
+if [[ $singularity ]]; then
+    echo "singularity exec --bind /:/mnt docker://broadinstitute/gatk:4.0.5.2 \\" >> $out_script
+else
+    echo "docker run --rm -v /:/mnt -u $UID --memory 6g broadinstitute/gatk:4.0.5.2 \\" >> $out_script
+fi
+echo "java -Xmx${MEM}g -jar /gatk/gatk.jar FilterMutectCalls \\" >> $out_script
 echo "--variant /mnt/${outdir}/unfiltered.${outvcf} \\" >> $out_script
 echo "${extra_filter_arguments} \\" >> $out_script
 echo "--output /mnt/${outdir}/${outvcf}" >> $out_script

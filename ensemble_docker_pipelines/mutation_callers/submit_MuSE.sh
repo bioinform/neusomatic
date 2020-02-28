@@ -3,7 +3,7 @@
 
 set -e
 
-OPTS=`getopt -o o: --long out-dir:,out-vcf:,tumor-bam:,normal-bam:,human-reference:,selector:,extra-arguments:,action:,MEM:,dbsnp: -n 'submit_MuSE.sh'  -- "$@"`
+OPTS=`getopt -o o: --long out-dir:,out-vcf:,tumor-bam:,normal-bam:,human-reference:,selector:,extra-arguments:,action:,MEM:,dbsnp:,singularity -n 'submit_MuSE.sh'  -- "$@"`
 
 if [ $? != 0 ] ; then echo "Failed parsing options." >&2 ; exit 1 ; fi
 
@@ -15,6 +15,8 @@ MYDIR="$( cd "$( dirname "$0" )" && pwd )"
 VAF=0.05
 action=echo
 MEM=4
+
+singularity=''
 
 while true; do
     case "$1" in
@@ -78,6 +80,9 @@ while true; do
             *) action=$2 ; shift 2 ;;
         esac ;;
 
+    --singularity )
+        singularity=1 ; shift ;;
+
     -- ) shift; break ;;
     * ) break ;;
     esac
@@ -105,7 +110,11 @@ echo "" >> $out_script
 echo "cat ${SELECTOR} | awk -F \"\t\" '{print \$1 \"\t\" \$2 \"\t\" \$3}' > ${outdir}/bed_3columns.bed" >> $out_script
 echo "" >> $out_script
 
-echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G marghoob/muse:1.0rc_c \\" >> $out_script
+if [[ $singularity ]]; then
+    echo "singularity exec --bind /:/mnt docker://marghoob/muse:1.0rc_c \\" >> $out_script
+else
+    echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G marghoob/muse:1.0rc_c \\" >> $out_script
+fi
 echo "MuSEv1.0rc_submission_c039ffa call \\" >> $out_script
 echo "-O /mnt/${outdir}/MuSE \\" >> $out_script
 echo "-l /mnt/${outdir}/bed_3columns.bed \\" >> $out_script
@@ -114,11 +123,19 @@ echo "/mnt/${tumor_bam} \\" >> $out_script
 echo "/mnt/${normal_bam}" >> $out_script
 echo "" >> $out_script
 
-echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G marghoob/muse:1.0rc_c \\" >> $out_script
+if [[ $singularity ]]; then
+    echo "singularity exec --bind /:/mnt docker://marghoob/muse:1.0rc_c \\" >> $out_script
+else
+    echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G marghoob/muse:1.0rc_c \\" >> $out_script
+fi
 echo "MuSEv1.0rc_submission_c039ffa sump \\" >> $out_script
 echo "-I /mnt/${outdir}/MuSE.MuSE.txt \\" >> $out_script
 echo "${extra_arguments} -O /mnt/${outdir}/${outvcf} \\" >> $out_script
-echo "-D /mnt/${dbsnp}.gz" >> $out_script
+if [[ $dbsnp ]]; then
+    echo "-D /mnt/${dbsnp}.gz" >> $out_script
+else
+    echo "" >> $out_script
+fi
 
 echo "" >> $out_script
 echo 'echo -e "Done at `date +"%Y/%m/%d %H:%M:%S"`" 1>&2' >> $out_script
