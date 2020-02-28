@@ -24,8 +24,7 @@ prepare_callers_scripts.sh \
 --selector /ABSOLUTE/PATH/TO/region.bed \
 --mutect2 --somaticsniper --vardict --varscan2 --muse --strelka --wrapper
 ```
-#### NOTE: 
-If you want to use Singulariy instead of Docker, please use `--singularity` argument.
+**NOTE:** If you want to use Singulariy instead of Docker, please use `--singularity` argument.
 
 This command will create sub-folders with the following sctructure for the split regions:
 ```
