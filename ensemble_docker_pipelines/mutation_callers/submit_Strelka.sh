@@ -3,7 +3,7 @@
 
 set -e
 
-OPTS=`getopt -o o: --long out-dir:,out-vcf:,tumor-bam:,normal-bam:,human-reference:,selector:,extra-config-arguments:,extra-run-arguments:,MEM:,action:,exome -n 'submit_Strelka.sh'  -- "$@"`
+OPTS=`getopt -o o: --long out-dir:,out-vcf:,tumor-bam:,normal-bam:,human-reference:,selector:,extra-config-arguments:,extra-run-arguments:,MEM:,action:,exome,singularity -n 'submit_Strelka.sh'  -- "$@"`
 
 if [ $? != 0 ] ; then echo "Failed parsing options." >&2 ; exit 1 ; fi
 
@@ -14,6 +14,8 @@ MYDIR="$( cd "$( dirname "$0" )" && pwd )"
 
 action=echo
 MEM=6
+
+singularity=''
 
 while true; do
     case "$1" in
@@ -80,6 +82,9 @@ while true; do
     --exome )
         if_exome=1 ; shift ;;
 
+    --singularity )
+        singularity=1 ; shift ;;
+
     -- ) shift; break ;;
     * ) break ;;
     esac
@@ -118,8 +123,13 @@ then
     input_BED=${SELECTOR}.gz
     
 else
-    echo "docker run -v /:/mnt -u $UID --rm --memory ${MEM}G lethalfang/tabix:1.2.1 bash -c \"cat /mnt/${SELECTOR} | bgzip > /mnt/${outdir}/${selector_basename}.gz\"" >> $out_script
-    echo "docker run -v /:/mnt -u $UID --rm --memory ${MEM}G lethalfang/tabix:1.2.1 tabix /mnt/${outdir}/${selector_basename}.gz" >> $out_script
+    if [[ $singularity ]]; then
+        echo "singularity exec --bind /:/mnt docker://lethalfang/tabix:1.7 bash -c \"cat /mnt/${SELECTOR} | bgzip > /mnt/${outdir}/${selector_basename}.gz\"" >> $out_script
+        echo "singularity exec --bind /:/mnt docker://lethalfang/tabix:1.7 tabix /mnt/${outdir}/${selector_basename}.gz" >> $out_script
+    else
+        echo "docker run -v /:/mnt -u $UID --rm --memory ${MEM}G lethalfang/tabix:1.7 bash -c \"cat /mnt/${SELECTOR} | bgzip > /mnt/${outdir}/${selector_basename}.gz\"" >> $out_script
+        echo "docker run -v /:/mnt -u $UID --rm --memory ${MEM}G lethalfang/tabix:1.7 tabix /mnt/${outdir}/${selector_basename}.gz" >> $out_script
+    fi
     echo "" >> $out_script
     
     input_BED=${outdir}/${selector_basename}.gz
@@ -130,7 +140,11 @@ then
     exome='--exome'
 fi
 
-echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G lethalfang/strelka:2.8.4 \\" >> $out_script
+if [[ $singularity ]]; then
+    echo "singularity exec --bind /:/mnt docker://lethalfang/strelka:2.9.5 \\" >> $out_script
+else
+    echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G lethalfang/strelka:2.9.5 \\" >> $out_script
+fi
 echo "/opt/strelka/bin/configureStrelkaSomaticWorkflow.py \\" >> $out_script
 echo "--tumorBam=/mnt/${tumor_bam} \\" >> $out_script
 echo "--normalBam=/mnt/${normal_bam} \\" >> $out_script
@@ -143,7 +157,11 @@ echo "--runDir=/mnt/${outdir}/${outvcf%\.vcf}" >> $out_script
 
 echo "" >> $out_script
 
-echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G lethalfang/strelka:2.8.4 \\" >> $out_script
+if [[ $singularity ]]; then
+    echo "singularity exec --bind /:/mnt docker://lethalfang/strelka:2.9.5 \\" >> $out_script
+else
+    echo "docker run --rm -v /:/mnt -u $UID --memory ${MEM}G lethalfang/strelka:2.9.5 \\" >> $out_script
+fi
 echo "/mnt/${outdir}/${outvcf%\.vcf}/runWorkflow.py -m local -j 1 ${extra_run_arguments}" >> $out_script
 
 echo "" >> $out_script
