@@ -1004,7 +1004,7 @@ def run_realignment(input_record):
         if not os.path.exists(bed_tempdir):
             os.mkdir(bed_tempdir)
         tempfile.tempdir = bed_tempdir
-        variant = []
+        variants = []
         all_entries = []
         input_bam_splits, lens_splits, ds_splits = split_bam_to_chunks(
             work, region, input_bam, chunk_size, chunk_scale, do_split or not get_var, filter_duplicate)
