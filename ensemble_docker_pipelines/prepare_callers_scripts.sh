@@ -3,7 +3,7 @@
 
 set -e
 
-OPTS=`getopt -o o: --long output-dir:,tumor-bam:,normal-bam:,tumor-name:,normal-name:,human-reference:,selector:,exclude:,dbsnp:,cosmic:,min-vaf:,splits:,mutect2,varscan2,somaticsniper,vardict,muse,strelka,wrapper,exome,mutect2-arguments:,mutect2-filter-arguments:,varscan-arguments:,varscan-pileup-arguments:,somaticsniper-arguments:,vardict-arguments:,muse-arguments:,strelka-config-arguments:,strelka-run-arguments:,wrapper-arguments:, -n 'prepare_callers_scripts.sh'  -- "$@"`
+OPTS=`getopt -o o: --long output-dir:,tumor-bam:,normal-bam:,tumor-name:,normal-name:,human-reference:,selector:,exclude:,dbsnp:,cosmic:,min-vaf:,splits:,mutect2,varscan2,somaticsniper,vardict,muse,strelka,wrapper,exome,singularity,mutect2-arguments:,mutect2-filter-arguments:,varscan-arguments:,varscan-pileup-arguments:,somaticsniper-arguments:,vardict-arguments:,muse-arguments:,strelka-config-arguments:,strelka-run-arguments:,wrapper-arguments:, -n 'prepare_callers_scripts.sh'  -- "$@"`
 
 if [ $? != 0 ] ; then echo "Failed parsing options." >&2 ; exit 1 ; fi
 
@@ -20,6 +20,7 @@ min_vaf=0.05
 splits=12
 muse_extra_arguments=''
 action='echo'
+singularity=''
 
 while true; do
     case "$1" in
@@ -179,6 +180,9 @@ while true; do
     --exome )
         exome_stat=1 ; shift ;;
 
+    --singularity )
+        singularity='--singularity' ; shift ;;
+
     -- ) shift; break ;;
     * ) break ;;
     esac
@@ -189,19 +193,33 @@ done
 logdir=${outdir}/logs
 mkdir -p ${logdir}
 
+if [[ ${dbsnp} ]];then 
+    dbsnp_input="--dbsnp ${dbsnp}";
+fi
 
 if [[ $SELECTOR ]]
 then
-    docker run --rm -v /:/mnt -u $UID --memory 10G lethalfang/bedtools:2.26.0 bash -c \
-    "bedtools sort -i /mnt/$SELECTOR -faidx /mnt/${HUMAN_REFERENCE}.fai  > /mnt/${outdir}/genome.bed"   
+    if [[ $singularity ]]; then
+        singularity exec --bind /:/mnt   docker://lethalfang/somaticseq:3.3.0 bash -c \
+        "bedtools sort -i /mnt/$SELECTOR -faidx /mnt/${HUMAN_REFERENCE}.fai  > /mnt/${outdir}/genome.bed"   
+    else
+        docker run --rm -v /:/mnt -u $UID --memory 10G lethalfang/somaticseq:3.3.0 bash -c \
+        "bedtools sort -i /mnt/$SELECTOR -faidx /mnt/${HUMAN_REFERENCE}.fai  > /mnt/${outdir}/genome.bed"   
+    fi
 else
     cat ${HUMAN_REFERENCE}.fai | awk -F "\t" '{print $1 "\t0\t" $2}' | awk -F "\t" '$1 ~ /^(chr)?[0-9XYMT]+$/' > ${outdir}/genome.bed
 fi
     
 
-docker run --rm -v /:/mnt -u $UID lethalfang/somaticseq:2.7.0 \
-/opt/somaticseq/utilities/split_Bed_into_equal_regions.py \
--infile /mnt/${outdir}/genome.bed -num $splits -outfiles /mnt/${outdir}/bed
+if [[ $singularity ]]; then
+    singularity exec --bind /:/mnt docker://lethalfang/somaticseq:3.3.0 \
+    /opt/somaticseq/utilities/split_Bed_into_equal_regions.py \
+    -infile /mnt/${outdir}/genome.bed -num $splits -outfiles /mnt/${outdir}/bed
+else
+    docker run --rm -v /:/mnt -u $UID lethalfang/somaticseq:3.3.0 \
+    /opt/somaticseq/utilities/split_Bed_into_equal_regions.py \
+    -infile /mnt/${outdir}/genome.bed -num $splits -outfiles /mnt/${outdir}/bed
+fi
 
 ith_split=1
 while [[ $ith_split -le $splits ]]
@@ -239,10 +257,10 @@ do
         --out-vcf MuTect2.vcf \
         --selector ${outdir}/${ith_split}/${ith_split}.bed \
         --human-reference ${HUMAN_REFERENCE} \
-        --dbsnp ${dbsnp} \
         --extra-arguments "${input_mutect2_arguments}" \
         --extra-filter-arguments "${input_mutect2_filter_arguments}" \
-        --action $action
+        $singularity \
+        --action $action 
     
         mutect2_input="--mutect2 ${outdir}/${ith_split}/MuTect2.vcf"
     fi
@@ -273,6 +291,7 @@ do
         --human-reference ${HUMAN_REFERENCE} \
         --extra-pileup-arguments "${input_varscan_pileup_arguments}" \
         --extra-arguments "${input_varscan_arguments}" \
+        $singularity \
         --action $action
     
         varscan_snv_input="--varscan-snv ${outdir}/${ith_split}/VarScan2.snp.vcf"
@@ -300,6 +319,7 @@ do
         --human-reference ${HUMAN_REFERENCE} \
         --VAF ${min_vaf} \
         --extra-arguments "${input_vardict_arguments}" \
+        $singularity \
         --action $action
         
         vardict_input="--vardict ${outdir}/${ith_split}/VarDict.vcf"
@@ -327,8 +347,9 @@ do
         --selector ${outdir}/${ith_split}/${ith_split}.bed \
         --out-vcf MuSE.vcf \
         --human-reference ${HUMAN_REFERENCE} \
-        --dbsnp ${dbsnp} \
+        ${dbsnp_input} \
         --extra-arguments "${muse_extra_arguments}" \
+        $singularity \
         --action $action
         
         muse_input="--muse ${outdir}/${ith_split}/MuSE.vcf"
@@ -362,6 +383,7 @@ do
         ${strelka_exome_stat} \
         ${input_strelka_config_arguments} \
         ${input_strelka_run_arguments} \
+        $singularity \
         --action $action
         
         strelka_snv_input="--strelka-snv ${outdir}/${ith_split}/Strelka/results/variants/somatic.snvs.vcf.gz"
@@ -376,7 +398,6 @@ do
 
         if [[ $EXCLUSION ]];        then exclusion_text="--exclude ${EXCLUSION}"                            ; fi
 
-        if [[ ${dbsnp} ]];          then dbsnp_input="--dbsnp ${dbsnp}"                                     ; fi
         if [[ ${cosmic} ]];         then cosmic_input="--cosmic ${cosmic}"                                  ; fi
         
         if [[ ${wrapper_arguments} ]]
@@ -402,6 +423,7 @@ do
         $strelka_snv_input \
         $strelka_indel_input \
         --extra-arguments "${input_wrapper_arguments}" \
+        $singularity \
         --action ${action}
     fi
         
@@ -428,5 +450,6 @@ then
     --human-reference ${HUMAN_REFERENCE} \
     --split $splits \
     --extra-arguments "${input_somaticsniper_arguments}" \
+    $singularity \
     --action $action
 fi
