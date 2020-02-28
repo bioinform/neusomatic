@@ -162,6 +162,11 @@ public:
 
 template<typename BamRecord, typename GInv>
 class MSABuilder {
+  /*
+   * Building a MSA from pairwise bam alignment. 
+   * This requires reading a pileup of alignment, usually in BAM format
+   * Each MSABuilder contains intrinsiclly a convertion from nongapped space to gapped space.
+   */
   const std::vector<BamRecord>& bam_records_;
   //std::vector<size_t> rids_;
   GappedSeq<char, GInv> ref_gaps_; 
@@ -217,6 +222,9 @@ public:
 
 
   auto GetGappedSeqAndQual(const BamRecord& r) const {
+    //Initialize a seq of MSA row length with ~(missing char). Replace ~ with -(gap char) between the begin and
+    //end pos (in gapped space) of a alignment. Iterate through the cigars, fill in the seq with read bases based
+    //on the cigars. Some idea for qual.   
 
     std::string msa_bases(ncol(), missing_chr_);
     std::string msa_bquals(ncol(), 33);
@@ -279,7 +287,7 @@ public:
         }
         read_pos += c->Length();
       }
-      if (c->Type() == 'D') {
+      if (c->Type() == 'D') { // for deletion qual, always use one base before.
         const int l = std::max(ref_pos, ref_gaps_.left());
         const int r = std::min(int32_t(ref_pos + c->Length()), ref_gaps_.right());
         if (l < r) {
@@ -308,6 +316,9 @@ public:
   }
   
   MSABuilder(const GInv& ginv, const std::vector<BamRecord>& bams, const std::string& refstr):  
+    //Given a reference seq (nongapped) and a set of bam records, set up the MSA
+    //reference in gapped space. For each ref pos, set up the gap length as the longest
+    //insertion length of the pileup. 
     bam_records_(bams), ref_gaps_(refstr, ginv) {
     BuildRefGap(bams, ref_gaps_);      
     ncol_ = ref_gaps_.length();
@@ -329,7 +340,12 @@ public:
     }
   }
 
+  //Deprecated
   std::vector<std::string> GetMSA() const { 
+    // For each bam record, first get all variants. And then use the variants to 
+    // To get the variants, it uses the MD tags which may or may not exist depends on the aligner.  
+    // replace the reference bases if applies.  
+    // Return a MSA matrix as vector of strings
     std::vector<std::string> result(bam_records_.size());
     for (size_t i = 0; i < bam_records_.size(); ++i) {
       auto const& r = bam_records_[i];
@@ -341,6 +357,7 @@ public:
   } 
 
   auto GetClipping(const BamRecord& r) const {
+    // Return the clipping positions. If no clipping return -1.
     int lsc = -1, rsc = -1;
     auto const& cigar = r.GetCigar();        
     auto front_cigar=cigar.front().Type();

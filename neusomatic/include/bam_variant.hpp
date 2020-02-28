@@ -1,6 +1,8 @@
 #ifndef BAM_VARIANT_HPP
 #define BAM_VARIANT_HPP
 
+// For an alignment record, get the variants based on the MD tags. 
+
 #include <vector>
 #include <string>
 #include "variant.hpp"

@@ -10,11 +10,18 @@
 namespace neusomatic{
 
 class Col{
+  /*
+   * Each Col is a reduced representation of a MSA column, 
+   * i.e., counts of A,T,C,G,-,~, with averaged base qualities and etc..
+   *  A,C,G,T-(gap),~(missing) are coded as 0,1,2,3,4,5
+   *  Therefore, we can use a vector to store the mean or the freq for different base, the accessed by the indices.
+   *  For instance, base_freq_[2] is the occurance (maybe normalized by depth) of G in a MSA col.
+   */
   private:
     using Idx = unsigned;
     using Base = int;
-    std::vector<Base> bases_;
-    std::vector<int> bquals_;
+    std::vector<Base> bases_; // deprecated, no longer storing individual base
+    std::vector<int> bquals_; // deprecated, no longer storing individual qual
 
   public:
     static const int ALPHABET_SIZE = 6; // a, t, c, g, gap and missing_char
@@ -34,32 +41,33 @@ class Col{
     std::vector<int> lsc_mean;
     std::vector<int> rsc_mean;
     std::vector<std::vector<float>> tag_mean;
-    decltype(auto) bases() const {return (bases_);}
-    decltype(auto) bquals() const {return (bquals_);}
+    decltype(auto) bases() const {return (bases_);} // deprecated, see above
+    decltype(auto) bquals() const {return (bquals_);} // deprecated, see above
 
-    void emplace(const Idx& id, const Base& b) {
+    void emplace(const Idx& id, const Base& b) { // deprecated, see above
       bases_[id] = b;
     }
 
-    void emplace_qual(const Idx& id, const int& b) {
+    void emplace_qual(const Idx& id, const int& b) {// deprecated, see above
       bquals_[id] = b;
     }
 
-    decltype(auto) at(Idx i) const {
+    decltype(auto) at(Idx i) const {// deprecated, see above
       return bases_.at(i);
     }
 
-    decltype(auto) size() const {
+    decltype(auto) size() const {// deprecated, see above
       return bases_.size();
     }
 
-    decltype(auto) operator[](Idx i) {
+    decltype(auto) operator[](Idx i) {// deprecated, see above
       return (bases_[i]);
     }
 };
 
 template<typename Base>
 class CondensedArray{
+ //CondenseArray is an array of Col (ColSpace).
 public:
   using Idx = unsigned;
   static const unsigned char missing_chr_ = '~';
@@ -130,8 +138,10 @@ public:
 
   CondensedArray() : nrow_(0)  {} 
 
+  //deprecated. 
   template<typename GInv>
   explicit CondensedArray(const std::vector<std::string>& msa, const int& total_cov, const GInv& ginv, const std::string& refgap) :
+    //construct a condensed array without qualities and other info from a vector of base strings.
       nrow_(msa.size()), 
       cspace_(msa[0].size(), 
       Col(msa.size())),
@@ -205,8 +215,10 @@ public:
   }
 
 
+  //deprecated
   template<typename GInv>
   explicit CondensedArray(const std::vector<std::string>& msa, const std::vector<std::string>& bqual, 
+    //construct a condensed array with qualities and other info from multiple inputs.
                     const std::vector<int>& mqual, const std::vector<int>& strand, 
                     const std::vector<int>& lsc, const std::vector<int>& rsc,
                     const std::vector<std::vector<int>>& tags, 
