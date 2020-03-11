@@ -47,7 +47,12 @@ def merge_tsvs(input_tsvs, out,
 
     totla_L = 0
     for tsv in input_tsvs:
-        totla_L += len(pickle.load(open(tsv + ".idx", "rb"))) - 1
+        if os.path.exists(tsv + "idx"):
+            totla_L += len(pickle.load(open(tsv + ".idx", "rb"))) - 1
+        else:
+            with open(tsv, "r") as i_f:
+                for line in i_f:
+                    totla_L += 1
     totla_L = max(0, totla_L)
     candidates_per_tsv = max(candidates_per_tsv, np.ceil(
         totla_L / float(max_num_tsvs)) + 1)
