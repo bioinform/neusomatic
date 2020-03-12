@@ -1369,7 +1369,7 @@ def find_records(input_record):
         return None
 
 
-def extract_ensemble(work, ensemble_tsv):
+def extract_ensemble(ensemble_tsv, ensemble_bed, is_extend):
     logger = logging.getLogger(extract_ensemble.__name__)
     ensemble_data = []
     ensemble_pos = []
@@ -1399,15 +1399,23 @@ def extract_ensemble(work, ensemble_tsv):
                          "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
                          "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
                          "InDel_Length"]
+    callers_features = ["if_MuTect", "if_VarScan2", "if_JointSNVMix2", "if_SomaticSniper", "if_VarDict", "MuSE_Tier",
+                        "if_LoFreq", "if_Scalpel", "if_Strelka", "if_TNscope", "Strelka_Score", "Strelka_QSS",
+                        "Strelka_TQSS", "VarScan2_Score", "SNVMix2_Score", "Sniper_Score", "VarDict_Score",
+                        "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "MSI", "MSILEN", "SHIFT3"]
+
+    n_vars = 0
     with open(ensemble_tsv) as s_f:
         for line in s_f:
             if not line.strip():
                 continue
             if line[0:5] == "CHROM":
                 header_pos = line.strip().split()[0:5]
-                header = line.strip().split()[5:105]
+                header_ = line.strip().split()[5:]
+                if is_extend:
+                    header_ += callers_features
                 header_en = list(filter(
-                    lambda x: x[1] in expected_features, enumerate(line.strip().split()[5:])))
+                    lambda x: x[1] in expected_features, enumerate(header_)))
                 header = list(map(lambda x: x[1], header_en))
                 if set(expected_features) - set(header):
                     logger.error("The following features are missing from ensemble file: {}".format(
@@ -1420,9 +1428,15 @@ def extract_ensemble(work, ensemble_tsv):
             fields = line.strip().split()
             fields[2] = str(int(fields[1]) + len(fields[3]))
             ensemble_pos.append(fields[0:5])
+            features = fields[5:]
+            if is_extend:
+                features += ["0"] * len(callers_features)
             ensemble_data.append(list(map(lambda x: float(
-                x.replace("False", "0").replace("True", "1")), fields[5:])))
-    ensemble_data = np.array(ensemble_data)[:, order_header]
+                x.replace("False", "0").replace("True", "1")), features)))
+            n_vars += 1
+    if n_vars > 0:
+        ensemble_data = np.array(ensemble_data)[:, order_header]
+    header = np.array(header)[order_header].tolist()
 
     cov_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
         "Consistent_Mates", "Inconsistent_Mates", "N_DP",
@@ -1502,14 +1516,14 @@ def extract_ensemble(work, ensemble_tsv):
                         ]
     selected_features = sorted([i for f in min_max_features for i in f[0]])
     selected_features_tags = list(map(lambda x: header[x], selected_features))
-    for i_s, mn, mx in min_max_features:
-        s = ensemble_data[:, np.array(i_s)]
-        s = np.maximum(np.minimum(s, mx), mn)
-        s = (s - mn) / (mx - mn)
-        ensemble_data[:, np.array(i_s)] = s
-    ensemble_data = ensemble_data[:, selected_features]
-    ensemble_data = ensemble_data.tolist()
-    ensemble_bed = os.path.join(work, "ensemble.bed")
+    if n_vars > 0:
+        for i_s, mn, mx in min_max_features:
+            s = ensemble_data[:, np.array(i_s)]
+            s = np.maximum(np.minimum(s, mx), mn)
+            s = (s - mn) / (mx - mn)
+            ensemble_data[:, np.array(i_s)] = s
+        ensemble_data = ensemble_data[:, selected_features]
+        ensemble_data = ensemble_data.tolist()
     with open(ensemble_bed, "w")as f_:
         f_.write(
             "#" + "\t".join(map(str, header_pos + selected_features_tags)) + "\n")
@@ -1546,7 +1560,8 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
 
     split_batch_size = 10000
     if ensemble_tsv and not ensemble_bed:
-        ensemble_bed = extract_ensemble(work, ensemble_tsv)
+        ensemble_bed = os.path.join(work, "ensemble.bed")
+        extract_ensemble(ensemble_tsv, ensemble_bed, False)
 
     cmd = "bedtools intersect -a {} -b {} -u".format(
         tumor_pred_vcf_file, region_bed_file)

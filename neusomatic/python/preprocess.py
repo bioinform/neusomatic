@@ -19,7 +19,8 @@ import tempfile
 from filter_candidates import filter_candidates
 from generate_dataset import generate_dataset, extract_ensemble
 from scan_alignments import scan_alignments
-from utils import concatenate_vcfs, run_bedtools_cmd
+from extend_features import extend_features
+from utils import concatenate_files, concatenate_vcfs, run_bedtools_cmd
 
 
 def split_dbsnp(record):
@@ -196,10 +197,10 @@ def extract_candidate_split_regions(
             for line in f_:
                 if not line.strip():
                     continue
-                if line[0]!="#":
+                if line[0] != "#":
                     is_empty = False
                     break
-        logger.info([filtered_vcf,is_empty])
+        logger.info([filtered_vcf, is_empty])
         if not is_empty:
             cmd = '''grep -v "#" {}'''.format(filtered_vcf)
             candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
@@ -218,7 +219,6 @@ def extract_candidate_split_regions(
             candidates_bed = tempfile.NamedTemporaryFile(
                 prefix="tmpbed_", suffix=".bed", delete=False)
             candidates_bed = candidates_bed.name
-
 
         if ensemble_beds:
             cmd = "cat {} {}".format(
@@ -255,6 +255,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                matrix_width, matrix_base_pad, min_ev_frac_per_col,
                ensemble_tsv, long_read, restart, first_do_without_qual,
                filter_duplicate,
+               add_extra_features,
                num_threads,
                scan_alignments_binary,):
     logger = logging.getLogger(preprocess.__name__)
@@ -289,7 +290,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         ensemble_bed = os.path.join(work, "ensemble.bed")
         logger.info("Extract ensemble info.")
         if restart or not os.path.exists(ensemble_bed):
-            ensemble_bed = extract_ensemble(work, ensemble_tsv)
+            extract_ensemble(ensemble_tsv, ensemble_bed, False)
 
     merge_d_for_short_read = 100
     candidates_split_regions = []
@@ -380,10 +381,35 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
             if os.path.exists(work_dataset_split):
                 shutil.rmtree(work_dataset_split)
             os.mkdir(work_dataset_split)
+            ensemble_bed_i = ensemble_beds[i] if ensemble_tsv else None
+            if add_extra_features:
+                extra_features_tsv = os.path.join(
+                    work_dataset_split, "ex_features.tsv")
+                extra_features = extend_features(filtered_vcf,
+                                                 ensemble_beds[
+                                                     i] if ensemble_tsv else None,
+                                                 extra_features_tsv,
+                                                 reference, tumor_bam, normal_bam,
+                                                 min_mapq, snp_min_bq,
+                                                 dbsnp, None,
+                                                 num_threads)
+                extra_features_bed = os.path.join(
+                    work_dataset_split, "ex_features.bed")
+                extract_ensemble(extra_features_tsv, extra_features_bed, True)
+                if ensemble_tsv:
+                    merged_features_bed = os.path.join(
+                        work_dataset_split, "merged_features.bed")
+                    concatenate_files([extra_features_bed, ensemble_beds[
+                                      i]], merged_features_bed, check_file_existence=True)
+                    ensemble_bed_i = merged_features_bed
+                else:
+                    ensemble_bed_i = extra_features_bed
+
+
             generate_dataset_region(work_dataset_split, truth_vcf, mode, filtered_vcf,
                                     candidates_split_region, tumor_count, normal_count, reference,
                                     matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, num_threads,
-                                    ensemble_beds[i] if ensemble_tsv else None, tsv_batch_size)
+                                    ensemble_bed_i, tsv_batch_size)
 
     shutil.rmtree(bed_tempdir)
     tempfile.tempdir = original_tempdir
@@ -465,6 +491,9 @@ if __name__ == '__main__':
     parser.add_argument('--filter_duplicate',
                         help='filter duplicate reads when preparing pileup information',
                         action="store_true")
+    parser.add_argument('--add_extra_features',
+                        help='add extra input features',
+                        action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     parser.add_argument('--scan_alignments_binary', type=str,
@@ -482,6 +511,7 @@ if __name__ == '__main__':
                    args.truth_vcf, args.tsv_batch_size, args.matrix_width, args.matrix_base_pad, args.min_ev_frac_per_col,
                    args.ensemble_tsv, args.long_read, args.restart, args.first_do_without_qual,
                    args.filter_duplicate,
+                   args.add_extra_features,
                    args.num_threads,
                    args.scan_alignments_binary)
     except Exception as e:
