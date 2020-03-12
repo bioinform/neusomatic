@@ -383,8 +383,9 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
             os.mkdir(work_dataset_split)
             ensemble_bed_i = ensemble_beds[i] if ensemble_tsv else None
             if add_extra_features:
+                work_tumor_i = os.dirname(filtered_vcf)
                 extra_features_tsv = os.path.join(
-                    work_dataset_split, "ex_features.tsv")
+                    work_tumor_i, "extra_features.tsv")
                 extra_features = extend_features(filtered_vcf,
                                                  ensemble_beds[
                                                      i] if ensemble_tsv else None,
@@ -394,7 +395,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                                  dbsnp, None,
                                                  num_threads)
                 extra_features_bed = os.path.join(
-                    work_dataset_split, "ex_features.bed")
+                    work_dataset_split, "extra_features.bed")
                 extract_ensemble(extra_features_tsv, extra_features_bed, True)
                 if ensemble_tsv:
                     merged_features_bed = os.path.join(
