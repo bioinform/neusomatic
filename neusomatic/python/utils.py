@@ -84,7 +84,6 @@ def safe_read_info_dict(d, field, t=str, default_val=""):
 
 
 def run_bedtools_cmd(command, output_fn=None, run_logger=None):
-    run_logger.error("BCommand {}.".format(command))
     if output_fn is None:
         tmpfn = tempfile.NamedTemporaryFile(
             prefix="tmpbed_", suffix=".bed", delete=False)
