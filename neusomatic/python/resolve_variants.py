@@ -97,7 +97,8 @@ def find_resolved_variants(input_record):
                 dels = list(filter(lambda x: (
                     start <= x[1] <= end) or start <= x[2] <= end, dels))
                 if dels:
-                    del_strs = list(map(lambda x: "---".join(map(str,x[0:3])), dels))
+                    del_strs = list(
+                        map(lambda x: "---".join(map(str, x[0:3])), dels))
                     uniq_dels = list(set(del_strs))
                     uniq_dels_count = {}
                     for del_ in uniq_dels:
@@ -112,7 +113,8 @@ def find_resolved_variants(input_record):
                     with open(new_bed, "w") as f_o:
                         for k in uniq_dels_count.keys():
                             x = k.split("---")
-                            f_o.write("\t".join(map(str, x)) + "\n")
+                            f_o.write(
+                                "\t".join(map(str, x + [".", "."])) + "\n")
                     cmd = "bedtools sort -i {}".format(new_bed)
                     new_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
                     cmd = "bedtools merge -i {} -c 1 -o count".format(new_bed)
@@ -122,7 +124,7 @@ def find_resolved_variants(input_record):
                         for line in i_f:
                             if not line.strip():
                                 continue
-                            x = line.strip().split("\t")
+                            x = line.strip().split("\t")[0:4]
                             vs.append([x[0], int(x[1]), ref.fetch(x[0], int(
                                 x[1]) - 1, int(x[2])).upper(), ref.fetch(x[0], int(x[1]) - 1, int(x[1])).upper(), "0/1", score])
                     out_variants.extend(vs)
@@ -137,7 +139,8 @@ def find_resolved_variants(input_record):
                 inss = list(filter(lambda x: (
                     start <= x[1] <= end) or start <= x[2] <= end, inss))
                 if inss:
-                    ins_strs = list(map(lambda x: "---".join(map(str,x[0:4])), inss))
+                    ins_strs = list(
+                        map(lambda x: "---".join(map(str, x[0:4])), inss))
                     uniq_inss = list(set(ins_strs))
                     uniq_inss_count = {}
                     for ins_ in uniq_inss:
@@ -154,7 +157,8 @@ def find_resolved_variants(input_record):
                     with open(new_bed, "w") as f_o:
                         for k in uniq_inss_count.keys():
                             x = k.split("---")
-                            f_o.write("\t".join(map(str, x)) + "\n")
+                            f_o.write(
+                                "\t".join(map(str, x + [".", "."])) + "\n")
                     cmd = "bedtools sort -i {}".format(new_bed)
                     new_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
                     vs = []
@@ -162,7 +166,7 @@ def find_resolved_variants(input_record):
                         for line in i_f:
                             if not line.strip():
                                 continue
-                            x = line.strip().split("\t")
+                            x = line.strip().split("\t")[0:4]
                             vs.append([x[0], int(x[1]), ref.fetch(x[0], int(
                                 x[1]) - 1, int(x[1])).upper(), ref.fetch(x[0], int(x[1]) - 1, int(x[1])).upper() + x[3], "0/1", score])
                     out_variants.extend(vs)
@@ -202,7 +206,7 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
         for line in i_f:
             if not line.strip():
                 continue
-            tb=line.strip().split("\t")
+            tb = line.strip().split("\t")
             chrom, start, end, id_ = tb[0:4]
             id_ = int(id_)
             map_args.append([chrom, start, end, variants[id_],
