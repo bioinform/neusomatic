@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
 
 
-def run_shell_command(command, stdout=None, stderr=None, run_logger=None):
+def run_shell_command(command, stdout=None, stderr=None, run_logger=None, no_print=False):
     stdout_fd = open(stdout, "w") if stdout else None
     stderr_fd = open(stderr, "w") if stderr else None
     my_logger = logger
@@ -27,7 +27,8 @@ def run_shell_command(command, stdout=None, stderr=None, run_logger=None):
         my_logger = run_logger
 
     fixed_command = shlex.split(command)
-    my_logger.info("Running command: {}".format(fixed_command))
+    if not no_print:
+        my_logger.info("Running command: {}".format(fixed_command))
     returncode = subprocess.check_call(
         fixed_command, stdout=stdout_fd, stderr=stderr_fd)
     if stdout_fd:
@@ -93,7 +94,7 @@ def run_bedtools_cmd(command, output_fn=None, run_logger=None):
         run_logger = logger
     try:
         returncode = run_shell_command(command, stdout=output_fn, stderr=stderr_file,
-                                       run_logger=run_logger)
+                                       run_logger=run_logger, no_print=True)
         os.remove(stderr_file)
         return output_fn
     except Exception as ex:
