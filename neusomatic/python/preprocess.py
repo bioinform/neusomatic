@@ -249,7 +249,6 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
             raise Exception(
                 "The dbSNP file should be a tabix indexed file with .vcf.gz format. No {}.tbi file exists.".format(dbsnp))
 
-
     ensemble_bed = None
     if ensemble_tsv:
         ensemble_bed = os.path.join(work, "ensemble.bed")
@@ -322,15 +321,15 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         os.mkdir(work_normal)
     logger.info("Scan normal bam (and extracting quality scores).")
     normal_counts, _, _ = process_split_region("normal", work_normal, region_bed, reference, mode, normal_bam,
-                                                  None, scan_window_size, 0.2, min_mapq,
-                                                  None, min_dp, max_dp,
-                                                  filter_duplicate,
-                                                  good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
-                                                  ins_min_af, del_min_af, del_merge_min_af,
-                                                  ins_merge_min_af, merge_r,
-                                                  scan_alignments_binary, restart, num_threads,
-                                                  calc_qual=True,
-                                                  regions=candidates_split_regions)
+                                               None, scan_window_size, 0.2, min_mapq,
+                                               None, min_dp, max_dp,
+                                               filter_duplicate,
+                                               good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
+                                               ins_min_af, del_min_af, del_merge_min_af,
+                                               ins_merge_min_af, merge_r,
+                                               scan_alignments_binary, restart, num_threads,
+                                               calc_qual=True,
+                                               regions=candidates_split_regions)
 
     work_dataset = os.path.join(work, "dataset")
     if restart or not os.path.exists(work_dataset):
@@ -348,26 +347,52 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                 work_tumor_i = os.path.dirname(filtered_vcf)
                 extra_features_tsv = os.path.join(
                     work_tumor_i, "extra_features.tsv")
-                extra_features = extend_features(filtered_vcf,
-                                                 ensemble_beds[
-                                                     i] if ensemble_tsv else None,
-                                                 extra_features_tsv,
-                                                 reference, tumor_bam, normal_bam,
-                                                 min_mapq, snp_min_bq,
-                                                 dbsnp, None,
-                                                 num_threads)
+                if not os.path.exists(extra_features_tsv) or restart:
+                    extend_features(filtered_vcf,
+                                    ensemble_beds[
+                                        i] if ensemble_tsv else None,
+                                    extra_features_tsv,
+                                    reference, tumor_bam, normal_bam,
+                                    min_mapq, snp_min_bq,
+                                    dbsnp, None,
+                                    num_threads)
                 extra_features_bed = os.path.join(
                     work_dataset_split, "extra_features.bed")
-                extract_ensemble(extra_features_tsv, extra_features_bed, True)
+                if not os.path.exists(extra_features_bed) or restart:
+                    extract_ensemble(extra_features_tsv, extra_features_bed, True)
                 if ensemble_tsv:
                     merged_features_bed = os.path.join(
                         work_dataset_split, "merged_features.bed")
-                    concatenate_files([extra_features_bed, ensemble_beds[
-                                      i]], merged_features_bed, check_file_existence=True)
+                    if not os.path.exists(merged_features_bed) or restart:
+                        exclude_ens_variants = []
+                        with open(merged_features_bed, "w") as o_f:
+                            with open(ensemble_beds[i]) as i_f:
+                                for line in i_f:
+                                    if not line.strip():
+                                        continue
+                                    if line[0] == "#":
+                                        o_f.write(line)                                        
+                                        continue
+                                    chrom, pos, _, ref, alt = line.strip().split("\t")[0:5]
+                                    var_id = "-".join([chrom, pos, ref, alt])
+                                    exclude_ens_variants.append(var_id)
+                                    o_f.write(line)
+                            with open(extra_features_bed) as i_f:
+                                for line in i_f:
+                                    if not line.strip():
+                                        continue
+                                    if line[0] == "#":
+                                        continue
+                                    chrom, pos, _, ref, alt = line.strip().split("\t")[0:5]
+                                    var_id = "-".join([chrom, pos, ref, alt])
+                                    if var_id in exclude_ens_variants:
+                                        continue
+                                    o_f.write(line)
+                    # concatenate_files([extra_features_bed, ensemble_beds[
+                    #                   i]], merged_features_bed, check_file_existence=True)
                     ensemble_bed_i = merged_features_bed
                 else:
                     ensemble_bed_i = extra_features_bed
-
 
             generate_dataset_region(work_dataset_split, truth_vcf, mode, filtered_vcf,
                                     candidates_split_region, tumor_count, normal_count, reference,
