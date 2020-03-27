@@ -20,7 +20,7 @@ import pysam
 from scipy.misc import imresize
 
 from split_bed import split_region
-from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd
+from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed
 
 
 NUC_to_NUM_hp = {"A": 1, "C": 2, "G": 3, "T": 4, "N": 5}
@@ -867,14 +867,8 @@ def find_records(input_record):
             cmd = "bedtools window -a {} -b {} -w 5 -v".format(
                 split_ensemble_bed_file, split_pred_vcf_file)
             tmp_ = run_bedtools_cmd(cmd, run_logger=thread_logger)
-            with open(tmp_) as f_i:
-                with open(split_missed_ensemble_bed_file, "w") as f_o:
-                    for line in f_i:
-                        if not line.strip():
-                            continue
-                        x = line.strip().split("\t")
-                        f_o.write("\t".join(map(str, [x[0], int(x[1]), int(x[1]) + 1, x[3], x[4], ".",
-                                                      ".", ".", ".", "."])) + "\n")
+            vcf_2_bed(tmp_, split_missed_ensemble_bed_file, add_fields=[".",
+                                                                        ".", ".", ".", "."])
             concatenate_vcfs(
                 [split_pred_vcf_file, split_missed_ensemble_bed_file], split_pred_with_missed_file)
 

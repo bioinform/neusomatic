@@ -25,7 +25,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import DNAAlphabet
 
-from utils import run_shell_command, get_chromosomes_order, run_bedtools_cmd
+from utils import run_shell_command, get_chromosomes_order, run_bedtools_cmd, write_tsv_file, read_tsv_file
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -933,7 +933,8 @@ def run_realignment(input_record):
         region = Region(target_region, pad, len_chr)
 
         original_tempdir = tempfile.tempdir
-        bed_tempdir = os.path.join(work, "bed_tmpdir_{}".format(region.__str__()))
+        bed_tempdir = os.path.join(
+            work, "bed_tmpdir_{}".format(region.__str__()))
         if not os.path.exists(bed_tempdir):
             os.mkdir(bed_tempdir)
         tempfile.tempdir = bed_tempdir
@@ -1075,10 +1076,7 @@ def extend_regions_hp(region_bed_file, extended_region_bed_file, ref_fasta_file,
         tmp_ = tempfile.NamedTemporaryFile(
             prefix="tmpbed_", suffix=".bed", delete=False)
         tmp_ = tmp_.name
-        with open(tmp_, "w") as o_f:
-            for x in intervals:
-                o_f.write(
-                    "\t".join(map(str, x)) + "\n")
+        write_tsv_file(tmp_, intervals)
         cmd = "bedtools sort -i {}".format(
             tmp_)
         run_bedtools_cmd(cmd, output_fn=extended_region_bed_file,
@@ -1201,10 +1199,7 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
         tmp_ = tempfile.NamedTemporaryFile(
             prefix="tmpbed_", suffix=".bed", delete=False)
         tmp_ = tmp_.name
-        with open(tmp_, "w") as o_f:
-            for x in intervals:
-                o_f.write(
-                    "\t".join(map(str, x + [".", ".", "."])) + "\n")
+        write_tsv_file(tmp_, intervals, add_fields=[".", ".", "."])
         cmd = "bedtools sort -i {}".format(
             tmp_)
         run_bedtools_cmd(cmd, output_fn=extended_region_bed_file,
@@ -1271,13 +1266,9 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
     shutil.copyfile(region_bed_merged, os.path.join(
         work, "regions_merged.bed"))
 
-    target_regions = []
-    with open(region_bed_merged) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
-            x = line.strip().split("\t")
-            target_regions.append([x[0], int(x[1]), int(x[2])])
+    target_regions = read_tsv_file(region_bed_merged, fields=range(3))
+    target_regions = list(
+        map(lambda x: [x[0], int(x[1]), int(x[2])], target_regions))
 
     get_var = True if output_vcf else False
     pool = multiprocessing.Pool(num_threads)

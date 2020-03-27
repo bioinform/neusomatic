@@ -15,7 +15,7 @@ import tempfile
 import pysam
 import numpy as np
 
-from utils import get_chromosomes_order, run_bedtools_cmd
+from utils import get_chromosomes_order, run_bedtools_cmd, read_tsv_file
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -118,14 +118,9 @@ def find_resolved_variants(input_record):
                     new_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
                     cmd = "bedtools merge -i {} -c 1 -o count".format(new_bed)
                     new_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
-                    vs = []
-                    with open(new_bed) as i_f:
-                        for line in i_f:
-                            if not line.strip():
-                                continue
-                            x = line.strip().split("\t")[0:4]
-                            vs.append([x[0], int(x[1]), ref.fetch(x[0], int(
-                                x[1]) - 1, int(x[2])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])), "0/1", score])
+                    vs = read_tsv_file(new_bed, fields=range(4))
+                    vs = list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
+                        x[1]) - 1, int(x[2])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])), "0/1", score], vs))
                     out_variants.extend(vs)
             elif vartype == "INS":
                 intervals = []
@@ -160,14 +155,9 @@ def find_resolved_variants(input_record):
                                 "\t".join(map(str, x + [".", "."])) + "\n")
                     cmd = "bedtools sort -i {}".format(new_bed)
                     new_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
-                    vs = []
-                    with open(new_bed) as i_f:
-                        for line in i_f:
-                            if not line.strip():
-                                continue
-                            x = line.strip().split("\t")[0:4]
-                            vs.append([x[0], int(x[1]), ref.fetch(x[0], int(
-                                x[1]) - 1, int(x[1])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])) + x[3], "0/1", score])
+                    vs = read_tsv_file(new_bed, fields=range(4))
+                    vs = list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
+                        x[1]) - 1, int(x[1])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])) + x[3], "0/1", score], vs))
                     out_variants.extend(vs)
         return out_variants
     except Exception as ex:

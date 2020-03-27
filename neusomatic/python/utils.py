@@ -118,3 +118,35 @@ def prob2phred(p, max_phred=100):
         if Q > max_phred:
             Q = max_phred
     return Q
+
+
+def write_tsv_file(tsv_file, records, sep='\t', add_fields=[]):
+    with open(tsv_file, "w") as f_o:
+        for x in records:
+            f_o.write(sep.join(map(str, x + add_fields)) + "\n")
+
+
+def read_tsv_file(tsv_file, sep='\t', fields=None):
+    records = []
+    with open(tsv_file) as i_f:
+        for line in i_f:
+            if not line.strip():
+                continue
+            x = line.strip().split(sep)
+            if fields is not None:
+                x = [x[i] for i in fields]
+            records.append(x)
+    return records
+
+
+def vcf_2_bed(vcf_file, bed_file, add_fields=[]):
+    with open(bed_file, "w") as f_o:
+        with open(vcf_file, "r") as f_i:
+            for line in f_i:
+                if not line.strip():
+                    continue
+                if line[0] == "#":
+                    continue
+                x = line.strip().split("\t")
+                f_o.write(
+                    "\t".join(map(str, [x[0], int(x[1]), int(x[1]) + 1, x[3], x[4]] + add_fields)) + "\n")

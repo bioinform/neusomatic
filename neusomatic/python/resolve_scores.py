@@ -10,7 +10,7 @@ import traceback
 
 import numpy as np
 
-from utils import get_chromosomes_order, run_bedtools_cmd
+from utils import get_chromosomes_order, run_bedtools_cmd, read_tsv_file
 
 
 def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
@@ -22,14 +22,9 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
         ra_vcf, target_vcf)
     tmp_=run_bedtools_cmd(cmd, run_logger=logger)
 
-    final_intervals = []
-    with open(tmp_) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
-            interval = line.strip().split("\t")
-            interval[5] = "0.5"
-            final_intervals.append(interval)
+    final_intervals= read_tsv_file(tmp_)
+    for x in final_intervals:
+        x[5]="0.5"
 
     cmd = "bedtools window -a {} -b {} -w 5".format(
         ra_vcf, target_vcf)

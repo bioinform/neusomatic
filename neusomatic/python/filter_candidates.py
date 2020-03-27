@@ -12,7 +12,7 @@ import tempfile
 import pysam
 import numpy as np
 
-from utils import safe_read_info_dict, run_bedtools_cmd
+from utils import safe_read_info_dict, run_bedtools_cmd, vcf_2_bed, write_tsv_file
 
 
 def filter_candidates(candidate_record):
@@ -264,26 +264,18 @@ def filter_candidates(candidate_record):
             filtered_bed = tempfile.NamedTemporaryFile(
                 prefix="tmpbed_", suffix=".bed", delete=False)
             filtered_bed = filtered_bed.name
-            with open(filtered_bed, "w") as f_o:
-                for x in enumerate(final_records):
-                    f_o.write("\t".join(map(str, [x[1][0], int(x[1][1]), int(
-                        x[1][1]) + 1, x[1][2], x[1][3], str(x[0])])) + "\n")
+            intervals = [] 
+            for x in enumerate(final_records):
+                intervals.append([x[1][0], int(x[1][1]), int(
+                    x[1][1]) + 1, x[1][2], x[1][3], str(x[0])])
+            write_tsv_file(filtered_bed, intervals)
             cmd = "bedtools sort -i {}".format(filtered_bed)
             filtered_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
 
             dbsnp_tmp = tempfile.NamedTemporaryFile(
                 prefix="tmpbed_", suffix=".bed", delete=False)
             dbsnp_tmp = dbsnp_tmp.name
-            with open(dbsnp_tmp, "w") as f_o:
-                with open(dbsnp, "r") as f_i:
-                    for line in f_i:
-                        if not line.strip():
-                            continue
-                        if line[0] == "#":
-                            continue
-                        x = line.strip().split("\t")
-                        f_o.write(
-                            "\t".join(map(str, [x[0], int(x[1]), int(x[1]) + 1, x[3], x[4]])) + "\n")
+            vcf_2_bed(dbsnp, dbsnp_tmp)
             cmd = "bedtools sort -i {}".format(dbsnp_tmp)
             run_bedtools_cmd(cmd, output_fn=dbsnp, run_logger=thread_logger)
 

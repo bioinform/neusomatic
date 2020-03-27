@@ -9,7 +9,7 @@ import traceback
 from random import shuffle
 import logging
 
-from utils import run_bedtools_cmd
+from utils import run_bedtools_cmd, write_tsv_file
 
 
 def split_region(work, region_bed_file, num_splits, max_region=1000000, min_region=20, shuffle_intervals=False):
@@ -79,9 +79,8 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
     for i, split_region_ in enumerate(split_regions):
         split_region_file = os.path.join(work, "region_{}.bed".format(i))
         logger.info(split_region_file)
-        with open(split_region_file, "w") as s_f:
-            for region in split_region_:
-                s_f.write("\t".join(map(str, region + [".", ".", "."])) + "\n")
+        write_tsv_file(split_region_file, split_region_,
+                       add_fields=[".", ".", "."])
 
         logger.info("Split {}: {}".format(i, split_lens[i]))
         split_region_files.append(split_region_file)
