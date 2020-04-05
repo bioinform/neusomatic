@@ -290,7 +290,15 @@ def align_tumor_normal_matrices(record, tumor_matrix_, bq_tumor_matrix_, mq_tumo
         raise Exception
 
     for k in new_tumor_col_pos_map:
-        assert(new_tumor_col_pos_map[k] == new_normal_col_pos_map[k])
+        try:
+            assert(new_tumor_col_pos_map[k] == new_normal_col_pos_map[k])
+        except Exception as ex:
+            logger.error(ex)
+            logger.error("Failed for {} at col {}".format(record,k))
+            logger.error("Assertion Failed: {}=={}".format(new_tumor_col_pos_map[
+                         k], new_normal_col_pos_map[k]))
+            raise ex
+
     return [new_tumor_matrix_, new_bq_tumor_matrix_, new_mq_tumor_matrix_, new_st_tumor_matrix_,
             new_lsc_tumor_matrix_, new_rsc_tumor_matrix_, new_tag_tumor_matrices_, new_normal_matrix_,
             new_bq_normal_matrix_, new_mq_normal_matrix_, new_st_normal_matrix_,
@@ -725,7 +733,14 @@ def push_lr(fasta_file, record, left_right_both):
 
         for eq in eqs:
             c, p, r, a = eq[0:4]
-            assert(fasta_file.fetch((c), p - 1, p - 1 + len(r)).upper() == r)
+            try:
+                assert(fasta_file.fetch((c), p - 1, p - 1 + len(r)).upper() == r)
+            except Exception as ex:
+                logger.error(ex)
+                logger.error("Failed at {}".format(eq))
+                logger.error("Assertion Failed: {}=={}".format(fasta_file.fetch(
+                        (c), p - 1, p - 1 + len(r)).upper(), r))
+                raise ex
 
     return record, eqs
 
@@ -1021,7 +1036,14 @@ def find_records(input_record):
             for j in js:
                 record = records[j]
                 if record[0] == truth_record[0] and record[1] == truth_record[1] and record[2] == truth_record[2] and record[3] == truth_record[3]:
-                    assert int(record[4]) == j
+                    try:
+                        assert int(record[4]) == j
+                    except Exception as ex:
+                        thread_logger.error(ex)
+                        thread_logger.error("Failed at {}".format(record))
+                        thread_logger.error("Assertion Failed: {}=={}".format(int(record[4]), j))
+                        raise ex
+
                     vartype = get_type(record[2], record[3])
                     if j not in good_records[vartype]:
                         ref, alt = truth_record[2:4]

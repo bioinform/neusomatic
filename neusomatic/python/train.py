@@ -302,7 +302,13 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
             current_L = 0
             current_split_tsvs = []
 
-    assert sum(map(lambda x: len(x), train_split_tsvs)) == len(candidates_tsv)
+    try:
+        assert sum(map(lambda x: len(x), train_split_tsvs)) == len(candidates_tsv)
+    except Exception as ex:
+        logger.error(ex)
+        logger.error("Assertion Failed: {}=={}".format(sum(map(lambda x: len(x), train_split_tsvs)) , len(candidates_tsv)))
+        raise ex
+
     train_sets = []
     none_counts = []
     var_counts = []
