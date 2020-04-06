@@ -294,7 +294,7 @@ def align_tumor_normal_matrices(record, tumor_matrix_, bq_tumor_matrix_, mq_tumo
             assert(new_tumor_col_pos_map[k] == new_normal_col_pos_map[k])
         except Exception as ex:
             logger.error(ex)
-            logger.error("Failed for {} at col {}".format(record,k))
+            logger.error("Failed for {} at col {}".format(record, k))
             logger.error("Assertion Failed: {}=={}".format(new_tumor_col_pos_map[
                          k], new_normal_col_pos_map[k]))
             raise ex
@@ -739,7 +739,7 @@ def push_lr(fasta_file, record, left_right_both):
                 logger.error(ex)
                 logger.error("Failed at {}".format(eq))
                 logger.error("Assertion Failed: {}=={}".format(fasta_file.fetch(
-                        (c), p - 1, p - 1 + len(r)).upper(), r))
+                    (c), p - 1, p - 1 + len(r)).upper(), r))
                 raise ex
 
     return record, eqs
@@ -992,6 +992,8 @@ def find_records(input_record):
                     for rr in r_:
                         records.append(rr + [str(i)])
                         i += 1
+        records = list(
+            map(lambda x: [x[0], x[1], x[2].upper(), x[3].upper(), x[4]], records))
         records_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
             x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]), records)).saveas()
 
@@ -1003,7 +1005,7 @@ def find_records(input_record):
                     continue
                 record = line.strip().split()
                 truth_records.append(
-                    [record[0], int(record[1]), record[3], record[4], str(i)])
+                    [record[0], int(record[1]), record[3].upper(), record[4].upper(), str(i)])
                 i += 1
 
         truth_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(
@@ -1041,7 +1043,8 @@ def find_records(input_record):
                     except Exception as ex:
                         thread_logger.error(ex)
                         thread_logger.error("Failed at {}".format(record))
-                        thread_logger.error("Assertion Failed: {}=={}".format(int(record[4]), j))
+                        thread_logger.error(
+                            "Assertion Failed: {}=={}".format(int(record[4]), j))
                         raise ex
 
                     vartype = get_type(record[2], record[3])
