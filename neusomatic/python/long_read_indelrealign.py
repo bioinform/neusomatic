@@ -25,7 +25,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import DNAAlphabet
 
-from utils import run_shell_command, get_chromosomes_order, run_bedtools_cmd, write_tsv_file, read_tsv_file
+from utils import run_shell_command, get_chromosomes_order, run_bedtools_cmd, write_tsv_file, read_tsv_file, bedtools_sort, bedtools_merge
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -1077,10 +1077,8 @@ def extend_regions_hp(region_bed_file, extended_region_bed_file, ref_fasta_file,
             prefix="tmpbed_", suffix=".bed", delete=False)
         tmp_ = tmp_.name
         write_tsv_file(tmp_, intervals)
-        cmd = "bedtools sort -i {}".format(
-            tmp_)
-        run_bedtools_cmd(cmd, output_fn=extended_region_bed_file,
-                         run_logger=logger)
+        bedtools_sort(tmp_, output_fn=extended_region_bed_file,
+                      run_logger=logger)
 
 
 def check_rep(ref_seq, left_right, w):
@@ -1200,10 +1198,8 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
             prefix="tmpbed_", suffix=".bed", delete=False)
         tmp_ = tmp_.name
         write_tsv_file(tmp_, intervals, add_fields=[".", ".", "."])
-        cmd = "bedtools sort -i {}".format(
-            tmp_)
-        run_bedtools_cmd(cmd, output_fn=extended_region_bed_file,
-                         run_logger=logger)
+        bedtools_sort(tmp_, output_fn=extended_region_bed_file,
+                      run_logger=logger)
 
 
 def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_file,
@@ -1248,9 +1244,8 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                 continue
             len_merged += 1
     while True:
-        cmd = "bedtools merge -i {} -d {} ".format(
-            region_bed_merged, pad * 2)
-        region_bed_merged_tmp = run_bedtools_cmd(cmd, run_logger=logger)
+        region_bed_merged_tmp = bedtools_merge(
+            region_bed_merged, args=" -d {}".format(pad * 2), run_logger=logger)
         len_tmp = 0
         with open(region_bed_merged_tmp) as r_b:
             for line in r_b:

@@ -12,7 +12,7 @@ import tempfile
 import pysam
 import numpy as np
 
-from utils import safe_read_info_dict, run_bedtools_cmd, vcf_2_bed, write_tsv_file
+from utils import safe_read_info_dict, run_bedtools_cmd, vcf_2_bed, write_tsv_file, bedtools_sort
 
 
 def filter_candidates(candidate_record):
@@ -264,32 +264,29 @@ def filter_candidates(candidate_record):
             filtered_bed = tempfile.NamedTemporaryFile(
                 prefix="tmpbed_", suffix=".bed", delete=False)
             filtered_bed = filtered_bed.name
-            intervals = [] 
+            intervals = []
             for x in enumerate(final_records):
                 intervals.append([x[1][0], int(x[1][1]), int(
                     x[1][1]) + 1, x[1][2], x[1][3], str(x[0])])
             write_tsv_file(filtered_bed, intervals)
-            cmd = "bedtools sort -i {}".format(filtered_bed)
-            filtered_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
+            filtered_bed = bedtools_sort(
+                filtered_bed, run_logger=thread_logger)
 
             dbsnp_tmp = tempfile.NamedTemporaryFile(
                 prefix="tmpbed_", suffix=".bed", delete=False)
             dbsnp_tmp = dbsnp_tmp.name
             vcf_2_bed(dbsnp, dbsnp_tmp)
-            cmd = "bedtools sort -i {}".format(dbsnp_tmp)
-            run_bedtools_cmd(cmd, output_fn=dbsnp, run_logger=thread_logger)
+            bedtools_sort(dbsnp_tmp, output_fn=dbsnp, run_logger=thread_logger)
+            non_in_dbsnp_1 = bedtools_window(
+                filtered_bed, dbsnp, args=" -w 0 -v", run_logger=thread_logger)
+            non_in_dbsnp_2 = bedtools_window(
+                filtered_bed, dbsnp, args=" -w 0", run_logger=thread_logger)
 
-            cmd = "bedtools window -a {} -b {} -w 0 -v".format(
-                filtered_bed, dbsnp)
-            non_in_dbsnp_1 = run_bedtools_cmd(cmd, run_logger=thread_logger)
-            cmd = "bedtools window -a {} -b {} -w 0".format(
-                filtered_bed, dbsnp)
-            non_in_dbsnp_2 = run_bedtools_cmd(cmd, run_logger=thread_logger)
             cmd = '''awk '($2!=$8)||($4!=$10)||($5!=$11){{print $0}}' {}'''.format(
                 non_in_dbsnp_2)
             non_in_dbsnp_2 = run_bedtools_cmd(cmd, run_logger=thread_logger)
-            cmd = "bedtools sort -i {}".format(non_in_dbsnp_2)
-            non_in_dbsnp_2 = run_bedtools_cmd(cmd, run_logger=thread_logger)
+            non_in_dbsnp_2 = bedtools_sort(
+                non_in_dbsnp_2, run_logger=thread_logger)
 
             non_in_dbsnp_ids = []
             with open(non_in_dbsnp_1) as i_f:

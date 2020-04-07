@@ -20,7 +20,7 @@ import tempfile
 import pysam
 import numpy as np
 
-from utils import concatenate_files, run_shell_command, run_bedtools_cmd
+from utils import concatenate_files, run_shell_command, run_bedtools_cmd, bedtools_sort, bedtools_merge
 from split_bed import split_region
 
 
@@ -81,12 +81,9 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
 
     if not split_region_files:
         if regions_bed_file:
-            cmd = "bedtools sort -i {}".format(
-                regions_bed_file)
-            regions_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools merge -i {} -d 0 ".format(
-                regions_bed)
-            regions_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            regions_bed = bedtools_sort(regions_bed_file, run_logger=logger)
+            regions_bed = bedtools_merge(
+                regions_bed, args=" -d 0", run_logger=logger)
         else:
             regions_bed = tempfile.NamedTemporaryFile(
                 prefix="tmpbed_", suffix=".bed", delete=False)

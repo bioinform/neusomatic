@@ -10,7 +10,7 @@ import traceback
 
 import numpy as np
 
-from utils import get_chromosomes_order, run_bedtools_cmd, read_tsv_file
+from utils import get_chromosomes_order, run_bedtools_cmd, read_tsv_file, bedtools_window
 
 
 def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
@@ -18,17 +18,15 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
 
     logger.info("-----Resolve Prediction Scores for Realigned Variants------")
 
-    cmd = "bedtools window -a {} -b {} -w 5 -v".format(
-        ra_vcf, target_vcf)
-    tmp_=run_bedtools_cmd(cmd, run_logger=logger)
+    tmp_ = bedtools_window(
+        ra_vcf, target_vcf, args=" -w 5 -v", run_logger=logger)
 
     final_intervals= read_tsv_file(tmp_)
     for x in final_intervals:
         x[5]="0.5"
 
-    cmd = "bedtools window -a {} -b {} -w 5".format(
-        ra_vcf, target_vcf)
-    tmp_=run_bedtools_cmd(cmd, run_logger=logger)
+    tmp_ = bedtools_window(
+        ra_vcf, target_vcf, args=" -w 5", run_logger=logger)
 
     intervals_dict = {}
     with open(tmp_) as i_f:

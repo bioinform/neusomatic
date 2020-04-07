@@ -19,7 +19,7 @@ import tempfile
 from filter_candidates import filter_candidates
 from generate_dataset import generate_dataset, extract_ensemble
 from scan_alignments import scan_alignments
-from utils import concatenate_vcfs, run_bedtools_cmd
+from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect
 
 
 def split_dbsnp(record):
@@ -28,9 +28,8 @@ def split_dbsnp(record):
         "{} ({})".format(split_dbsnp.__name__, multiprocessing.current_process().name))
     try:
         if restart or not os.path.exists(dbsnp_region_vcf):
-            cmd = "bedtools intersect -a {} -b {} -u".format(dbsnp, region_bed)
-            run_bedtools_cmd(cmd, output_fn=dbsnp_region_vcf,
-                             run_logger=thread_logger)
+            bedtools_intersect(
+                dbsnp, region_bed, args=" -u",  output_fn=dbsnp_region_vcf, run_logger=thread_logger)
         return dbsnp_region_vcf
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
@@ -139,10 +138,9 @@ def get_ensemble_region(record):
                                                        matrix_base_pad + 3)
         ensemble_bed_region_file_tmp = run_bedtools_cmd(
             cmd, run_logger=thread_logger)
-        cmd = "bedtools intersect -a {} -b {} -u".format(
-            ensemble_bed, ensemble_bed_region_file_tmp)
-        run_bedtools_cmd(cmd, output_fn=ensemble_bed_region_file,
-                         run_logger=thread_logger)
+        bedtools_intersect(
+            ensemble_bed, ensemble_bed_region_file_tmp, args=" -u",
+            output_fn=ensemble_bed_region_file, run_logger=thread_logger)
         return ensemble_bed_region_file
 
     except Exception as ex:
@@ -196,29 +194,26 @@ def extract_candidate_split_regions(
             for line in f_:
                 if not line.strip():
                     continue
-                if line[0]!="#":
+                if line[0] != "#":
                     is_empty = False
                     break
-        logger.info([filtered_vcf,is_empty])
+        logger.info([filtered_vcf, is_empty])
         if not is_empty:
             cmd = '''grep -v "#" {}'''.format(filtered_vcf)
             candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
             cmd = '''awk '{{print $1"\t"$2"\t"$2+length($4)}}' {}'''.format(
                 candidates_bed)
             candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools sort -i {}".format(candidates_bed)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            candidates_bed = bedtools_sort(candidates_bed, run_logger=logger)
             cmd = "bedtools slop -i {} -g {} -b {}".format(candidates_bed,
                                                            reference + ".fai", matrix_base_pad + 3)
             candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools merge -i {} -d {}".format(
-                candidates_bed, merge_d_for_short_read)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            candidates_bed = bedtools_merge(
+                candidates_bed, args=" -d {}".format(merge_d_for_short_read), run_logger=logger)
         else:
             candidates_bed = tempfile.NamedTemporaryFile(
                 prefix="tmpbed_", suffix=".bed", delete=False)
             candidates_bed = candidates_bed.name
-
 
         if ensemble_beds:
             cmd = "cat {} {}".format(
@@ -228,20 +223,14 @@ def extract_candidate_split_regions(
             cmd = "cut -f 1,2,3 {}".format(
                 candidates_bed)
             candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools sort -i {}".format(
-                candidates_bed)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools merge -i {} -d {} ".format(
-                candidates_bed, merge_d_for_short_read)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            candidates_bed = bedtools_sort(candidates_bed, run_logger=logger)
+            candidates_bed = bedtools_merge(
+                candidates_bed, args=" -d {}".format(merge_d_for_short_read), run_logger=logger)
 
-        cmd = "bedtools intersect -a {} -b {}".format(
-            candidates_bed, split_region_)
-        candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-        cmd = "bedtools sort -i {}".format(
-            candidates_bed)
-        run_bedtools_cmd(cmd, output_fn=candidates_region_file,
-                         run_logger=logger)
+        candidates_bed = bedtools_intersect(
+            candidates_bed, split_region_, run_logger=logger)
+        bedtools_sort(candidates_bed,
+                      output_fn=candidates_region_file, run_logger=logger)
 
         candidates_split_regions.append(candidates_region_file)
     return candidates_split_regions

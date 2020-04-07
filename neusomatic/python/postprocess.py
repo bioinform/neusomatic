@@ -21,7 +21,7 @@ import numpy as np
 from extract_postprocess_targets import extract_postprocess_targets
 from merge_post_vcfs import merge_post_vcfs
 from resolve_variants import resolve_variants
-from utils import concatenate_files, get_chromosomes_order, run_bedtools_cmd
+from utils import concatenate_files, get_chromosomes_order, run_bedtools_cmd, bedtools_window
 from long_read_indelrealign import long_read_indelrealign
 from resolve_scores import resolve_scores
 from _version import __version__
@@ -68,19 +68,15 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
                     c_f.write(
                         "\t".join(map(str, [chrom, pos, ".", ref, alt, ".", ".", ".", "GT:DP:RO:AO:AF", ":".join(map(str, ["0/1", dp, ro, ao, af]))])) + "\n")
 
-    cmd = "bedtools window -a {} -b {} -w 5".format(
-        merged_vcf, candidates_vcf)
-    in_candidates = run_bedtools_cmd(cmd, run_logger=logger)
-    cmd = "bedtools window -a {} -b {} -w 5 -v".format(
-        merged_vcf, candidates_vcf)
-    notin_candidates = run_bedtools_cmd(cmd, run_logger=logger)
+    in_candidates = bedtools_window(
+        merged_vcf, candidates_vcf, args=" -w 5", run_logger=logger)
+    notin_candidates = bedtools_window(
+        merged_vcf, candidates_vcf, args=" -w 5 -v", run_logger=logger)
     if ensemble_tsv:
-        cmd = "bedtools window -a {} -b {} -w 5".format(
-            merged_vcf, ensemble_candids_vcf)
-        in_ensemble = run_bedtools_cmd(cmd, run_logger=logger)
-        cmd = "bedtools window -a {} -b {} -w 5 -v".format(
-            notin_candidates, ensemble_candids_vcf)
-        notin_any = run_bedtools_cmd(cmd, run_logger=logger)
+        in_ensemble = bedtools_window(
+            merged_vcf, ensemble_candids_vcf, args=" -w 5", run_logger=logger)
+        notin_any = bedtools_window(
+            notin_candidates, ensemble_candids_vcf, args=" -w 5 -v", run_logger=logger)
     else:
         in_ensemble = None
         notin_any = notin_candidates
@@ -193,12 +189,10 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     candidates_preds = os.path.join(work, "candidates_preds.vcf")
     ensembled_preds = os.path.join(work, "ensembled_preds.vcf")
 
-    cmd = "bedtools window -a {} -b {} -w 5 -v".format(
-        pred_vcf_file, candidates_vcf)
-    run_bedtools_cmd(cmd, output_fn=ensembled_preds, run_logger=logger)
-    cmd = "bedtools window -a {} -b {} -w 5 -u".format(
-        pred_vcf_file, candidates_vcf)
-    run_bedtools_cmd(cmd, output_fn=candidates_preds, run_logger=logger)
+    bedtools_window(
+        pred_vcf_file, candidates_vcf, args=" -w 5 -v", output_fn=ensembled_preds, run_logger=logger)
+    bedtools_window(
+        pred_vcf_file, candidates_vcf, args=" -w 5 -u", output_fn=candidates_preds, run_logger=logger)
 
     logger.info("Extract targets")
     postprocess_pad = 1 if not long_read else 10

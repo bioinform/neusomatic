@@ -9,7 +9,7 @@ import traceback
 from random import shuffle
 import logging
 
-from utils import run_bedtools_cmd, write_tsv_file
+from utils import run_bedtools_cmd, write_tsv_file, bedtools_sort, bedtools_merge
 
 
 def split_region(work, region_bed_file, num_splits, max_region=1000000, min_region=20, shuffle_intervals=False):
@@ -18,12 +18,9 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
 
     logger.info("------------------------Split region-----------------------")
 
-    cmd = "bedtools sort -i {}".format(
-        region_bed_file)
-    regions_bed = run_bedtools_cmd(cmd, run_logger=logger)
-    cmd = "bedtools merge -i {} -d 0 ".format(
-        regions_bed)
-    regions_bed = run_bedtools_cmd(cmd, run_logger=logger)
+    regions_bed = bedtools_sort(region_bed_file, run_logger=logger)
+    regions_bed = bedtools_merge(
+        regions_bed, args=" -d 0", run_logger=logger)
 
     intervals = []
     with open(regions_bed) as r_f:
