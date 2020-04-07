@@ -187,4 +187,16 @@ def bedtools_intersect(a_bed_file, b_bed_file, args="", output_fn=None, run_logg
         run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
     return output_fn
 
+def bedtools_slop(bed_file, genome, args="", output_fn=None, run_logger=None):
+    cmd = "bedtools slop -i {} -g {} {}".format(bed_file, genome, args)
+    if output_fn is None:
+        output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
+    else:
+        run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
+    return output_fn
 
+def get_tmp_file(prefix="tmpbed_", suffix=".bed", delete=False):
+    myfile = tempfile.NamedTemporaryFile(
+                prefix="tmpbed_", suffix=".bed", delete=False)
+    myfile = myfile.name
+    return myfile

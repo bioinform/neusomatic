@@ -15,12 +15,11 @@ import glob
 import traceback
 import logging
 import shutil
-import tempfile
 
 import pysam
 import numpy as np
 
-from utils import concatenate_files, run_shell_command, run_bedtools_cmd, bedtools_sort, bedtools_merge
+from utils import concatenate_files, run_shell_command, bedtools_sort, bedtools_merge, get_tmp_file
 from split_bed import split_region
 
 
@@ -85,8 +84,7 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
             regions_bed = bedtools_merge(
                 regions_bed, args=" -d 0", run_logger=logger)
         else:
-            regions_bed = tempfile.NamedTemporaryFile(
-                prefix="tmpbed_", suffix=".bed", delete=False)
+            regions_bed = get_tmp_file()
             regions_bed = regions_bed.name
             with pysam.AlignmentFile(input_bam, "rb") as samfile:
                 with open(regions_bed, "w") as tmpfile:

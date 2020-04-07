@@ -20,7 +20,7 @@ import pysam
 from scipy.misc import imresize
 
 from split_bed import split_region
-from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect
+from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect, get_tmp_file
 
 
 NUC_to_NUM_hp = {"A": 1, "C": 2, "G": 3, "T": 4, "N": 5}
@@ -835,9 +835,8 @@ def find_records(input_record):
         thread_logger.info(
             "Start find_records for worker {}".format(work_index))
 
-        cmd = "bedtools slop -i {} -g {} -b {}".format(
-            split_region_file, ref_file + ".fai", 5)
-        split_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
+        split_bed=bedtools_slop(
+            split_region_file, ref_file + ".fai", args=" -b 5", run_logger=thread_logger)
         split_truth_vcf_file = os.path.join(
             work, "truth_{}.vcf".format(work_index))
         split_pred_vcf_file = os.path.join(
@@ -1039,8 +1038,7 @@ def find_records(input_record):
                         records.append(rr + [str(i)])
                         i += 1
 
-        records_bed = tempfile.NamedTemporaryFile(
-            prefix="tmpbed_", suffix=".bed", delete=False)
+        records_bed = get_tmp_file()
         records_bed = records_bed.name
         with open(records_bed, "w") as r_b:
             for x in records:
@@ -1060,8 +1058,7 @@ def find_records(input_record):
                     [record[0], int(record[1]), record[3], record[4], str(i)])
                 i += 1
 
-        truth_bed = tempfile.NamedTemporaryFile(
-            prefix="tmpbed_", suffix=".bed", delete=False)
+        truth_bed = get_tmp_file()
         truth_bed = truth_bed.name
         with open(truth_bed, "w") as t_b:
             for x in truth_records:

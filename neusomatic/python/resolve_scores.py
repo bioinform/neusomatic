@@ -10,7 +10,7 @@ import traceback
 
 import numpy as np
 
-from utils import get_chromosomes_order, run_bedtools_cmd, read_tsv_file, bedtools_window
+from utils import get_chromosomes_order, read_tsv_file, bedtools_window
 
 
 def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):

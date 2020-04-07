@@ -10,12 +10,11 @@ import argparse
 import re
 import logging
 import traceback
-import tempfile
 
 import pysam
 import numpy as np
 
-from utils import get_chromosomes_order, run_bedtools_cmd, read_tsv_file, bedtools_sort, bedtools_merge
+from utils import get_chromosomes_order, read_tsv_file, bedtools_sort, bedtools_merge, get_tmp_file
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -106,8 +105,7 @@ def find_resolved_variants(input_record):
                     for del_ in uniq_dels:
                         if uniq_dels_count[del_] <= max_count * 0.5:
                             del uniq_dels_count[del_]
-                    new_bed = tempfile.NamedTemporaryFile(
-                        prefix="tmpbed_", suffix=".bed", delete=False)
+                    new_bed = get_tmp_file()
                     new_bed = new_bed.name
                     with open(new_bed, "w") as f_o:
                         for k in uniq_dels_count.keys():
@@ -145,8 +143,7 @@ def find_resolved_variants(input_record):
                         if uniq_inss_count[ins_] <= max_count * 0.5 or 0 < abs(int(ins_.split("---")[1]) - max_pos) < 4:
                             del uniq_inss_count[ins_]
 
-                    new_bed = tempfile.NamedTemporaryFile(
-                        prefix="tmpbed_", suffix=".bed", delete=False)
+                    new_bed = get_tmp_file()
                     new_bed = new_bed.name
                     with open(new_bed, "w") as f_o:
                         for k in uniq_inss_count.keys():

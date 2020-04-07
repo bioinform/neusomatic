@@ -25,7 +25,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import DNAAlphabet
 
-from utils import run_shell_command, get_chromosomes_order, run_bedtools_cmd, write_tsv_file, read_tsv_file, bedtools_sort, bedtools_merge
+from utils import run_shell_command, get_chromosomes_order, run_bedtools_cmd, write_tsv_file, read_tsv_file, bedtools_sort, bedtools_merge, get_tmp_file
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -1073,8 +1073,7 @@ def extend_regions_hp(region_bed_file, extended_region_bed_file, ref_fasta_file,
                 ), ref_fasta.fetch(chrom, new_start - pad, new_end + pad + 1).upper()
                 intervals.append([chrom, new_start, new_end])
 
-        tmp_ = tempfile.NamedTemporaryFile(
-            prefix="tmpbed_", suffix=".bed", delete=False)
+        tmp_ = get_tmp_file()
         tmp_ = tmp_.name
         write_tsv_file(tmp_, intervals)
         bedtools_sort(tmp_, output_fn=extended_region_bed_file,
@@ -1194,8 +1193,7 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
                         cnt_e += 4
                 intervals.append([chrom, new_start + pad, new_end - pad])
 
-        tmp_ = tempfile.NamedTemporaryFile(
-            prefix="tmpbed_", suffix=".bed", delete=False)
+        tmp_ = get_tmp_file()
         tmp_ = tmp_.name
         write_tsv_file(tmp_, intervals, add_fields=[".", ".", "."])
         bedtools_sort(tmp_, output_fn=extended_region_bed_file,

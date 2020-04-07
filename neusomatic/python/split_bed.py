@@ -9,7 +9,7 @@ import traceback
 from random import shuffle
 import logging
 
-from utils import run_bedtools_cmd, write_tsv_file, bedtools_sort, bedtools_merge
+from utils import write_tsv_file, bedtools_sort, bedtools_merge
 
 
 def split_region(work, region_bed_file, num_splits, max_region=1000000, min_region=20, shuffle_intervals=False):

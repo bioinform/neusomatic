@@ -7,12 +7,11 @@ import argparse
 import traceback
 import logging
 import multiprocessing
-import tempfile
 
 import pysam
 import numpy as np
 
-from utils import safe_read_info_dict, run_bedtools_cmd, vcf_2_bed, write_tsv_file, bedtools_sort
+from utils import safe_read_info_dict, run_bedtools_cmd, vcf_2_bed, write_tsv_file, bedtools_sort, get_tmp_file
 
 
 def filter_candidates(candidate_record):
@@ -261,8 +260,7 @@ def filter_candidates(candidate_record):
                 final_records.append([chrom, pos - 1, ref, alt, line])
         final_records = sorted(final_records, key=lambda x: x[0:2])
         if dbsnp:
-            filtered_bed = tempfile.NamedTemporaryFile(
-                prefix="tmpbed_", suffix=".bed", delete=False)
+            filtered_bed = get_tmp_file()
             filtered_bed = filtered_bed.name
             intervals = []
             for x in enumerate(final_records):
@@ -272,8 +270,7 @@ def filter_candidates(candidate_record):
             filtered_bed = bedtools_sort(
                 filtered_bed, run_logger=thread_logger)
 
-            dbsnp_tmp = tempfile.NamedTemporaryFile(
-                prefix="tmpbed_", suffix=".bed", delete=False)
+            dbsnp_tmp = get_tmp_file()
             dbsnp_tmp = dbsnp_tmp.name
             vcf_2_bed(dbsnp, dbsnp_tmp)
             bedtools_sort(dbsnp_tmp, output_fn=dbsnp, run_logger=thread_logger)

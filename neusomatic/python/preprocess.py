@@ -19,7 +19,7 @@ import tempfile
 from filter_candidates import filter_candidates
 from generate_dataset import generate_dataset, extract_ensemble
 from scan_alignments import scan_alignments
-from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect
+from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, get_tmp_file
 
 
 def split_dbsnp(record):
@@ -134,10 +134,9 @@ def get_ensemble_region(record):
     thread_logger = logging.getLogger(
         "{} ({})".format(get_ensemble_region.__name__, multiprocessing.current_process().name))
     try:
-        cmd = "bedtools slop -i {} -g {} -b {}".format(region, reference + ".fai",
-                                                       matrix_base_pad + 3)
-        ensemble_bed_region_file_tmp = run_bedtools_cmd(
-            cmd, run_logger=thread_logger)
+        ensemble_bed_region_file_tmp = bedtools_slop(
+            region, reference + ".fai", args=" -b {}".format(matrix_base_pad + 3),
+            run_logger=thread_logger)
         bedtools_intersect(
             ensemble_bed, ensemble_bed_region_file_tmp, args=" -u",
             output_fn=ensemble_bed_region_file, run_logger=thread_logger)
@@ -205,14 +204,14 @@ def extract_candidate_split_regions(
                 candidates_bed)
             candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
             candidates_bed = bedtools_sort(candidates_bed, run_logger=logger)
-            cmd = "bedtools slop -i {} -g {} -b {}".format(candidates_bed,
-                                                           reference + ".fai", matrix_base_pad + 3)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            candidates_bed = bedtools_slop(
+                candidates_bed, reference + ".fai", args=" -b {}".format(matrix_base_pad + 3),
+                run_logger=thread_logger)
+
             candidates_bed = bedtools_merge(
                 candidates_bed, args=" -d {}".format(merge_d_for_short_read), run_logger=logger)
         else:
-            candidates_bed = tempfile.NamedTemporaryFile(
-                prefix="tmpbed_", suffix=".bed", delete=False)
+            candidates_bed = get_tmp_file()
             candidates_bed = candidates_bed.name
 
         if ensemble_beds:
