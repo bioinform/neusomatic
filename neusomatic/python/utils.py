@@ -151,8 +151,8 @@ def vcf_2_bed(vcf_file, bed_file, add_fields=[]):
                 f_o.write(
                     "\t".join(map(str, [x[0], int(x[1]), int(x[1]) + 1, x[3], x[4]] + add_fields)) + "\n")
 
-def bedtools_sort(bed_file, output_fn=None, run_logger=None):
-    cmd = "bedtools sort -i {}".format(bed_file)
+def bedtools_sort(bed_file, args="", output_fn=None, run_logger=None):
+    cmd = "bedtools sort -i {} {}".format(bed_file, args)
     if output_fn is None:
         output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
     else:
