@@ -106,7 +106,6 @@ def find_resolved_variants(input_record):
                         if uniq_dels_count[del_] <= max_count * 0.5:
                             del uniq_dels_count[del_]
                     new_bed = get_tmp_file()
-                    new_bed = new_bed.name
                     with open(new_bed, "w") as f_o:
                         for k in uniq_dels_count.keys():
                             x = k.split("---")
@@ -144,7 +143,6 @@ def find_resolved_variants(input_record):
                             del uniq_inss_count[ins_]
 
                     new_bed = get_tmp_file()
-                    new_bed = new_bed.name
                     with open(new_bed, "w") as f_o:
                         for k in uniq_inss_count.keys():
                             x = k.split("---")

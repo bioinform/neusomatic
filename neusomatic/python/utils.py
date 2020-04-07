@@ -197,6 +197,6 @@ def bedtools_slop(bed_file, genome, args="", output_fn=None, run_logger=None):
 
 def get_tmp_file(prefix="tmpbed_", suffix=".bed", delete=False):
     myfile = tempfile.NamedTemporaryFile(
-                prefix="tmpbed_", suffix=".bed", delete=False)
+                prefix=prefix, suffix=suffix, delete=delete)
     myfile = myfile.name
     return myfile

@@ -261,7 +261,6 @@ def filter_candidates(candidate_record):
         final_records = sorted(final_records, key=lambda x: x[0:2])
         if dbsnp:
             filtered_bed = get_tmp_file()
-            filtered_bed = filtered_bed.name
             intervals = []
             for x in enumerate(final_records):
                 intervals.append([x[1][0], int(x[1][1]), int(
@@ -271,7 +270,6 @@ def filter_candidates(candidate_record):
                 filtered_bed, run_logger=thread_logger)
 
             dbsnp_tmp = get_tmp_file()
-            dbsnp_tmp = dbsnp_tmp.name
             vcf_2_bed(dbsnp, dbsnp_tmp)
             bedtools_sort(dbsnp_tmp, output_fn=dbsnp, run_logger=thread_logger)
             non_in_dbsnp_1 = bedtools_window(

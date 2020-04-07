@@ -85,7 +85,6 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
                 regions_bed, args=" -d 0", run_logger=logger)
         else:
             regions_bed = get_tmp_file()
-            regions_bed = regions_bed.name
             with pysam.AlignmentFile(input_bam, "rb") as samfile:
                 with open(regions_bed, "w") as tmpfile:
                     for chrom, length in zip(samfile.references, samfile.lengths):

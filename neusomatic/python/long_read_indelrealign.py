@@ -1074,7 +1074,6 @@ def extend_regions_hp(region_bed_file, extended_region_bed_file, ref_fasta_file,
                 intervals.append([chrom, new_start, new_end])
 
         tmp_ = get_tmp_file()
-        tmp_ = tmp_.name
         write_tsv_file(tmp_, intervals)
         bedtools_sort(tmp_, output_fn=extended_region_bed_file,
                       run_logger=logger)
@@ -1194,7 +1193,6 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
                 intervals.append([chrom, new_start + pad, new_end - pad])
 
         tmp_ = get_tmp_file()
-        tmp_ = tmp_.name
         write_tsv_file(tmp_, intervals, add_fields=[".", ".", "."])
         bedtools_sort(tmp_, output_fn=extended_region_bed_file,
                       run_logger=logger)

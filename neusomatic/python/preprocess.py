@@ -19,7 +19,7 @@ import tempfile
 from filter_candidates import filter_candidates
 from generate_dataset import generate_dataset, extract_ensemble
 from scan_alignments import scan_alignments
-from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, get_tmp_file
+from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, get_tmp_file
 
 
 def split_dbsnp(record):
@@ -206,13 +206,12 @@ def extract_candidate_split_regions(
             candidates_bed = bedtools_sort(candidates_bed, run_logger=logger)
             candidates_bed = bedtools_slop(
                 candidates_bed, reference + ".fai", args=" -b {}".format(matrix_base_pad + 3),
-                run_logger=thread_logger)
+                run_logger=logger)
 
             candidates_bed = bedtools_merge(
                 candidates_bed, args=" -d {}".format(merge_d_for_short_read), run_logger=logger)
         else:
             candidates_bed = get_tmp_file()
-            candidates_bed = candidates_bed.name
 
         if ensemble_beds:
             cmd = "cat {} {}".format(

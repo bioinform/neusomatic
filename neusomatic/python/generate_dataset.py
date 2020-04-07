@@ -20,7 +20,7 @@ import pysam
 from scipy.misc import imresize
 
 from split_bed import split_region
-from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect, get_tmp_file
+from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect, bedtools_slop, get_tmp_file
 
 
 NUC_to_NUM_hp = {"A": 1, "C": 2, "G": 3, "T": 4, "N": 5}
@@ -1039,7 +1039,6 @@ def find_records(input_record):
                         i += 1
 
         records_bed = get_tmp_file()
-        records_bed = records_bed.name
         with open(records_bed, "w") as r_b:
             for x in records:
                 r_b.write(
@@ -1059,7 +1058,6 @@ def find_records(input_record):
                 i += 1
 
         truth_bed = get_tmp_file()
-        truth_bed = truth_bed.name
         with open(truth_bed, "w") as t_b:
             for x in truth_records:
                 t_b.write(
