@@ -835,7 +835,7 @@ def find_records(input_record):
         thread_logger.info(
             "Start find_records for worker {}".format(work_index))
 
-        split_bed=bedtools_slop(
+        split_bed = bedtools_slop(
             split_region_file, ref_file + ".fai", args=" -b 5", run_logger=thread_logger)
         split_truth_vcf_file = os.path.join(
             work, "truth_{}.vcf".format(work_index))

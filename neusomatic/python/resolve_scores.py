@@ -21,9 +21,9 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
     tmp_ = bedtools_window(
         ra_vcf, target_vcf, args=" -w 5 -v", run_logger=logger)
 
-    final_intervals= read_tsv_file(tmp_)
+    final_intervals = read_tsv_file(tmp_)
     for x in final_intervals:
-        x[5]="0.5"
+        x[5] = "0.5"
 
     tmp_ = bedtools_window(
         ra_vcf, target_vcf, args=" -w 5", run_logger=logger)

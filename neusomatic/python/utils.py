@@ -140,16 +140,16 @@ def read_tsv_file(tsv_file, sep='\t', fields=None):
 
 
 def vcf_2_bed(vcf_file, bed_file, add_fields=[]):
-    with open(bed_file, "w") as f_o:
-        with open(vcf_file, "r") as f_i:
-            for line in f_i:
-                if not line.strip():
-                    continue
-                if line[0] == "#":
-                    continue
-                x = line.strip().split("\t")
-                f_o.write(
-                    "\t".join(map(str, [x[0], int(x[1]), int(x[1]) + 1, x[3], x[4]] + add_fields)) + "\n")
+    with open(bed_file, "w") as f_o, open(vcf_file, "r") as f_i:
+        for line in f_i:
+            if not line.strip():
+                continue
+            if line[0] == "#":
+                continue
+            x = line.strip().split("\t")
+            f_o.write(
+                "\t".join(map(str, [x[0], int(x[1]), int(x[1]) + 1, x[3], x[4]] + add_fields)) + "\n")
+
 
 def bedtools_sort(bed_file, args="", output_fn=None, run_logger=None):
     cmd = "bedtools sort -i {} {}".format(bed_file, args)
@@ -169,7 +169,6 @@ def bedtools_merge(bed_file, args="", output_fn=None, run_logger=None):
     return output_fn
 
 
-
 def bedtools_window(a_bed_file, b_bed_file, args="", output_fn=None, run_logger=None):
     cmd = "bedtools window -a {} -b {} {}".format(a_bed_file, b_bed_file, args)
     if output_fn is None:
@@ -180,12 +179,14 @@ def bedtools_window(a_bed_file, b_bed_file, args="", output_fn=None, run_logger=
 
 
 def bedtools_intersect(a_bed_file, b_bed_file, args="", output_fn=None, run_logger=None):
-    cmd = "bedtools intersect -a {} -b {} {}".format(a_bed_file, b_bed_file, args)
+    cmd = "bedtools intersect -a {} -b {} {}".format(
+        a_bed_file, b_bed_file, args)
     if output_fn is None:
         output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
     else:
         run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
     return output_fn
+
 
 def bedtools_slop(bed_file, genome, args="", output_fn=None, run_logger=None):
     cmd = "bedtools slop -i {} -g {} {}".format(bed_file, genome, args)
@@ -195,8 +196,9 @@ def bedtools_slop(bed_file, genome, args="", output_fn=None, run_logger=None):
         run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
     return output_fn
 
+
 def get_tmp_file(prefix="tmpbed_", suffix=".bed", delete=False):
     myfile = tempfile.NamedTemporaryFile(
-                prefix=prefix, suffix=suffix, delete=delete)
+        prefix=prefix, suffix=suffix, delete=delete)
     myfile = myfile.name
     return myfile

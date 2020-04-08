@@ -78,6 +78,7 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
 
     logger.info("-------------------Scan Alignment BAM----------------------")
 
+    split_len_ratio = 0.98
     if not split_region_files:
         if regions_bed_file:
             regions_bed = bedtools_sort(regions_bed_file, run_logger=logger)
@@ -109,7 +110,7 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
                             continue
                         chrom, st, en = line.strip().split("\t")[0:3]
                         spilt_total_len += int(en) - int(st)
-            if spilt_total_len >= 0.98 * total_len:
+            if spilt_total_len >= split_len_ratio * total_len:
                 split_region_files = sorted(split_region_files,
                                             key=lambda x: int(
                                                 os.path.basename(x).split(".bed")[0].split(
