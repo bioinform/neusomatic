@@ -10,12 +10,11 @@ import argparse
 import re
 import logging
 import traceback
-import tempfile
 
 import pysam
 import numpy as np
 
-from utils import get_chromosomes_order, run_bedtools_cmd
+from utils import get_chromosomes_order, read_tsv_file, bedtools_sort, bedtools_merge, get_tmp_file
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -107,26 +106,18 @@ def find_resolved_variants(input_record):
                     for del_ in uniq_dels:
                         if uniq_dels_count[del_] <= max_count * 0.5:
                             del uniq_dels_count[del_]
-                    new_bed = tempfile.NamedTemporaryFile(
-                        prefix="tmpbed_", suffix=".bed", delete=False)
-                    new_bed = new_bed.name
+                    new_bed = get_tmp_file()
                     with open(new_bed, "w") as f_o:
                         for k in uniq_dels_count.keys():
                             x = k.split("---")
                             f_o.write(
                                 "\t".join(map(str, x + [".", "."])) + "\n")
-                    cmd = "bedtools sort -i {}".format(new_bed)
-                    new_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
-                    cmd = "bedtools merge -i {} -c 1 -o count".format(new_bed)
-                    new_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
-                    vs = []
-                    with open(new_bed) as i_f:
-                        for line in i_f:
-                            if not line.strip():
-                                continue
-                            x = line.strip().split("\t")[0:4]
-                            vs.append([x[0], int(x[1]), ref.fetch(x[0], int(
-                                x[1]) - 1, int(x[2])).upper(), ref.fetch(x[0], int(x[1]) - 1, int(x[1])).upper(), "0/1", score])
+                    new_bed = bedtools_sort(new_bed, run_logger=thread_logger)
+                    new_bed = bedtools_merge(
+                        new_bed, args=" -c 1 -o count", run_logger=thread_logger)
+                    vs = read_tsv_file(new_bed, fields=range(4))
+                    vs = list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
+                        x[1]) - 1, int(x[2])).upper(), ref.fetch(x[0], int(x[1]) - 1, int(x[1])).upper(), "0/1", score], vs))
                     out_variants.extend(vs)
             elif vartype == "INS":
                 intervals = []
@@ -151,24 +142,17 @@ def find_resolved_variants(input_record):
                     for ins_ in uniq_inss:
                         if uniq_inss_count[ins_] <= max_count * 0.5 or 0 < abs(int(ins_.split("---")[1]) - max_pos) < 4:
                             del uniq_inss_count[ins_]
-                    new_bed = tempfile.NamedTemporaryFile(
-                        prefix="tmpbed_", suffix=".bed", delete=False)
-                    new_bed = new_bed.name
+
+                    new_bed = get_tmp_file()
                     with open(new_bed, "w") as f_o:
                         for k in uniq_inss_count.keys():
                             x = k.split("---")
                             f_o.write(
                                 "\t".join(map(str, x + [".", "."])) + "\n")
-                    cmd = "bedtools sort -i {}".format(new_bed)
-                    new_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
-                    vs = []
-                    with open(new_bed) as i_f:
-                        for line in i_f:
-                            if not line.strip():
-                                continue
-                            x = line.strip().split("\t")[0:4]
-                            vs.append([x[0], int(x[1]), ref.fetch(x[0], int(
-                                x[1]) - 1, int(x[1])).upper(), ref.fetch(x[0], int(x[1]) - 1, int(x[1])).upper() + x[3], "0/1", score])
+                    new_bed = bedtools_sort(new_bed, run_logger=thread_logger)
+                    vs = read_tsv_file(new_bed, fields=range(4))
+                    vs = list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
+                        x[1]) - 1, int(x[1])).upper(), ref.fetch(x[0], int(x[1]) - 1, int(x[1])).upper() + x[3], "0/1", score], vs))
                     out_variants.extend(vs)
         return out_variants
     except Exception as ex:

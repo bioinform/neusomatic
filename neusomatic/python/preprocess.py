@@ -20,7 +20,7 @@ from filter_candidates import filter_candidates
 from generate_dataset import generate_dataset, extract_ensemble
 from scan_alignments import scan_alignments
 from extend_features import extend_features
-from utils import concatenate_files, concatenate_vcfs, run_bedtools_cmd
+from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, get_tmp_file
 
 
 def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp,
@@ -90,14 +90,12 @@ def get_ensemble_region(record):
     thread_logger = logging.getLogger(
         "{} ({})".format(get_ensemble_region.__name__, multiprocessing.current_process().name))
     try:
-        cmd = "bedtools slop -i {} -g {} -b {}".format(region, reference + ".fai",
-                                                       matrix_base_pad + 3)
-        ensemble_bed_region_file_tmp = run_bedtools_cmd(
-            cmd, run_logger=thread_logger)
-        cmd = "bedtools intersect -a {} -b {} -u".format(
-            ensemble_bed, ensemble_bed_region_file_tmp)
-        run_bedtools_cmd(cmd, output_fn=ensemble_bed_region_file,
-                         run_logger=thread_logger)
+        ensemble_bed_region_file_tmp = bedtools_slop(
+            region, reference + ".fai", args=" -b {}".format(matrix_base_pad + 3),
+            run_logger=thread_logger)
+        bedtools_intersect(
+            ensemble_bed, ensemble_bed_region_file_tmp, args=" -u",
+            output_fn=ensemble_bed_region_file, run_logger=thread_logger)
         return ensemble_bed_region_file
 
     except Exception as ex:
@@ -161,19 +159,14 @@ def extract_candidate_split_regions(
             cmd = '''awk '{{print $1"\t"$2"\t"$2+length($4)}}' {}'''.format(
                 candidates_bed)
             candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools sort -i {}".format(candidates_bed)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools slop -i {} -g {} -b {}".format(candidates_bed,
-                                                           reference + ".fai", matrix_base_pad + 3)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools merge -i {} -d {}".format(
-                candidates_bed, merge_d_for_short_read)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            candidates_bed = bedtools_sort(candidates_bed, run_logger=logger)
+            candidates_bed = bedtools_slop(
+                candidates_bed, reference + ".fai", args=" -b {}".format(matrix_base_pad + 3),
+                run_logger=logger)
+            candidates_bed = bedtools_merge(
+                candidates_bed, args=" -d {}".format(merge_d_for_short_read), run_logger=logger)
         else:
-            candidates_bed = tempfile.NamedTemporaryFile(
-                prefix="tmpbed_", suffix=".bed", delete=False)
-            candidates_bed = candidates_bed.name
-
+            candidates_bed = get_tmp_file()
         if ensemble_beds:
             cmd = "cat {} {}".format(
                 candidates_bed,
@@ -182,20 +175,14 @@ def extract_candidate_split_regions(
             cmd = "cut -f 1,2,3 {}".format(
                 candidates_bed)
             candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools sort -i {}".format(
-                candidates_bed)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools merge -i {} -d {} ".format(
-                candidates_bed, merge_d_for_short_read)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            candidates_bed = bedtools_sort(candidates_bed, run_logger=logger)
+            candidates_bed = bedtools_merge(
+                candidates_bed, args=" -d {}".format(merge_d_for_short_read), run_logger=logger)
 
-        cmd = "bedtools intersect -a {} -b {}".format(
-            candidates_bed, split_region_)
-        candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-        cmd = "bedtools sort -i {}".format(
-            candidates_bed)
-        run_bedtools_cmd(cmd, output_fn=candidates_region_file,
-                         run_logger=logger)
+        candidates_bed = bedtools_intersect(
+            candidates_bed, split_region_, run_logger=logger)
+        bedtools_sort(candidates_bed,
+                      output_fn=candidates_region_file, run_logger=logger)
 
         candidates_split_regions.append(candidates_region_file)
     return candidates_split_regions
@@ -359,7 +346,8 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                 extra_features_bed = os.path.join(
                     work_dataset_split, "extra_features.bed")
                 if not os.path.exists(extra_features_bed) or restart:
-                    extract_ensemble(extra_features_tsv, extra_features_bed, True)
+                    extract_ensemble(extra_features_tsv,
+                                     extra_features_bed, True)
                 if ensemble_tsv:
                     merged_features_bed = os.path.join(
                         work_dataset_split, "merged_features.bed")
@@ -371,9 +359,10 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                     if not line.strip():
                                         continue
                                     if line[0] == "#":
-                                        o_f.write(line)                                        
+                                        o_f.write(line)
                                         continue
-                                    chrom, pos, _, ref, alt = line.strip().split("\t")[0:5]
+                                    chrom, pos, _, ref, alt = line.strip().split("\t")[
+                                        0:5]
                                     var_id = "-".join([chrom, pos, ref, alt])
                                     exclude_ens_variants.append(var_id)
                                     o_f.write(line)
@@ -383,13 +372,14 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                         continue
                                     if line[0] == "#":
                                         continue
-                                    chrom, pos, _, ref, alt = line.strip().split("\t")[0:5]
+                                    chrom, pos, _, ref, alt = line.strip().split("\t")[
+                                        0:5]
                                     var_id = "-".join([chrom, pos, ref, alt])
                                     if var_id in exclude_ens_variants:
                                         continue
                                     o_f.write(line)
                     # concatenate_files([extra_features_bed, ensemble_beds[
-                    #                   i]], merged_features_bed, check_file_existence=True)
+                    # i]], merged_features_bed, check_file_existence=True)
                     ensemble_bed_i = merged_features_bed
                 else:
                     ensemble_bed_i = extra_features_bed

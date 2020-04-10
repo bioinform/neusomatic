@@ -25,7 +25,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import DNAAlphabet
 
-from utils import run_shell_command, get_chromosomes_order, run_bedtools_cmd
+from utils import run_shell_command, get_chromosomes_order, run_bedtools_cmd, write_tsv_file, read_tsv_file, bedtools_sort, bedtools_merge, get_tmp_file
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -1000,7 +1000,8 @@ def run_realignment(input_record):
         region = Region(target_region, pad, len_chr)
         not_realigned_region = None
         original_tempdir = tempfile.tempdir
-        bed_tempdir = os.path.join(work, "bed_tmpdir_{}".format(region.__str__()))
+        bed_tempdir = os.path.join(
+            work, "bed_tmpdir_{}".format(region.__str__()))
         if not os.path.exists(bed_tempdir):
             os.mkdir(bed_tempdir)
         tempfile.tempdir = bed_tempdir
@@ -1169,17 +1170,10 @@ def extend_regions_hp(region_bed_file, extended_region_bed_file, ref_fasta_file,
                 ), ref_fasta.fetch(chrom, new_start - pad, new_end + pad + 1).upper()
                 intervals.append([chrom, new_start, new_end])
 
-        tmp_ = tempfile.NamedTemporaryFile(
-            prefix="tmpbed_", suffix=".bed", delete=False)
-        tmp_ = tmp_.name
-        with open(tmp_, "w") as o_f:
-            for x in intervals:
-                o_f.write(
-                    "\t".join(map(str, x)) + "\n")
-        cmd = "bedtools sort -i {}".format(
-            tmp_)
-        run_bedtools_cmd(cmd, output_fn=extended_region_bed_file,
-                         run_logger=logger)
+        tmp_ = get_tmp_file()
+        write_tsv_file(tmp_, intervals)
+        bedtools_sort(tmp_, output_fn=extended_region_bed_file,
+                      run_logger=logger)
 
 
 def check_rep(ref_seq, left_right, w):
@@ -1295,17 +1289,10 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
                         cnt_e += 4
                 intervals.append([chrom, new_start + pad, new_end - pad])
 
-        tmp_ = tempfile.NamedTemporaryFile(
-            prefix="tmpbed_", suffix=".bed", delete=False)
-        tmp_ = tmp_.name
-        with open(tmp_, "w") as o_f:
-            for x in intervals:
-                o_f.write(
-                    "\t".join(map(str, x + [".", ".", "."])) + "\n")
-        cmd = "bedtools sort -i {}".format(
-            tmp_)
-        run_bedtools_cmd(cmd, output_fn=extended_region_bed_file,
-                         run_logger=logger)
+        tmp_ = get_tmp_file()
+        write_tsv_file(tmp_, intervals, add_fields=[".", ".", "."])
+        bedtools_sort(tmp_, output_fn=extended_region_bed_file,
+                      run_logger=logger)
 
 
 def long_read_indelrealign(work, input_bam, output_bam, output_vcf, output_not_realigned_bed,
@@ -1354,9 +1341,8 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, output_not_r
                 continue
             len_merged += 1
     while True:
-        cmd = "bedtools merge -i {} -d {} ".format(
-            region_bed_merged, pad * 2)
-        region_bed_merged_tmp = run_bedtools_cmd(cmd, run_logger=logger)
+        region_bed_merged_tmp = bedtools_merge(
+            region_bed_merged, args=" -d {}".format(pad * 2), run_logger=logger)
         len_tmp = 0
         with open(region_bed_merged_tmp) as r_b:
             for line in r_b:
@@ -1372,13 +1358,9 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, output_not_r
     shutil.copyfile(region_bed_merged, os.path.join(
         work, "regions_merged.bed"))
 
-    target_regions = []
-    with open(region_bed_merged) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
-            x = line.strip().split("\t")
-            target_regions.append([x[0], int(x[1]), int(x[2])])
+    target_regions = read_tsv_file(region_bed_merged, fields=range(3))
+    target_regions = list(
+        map(lambda x: [x[0], int(x[1]), int(x[2])], target_regions))
 
     get_var = True if output_vcf else False
     pool = multiprocessing.Pool(num_threads)
