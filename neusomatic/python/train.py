@@ -201,7 +201,7 @@ class SubsetNoneSampler(torch.utils.data.sampler.Sampler):
 def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpoint,
                      num_threads, batch_size, max_epochs, learning_rate, lr_drop_epochs,
                      lr_drop_ratio, momentum, boost_none, none_count_scale,
-                     max_load_candidates, coverage_thr, save_freq, ensemble,
+                     max_load_candidates, coverage_thr, save_freq,
                      merged_candidates_per_tsv, merged_max_num_tsvs, overwrite_merged_tsvs,
                      train_split_len,
                      normalize_channels,
@@ -219,7 +219,17 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         torch.set_num_threads(num_threads)
 
     data_transform = matrix_transform((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+
+    ensemble = False
+    with open(candidates_tsv[0]) as i_f:
+        for line in i_f:
+            x=line.strip().split()
+            if len(x)==97:
+                ensemble=True
+            break
+    
     num_channels = 119 if ensemble else 26
+    logger.info("Number of channels: {}".format(num_channels))
     net = NeuSomaticNet(num_channels)
     if use_cuda:
         logger.info("GPU training!")
@@ -507,9 +517,6 @@ if __name__ == '__main__':
                         help='pretrained network model checkpoint path', default=None)
     parser.add_argument('--validation_candidates_tsv', nargs="*",
                         help=' validation candidate tsv files', default=[])
-    parser.add_argument('--ensemble',
-                        help='Enable training for ensemble mode',
-                        action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     parser.add_argument('--batch_size', type=int,
@@ -568,7 +575,6 @@ if __name__ == '__main__':
                                       args.lr, args.lr_drop_epochs, args.lr_drop_ratio, args.momentum,
                                       args.boost_none, args.none_count_scale,
                                       args.max_load_candidates, args.coverage_thr, args.save_freq,
-                                      args.ensemble,
                                       args.merged_candidates_per_tsv, args.merged_max_num_tsvs,
                                       args.overwrite_merged_tsvs, args.train_split_len,
                                       args.normalize_channels,

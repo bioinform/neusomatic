@@ -395,7 +395,6 @@ def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_thr
 
 def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     batch_size, max_load_candidates, pass_threshold, lowqual_threshold,
-                    ensemble,
                     use_cuda):
     logger = logging.getLogger(call_neusomatic.__name__)
 
@@ -412,7 +411,17 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
     vartype_classes = ['DEL', 'INS', 'NONE', 'SNP']
     data_transform = matrix_transform((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+
+    ensemble = False
+    with open(candidates_tsv[0]) as i_f:
+        for line in i_f:
+            x = line.strip().split()
+            if len(x) == 97:
+                ensemble = True
+            break
+
     num_channels = 119 if ensemble else 26
+    logger.info("Number of channels: {}".format(num_channels))
     net = NeuSomaticNet(num_channels)
     if use_cuda:
         logger.info("GPU calling!")
@@ -583,9 +592,6 @@ if __name__ == '__main__':
                         help='output directory', required=True)
     parser.add_argument('--checkpoint', type=str,
                         help='network model checkpoint path', required=True)
-    parser.add_argument('--ensemble',
-                        help='Enable calling for ensemble mode',
-                        action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     parser.add_argument('--batch_size', type=int,
@@ -607,7 +613,6 @@ if __name__ == '__main__':
                                      args.checkpoint,
                                      args.num_threads, args.batch_size, args.max_load_candidates,
                                      args.pass_threshold, args.lowqual_threshold,
-                                     args.ensemble,
                                      use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())
