@@ -1,3 +1,0 @@
-#../neusomatic/bin/scan_alignments --ref example/Homo_sapiens.GRCh37.75.dna.chromosome.22.fa -b normal.bam -L aa/work_tumor/candidates_region_0.bed --out_vcf_file aa/work_normal/work.0/candidates.vcf --out_count_file aa/work_normal/work.0/count.bed --window_size 2000 --min_af 0.2 --min_mapq 10 --max_depth 2000000.0 --calculate_qual_stat 
-#On region 22:? [21172864,21172886) 
-#Aligned read number: 40
