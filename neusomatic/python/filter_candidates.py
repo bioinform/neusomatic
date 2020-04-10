@@ -8,12 +8,11 @@ import argparse
 import traceback
 import logging
 import multiprocessing
-import tempfile
 
 import pysam
 import numpy as np
 
-from utils import safe_read_info_dict, run_bedtools_cmd
+from utils import safe_read_info_dict, run_bedtools_cmd, vcf_2_bed, write_tsv_file, bedtools_sort, get_tmp_file
 
 
 def filter_candidates(candidate_record):

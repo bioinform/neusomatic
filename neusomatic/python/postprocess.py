@@ -21,7 +21,7 @@ import numpy as np
 from extract_postprocess_targets import extract_postprocess_targets
 from merge_post_vcfs import merge_post_vcfs
 from resolve_variants import resolve_variants
-from utils import concatenate_files, get_chromosomes_order, run_bedtools_cmd
+from utils import concatenate_files, get_chromosomes_order, bedtools_window
 from long_read_indelrealign import long_read_indelrealign
 from resolve_scores import resolve_scores
 from _version import __version__
@@ -34,53 +34,48 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
     ensemble_candids_vcf = None
     if ensemble_tsv:
         ensemble_candids_vcf = os.path.join(work, "ensemble_candids.vcf")
-        with open(ensemble_tsv) as e_f:
-            with open(ensemble_candids_vcf, "w") as c_f:
-                c_f.write("##fileformat=VCFv4.2\n")
+        with open(ensemble_tsv) as e_f, open(ensemble_candids_vcf, "w") as c_f:
+            c_f.write("##fileformat=VCFv4.2\n")
+            c_f.write(
+                "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
+            for line in e_f:
+                if "T_REF_FOR" in line:
+                    header = line.strip().split()
+                    chrom_id = header.index("CHROM")
+                    pos_id = header.index("POS")
+                    ref_id = header.index("REF")
+                    alt_id = header.index("ALT")
+                    dp_id = header.index("T_DP")
+                    ref_fw_id = header.index("T_REF_FOR")
+                    ref_rv_id = header.index("T_REF_REV")
+                    alt_fw_id = header.index("T_ALT_FOR")
+                    alt_rv_id = header.index("T_ALT_REV")
+                    continue
+                fields = line.strip().split()
+                chrom = fields[chrom_id]
+                pos = fields[pos_id]
+                ref = fields[ref_id]
+                alt = fields[alt_id]
+                dp = int(fields[dp_id])
+                ro_fw = int(fields[ref_fw_id])
+                ro_rv = int(fields[ref_rv_id])
+                ao_fw = int(fields[alt_fw_id])
+                ao_rv = int(fields[alt_rv_id])
+                ro = ro_fw + ro_rv
+                ao = ao_fw + ao_rv
+                af = np.round(ao / float(ao + ro + 0.0001), 4)
                 c_f.write(
-                    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
-                for line in e_f:
-                    if "T_REF_FOR" in line:
-                        header = line.strip().split()
-                        chrom_id = header.index("CHROM")
-                        pos_id = header.index("POS")
-                        ref_id = header.index("REF")
-                        alt_id = header.index("ALT")
-                        dp_id = header.index("T_DP")
-                        ref_fw_id = header.index("T_REF_FOR")
-                        ref_rv_id = header.index("T_REF_REV")
-                        alt_fw_id = header.index("T_ALT_FOR")
-                        alt_rv_id = header.index("T_ALT_REV")
-                        continue
-                    fields = line.strip().split()
-                    chrom = fields[chrom_id]
-                    pos = fields[pos_id]
-                    ref = fields[ref_id]
-                    alt = fields[alt_id]
-                    dp = int(fields[dp_id])
-                    ro_fw = int(fields[ref_fw_id])
-                    ro_rv = int(fields[ref_rv_id])
-                    ao_fw = int(fields[alt_fw_id])
-                    ao_rv = int(fields[alt_rv_id])
-                    ro = ro_fw + ro_rv
-                    ao = ao_fw + ao_rv
-                    af = np.round(ao / float(ao + ro + 0.0001), 4)
-                    c_f.write(
-                        "\t".join(map(str, [chrom, pos, ".", ref, alt, ".", ".", ".", "GT:DP:RO:AO:AF", ":".join(map(str, ["0/1", dp, ro, ao, af]))])) + "\n")
+                    "\t".join(map(str, [chrom, pos, ".", ref, alt, ".", ".", ".", "GT:DP:RO:AO:AF", ":".join(map(str, ["0/1", dp, ro, ao, af]))])) + "\n")
 
-    cmd = "bedtools window -a {} -b {} -w 5".format(
-        merged_vcf, candidates_vcf)
-    in_candidates = run_bedtools_cmd(cmd, run_logger=logger)
-    cmd = "bedtools window -a {} -b {} -w 5 -v".format(
-        merged_vcf, candidates_vcf)
-    notin_candidates = run_bedtools_cmd(cmd, run_logger=logger)
+    in_candidates = bedtools_window(
+        merged_vcf, candidates_vcf, args=" -w 5", run_logger=logger)
+    notin_candidates = bedtools_window(
+        merged_vcf, candidates_vcf, args=" -w 5 -v", run_logger=logger)
     if ensemble_tsv:
-        cmd = "bedtools window -a {} -b {} -w 5".format(
-            merged_vcf, ensemble_candids_vcf)
-        in_ensemble = run_bedtools_cmd(cmd, run_logger=logger)
-        cmd = "bedtools window -a {} -b {} -w 5 -v".format(
-            notin_candidates, ensemble_candids_vcf)
-        notin_any = run_bedtools_cmd(cmd, run_logger=logger)
+        in_ensemble = bedtools_window(
+            merged_vcf, ensemble_candids_vcf, args=" -w 5", run_logger=logger)
+        notin_any = bedtools_window(
+            notin_candidates, ensemble_candids_vcf, args=" -w 5 -v", run_logger=logger)
     else:
         in_ensemble = None
         notin_any = notin_candidates
@@ -194,12 +189,10 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     candidates_preds = os.path.join(work, "candidates_preds.vcf")
     ensembled_preds = os.path.join(work, "ensembled_preds.vcf")
 
-    cmd = "bedtools window -a {} -b {} -w 5 -v".format(
-        pred_vcf_file, candidates_vcf)
-    run_bedtools_cmd(cmd, output_fn=ensembled_preds, run_logger=logger)
-    cmd = "bedtools window -a {} -b {} -w 5 -u".format(
-        pred_vcf_file, candidates_vcf)
-    run_bedtools_cmd(cmd, output_fn=candidates_preds, run_logger=logger)
+    bedtools_window(
+        pred_vcf_file, candidates_vcf, args=" -w 5 -v", output_fn=ensembled_preds, run_logger=logger)
+    bedtools_window(
+        pred_vcf_file, candidates_vcf, args=" -w 5 -u", output_fn=candidates_preds, run_logger=logger)
 
     logger.info("Extract targets")
     postprocess_pad = 1 if not long_read else 10

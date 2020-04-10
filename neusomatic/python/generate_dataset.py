@@ -20,7 +20,7 @@ import pysam
 from PIL import Image
 
 from split_bed import split_region
-from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd
+from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect, bedtools_slop, get_tmp_file
 
 
 NUC_to_NUM_hp = {"A": 1, "C": 2, "G": 3, "T": 4, "N": 5}
@@ -839,9 +839,8 @@ def find_records(input_record):
         thread_logger.info(
             "Start find_records for worker {}".format(work_index))
 
-        cmd = "bedtools slop -i {} -g {} -b {}".format(
-            split_region_file, ref_file + ".fai", 5)
-        split_bed = run_bedtools_cmd(cmd, run_logger=thread_logger)
+        split_bed = bedtools_slop(
+            split_region_file, ref_file + ".fai", args=" -b 5", run_logger=thread_logger)
         split_truth_vcf_file = os.path.join(
             work, "truth_{}.vcf".format(work_index))
         split_pred_vcf_file = os.path.join(
@@ -855,30 +854,18 @@ def find_records(input_record):
         split_in_ensemble_bed = os.path.join(
             work, "in_ensemble_{}.bed".format(work_index))
 
-        cmd = "bedtools intersect -a {} -b {} -u".format(
-            truth_vcf_file, split_bed)
-        run_bedtools_cmd(cmd, output_fn=split_truth_vcf_file,
-                         run_logger=thread_logger)
-        cmd = "bedtools intersect -a {} -b {} -u".format(
-            pred_vcf_file, split_bed)
-        run_bedtools_cmd(cmd, output_fn=split_pred_vcf_file,
-                         run_logger=thread_logger)
+        bedtools_intersect(
+            truth_vcf_file, split_bed, args=" -u", output_fn=split_truth_vcf_file, run_logger=thread_logger)
+        bedtools_intersect(
+            pred_vcf_file, split_bed, args=" -u", output_fn=split_pred_vcf_file, run_logger=thread_logger)
         if ensemble_bed:
-            cmd = "bedtools intersect -a {} -b {} -u".format(
-                ensemble_bed, split_bed)
-            run_bedtools_cmd(
-                cmd, output_fn=split_ensemble_bed_file, run_logger=thread_logger)
-            cmd = "bedtools window -a {} -b {} -w 5 -v".format(
-                split_ensemble_bed_file, split_pred_vcf_file)
-            tmp_ = run_bedtools_cmd(cmd, run_logger=thread_logger)
-            with open(tmp_) as f_i:
-                with open(split_missed_ensemble_bed_file, "w") as f_o:
-                    for line in f_i:
-                        if not line.strip():
-                            continue
-                        x = line.strip().split("\t")
-                        f_o.write("\t".join(map(str, [x[0], int(x[1]), int(x[1]) + 1, x[3], x[4], ".",
-                                                      ".", ".", ".", "."])) + "\n")
+            bedtools_intersect(
+                ensemble_bed, split_bed, args=" -u", output_fn=split_ensemble_bed_file, run_logger=thread_logger)
+            tmp_ = bedtools_window(
+                split_ensemble_bed_file, split_pred_vcf_file, args=" -w 5 -v", run_logger=thread_logger)
+
+            vcf_2_bed(tmp_, split_missed_ensemble_bed_file, add_fields=[".",
+                                                                        ".", ".", ".", "."])
             concatenate_vcfs(
                 [split_pred_vcf_file, split_missed_ensemble_bed_file], split_pred_with_missed_file)
 
@@ -886,18 +873,14 @@ def find_records(input_record):
                 split_pred_with_missed_file)
             tmp_ = run_bedtools_cmd(
                 cmd, run_logger=thread_logger)
-            cmd = "bedtools sort -i {}".format(
-                tmp_)
-            run_bedtools_cmd(cmd, output_fn=split_pred_with_missed_file,
-                             run_logger=thread_logger)
-            cmd = "bedtools window -a {} -b {} -w 1 -v".format(
-                split_pred_with_missed_file, split_ensemble_bed_file)
-            not_in_ensemble_bed = run_bedtools_cmd(cmd,
-                                                   run_logger=thread_logger)
-            cmd = "bedtools window -a {} -b {} -w 1".format(
-                split_pred_with_missed_file, split_ensemble_bed_file)
-            in_ensemble_bed = run_bedtools_cmd(cmd, output_fn=split_in_ensemble_bed,
-                                               run_logger=thread_logger)
+
+            bedtools_sort(tmp_, output_fn=split_pred_with_missed_file,
+                          run_logger=thread_logger)
+
+            not_in_ensemble_bed = bedtools_window(
+                split_pred_with_missed_file, split_ensemble_bed_file, args=" -w 1 -v", run_logger=thread_logger)
+            in_ensemble_bed = bedtools_window(
+                split_pred_with_missed_file, split_ensemble_bed_file, output_fn=split_in_ensemble_bed, args=" -w 1", run_logger=thread_logger)
 
         records = []
         i = 0
@@ -1060,9 +1043,7 @@ def find_records(input_record):
                         records.append(rr + [str(i)])
                         i += 1
 
-        records_bed = tempfile.NamedTemporaryFile(
-            prefix="tmpbed_", suffix=".bed", delete=False)
-        records_bed = records_bed.name
+        records_bed = get_tmp_file()
         with open(records_bed, "w") as r_b:
             for x in records:
                 r_b.write(
@@ -1089,17 +1070,14 @@ def find_records(input_record):
                     [record[0], pos, record[3], record[4], str(i)])
                 i += 1
 
-        truth_bed = tempfile.NamedTemporaryFile(
-            prefix="tmpbed_", suffix=".bed", delete=False)
-        truth_bed = truth_bed.name
+        truth_bed = get_tmp_file()
         with open(truth_bed, "w") as t_b:
             for x in truth_records:
                 t_b.write(
                     "\t".join(map(str, [x[0], x[1], x[1] + len(x[2]), x[2], x[3], x[4]])) + "\n")
 
-        cmd = "bedtools window -a {} -b {} -w 5 -v".format(
-            records_bed, truth_bed)
-        none_records_0 = run_bedtools_cmd(cmd, run_logger=thread_logger)
+        none_records_0 = bedtools_window(
+            records_bed, truth_bed, args=" -w 5 -v", run_logger=thread_logger)
         none_records_ids = []
         with open(none_records_0) as i_f:
             for line in i_f:
@@ -1108,9 +1086,8 @@ def find_records(input_record):
                 x = line.strip().split("\t")
                 none_records_ids.append(int(x[5]))
 
-        cmd = "bedtools window -a {} -b {} -w 5".format(
-            records_bed, truth_bed)
-        other_records = run_bedtools_cmd(cmd, run_logger=thread_logger)
+        other_records = bedtools_window(
+            records_bed, truth_bed, args=" -w 5", run_logger=thread_logger)
 
         map_pred_2_truth = {}
         map_truth_2_pred = {}
@@ -1548,9 +1525,8 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     if ensemble_tsv and not ensemble_bed:
         ensemble_bed = extract_ensemble(work, ensemble_tsv)
 
-    cmd = "bedtools intersect -a {} -b {} -u".format(
-        tumor_pred_vcf_file, region_bed_file)
-    tmp_ = run_bedtools_cmd(cmd, run_logger=logger)
+    tmp_ = bedtools_intersect(
+        tumor_pred_vcf_file, region_bed_file, args=" -u", run_logger=logger)
     len_candids = 0
     with open(tmp_) as i_f:
         for line in i_f:
@@ -1560,9 +1536,8 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                 len_candids += 1
 
     if ensemble_bed:
-        cmd = "bedtools intersect -a {} -b {} -u".format(
-            ensemble_bed, region_bed_file)
-        tmp_ = run_bedtools_cmd(cmd, run_logger=logger)
+        tmp_ = bedtools_intersect(
+            ensemble_bed, region_bed_file, args=" -u", run_logger=logger)
         with open(tmp_) as i_f:
             for line in i_f:
                 if not line.strip():

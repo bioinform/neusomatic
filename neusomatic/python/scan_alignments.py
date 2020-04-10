@@ -15,12 +15,11 @@ import glob
 import traceback
 import logging
 import shutil
-import tempfile
 
 import pysam
 import numpy as np
 
-from utils import concatenate_files, run_shell_command, run_bedtools_cmd
+from utils import concatenate_files, run_shell_command, bedtools_sort, bedtools_merge, get_tmp_file
 from split_bed import split_region
 
 
@@ -79,18 +78,14 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
 
     logger.info("-------------------Scan Alignment BAM----------------------")
 
+    split_len_ratio = 0.98
     if not split_region_files:
         if regions_bed_file:
-            cmd = "bedtools sort -i {}".format(
-                regions_bed_file)
-            regions_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools merge -i {} -d 0 ".format(
-                regions_bed)
-            regions_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            regions_bed = bedtools_sort(regions_bed_file, run_logger=logger)
+            regions_bed = bedtools_merge(
+                regions_bed, args=" -d 0", run_logger=logger)
         else:
-            regions_bed = tempfile.NamedTemporaryFile(
-                prefix="tmpbed_", suffix=".bed", delete=False)
-            regions_bed = regions_bed.name
+            regions_bed = get_tmp_file()
             with pysam.AlignmentFile(input_bam, "rb") as samfile:
                 with open(regions_bed, "w") as tmpfile:
                     for chrom, length in zip(samfile.references, samfile.lengths):
@@ -115,7 +110,7 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
                             continue
                         chrom, st, en = line.strip().split("\t")[0:3]
                         spilt_total_len += int(en) - int(st)
-            if spilt_total_len >= 0.98 * total_len:
+            if spilt_total_len >= split_len_ratio * total_len:
                 split_region_files = sorted(split_region_files,
                                             key=lambda x: int(
                                                 os.path.basename(x).split(".bed")[0].split(

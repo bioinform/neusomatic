@@ -19,7 +19,7 @@ import tempfile
 from filter_candidates import filter_candidates
 from generate_dataset import generate_dataset, extract_ensemble
 from scan_alignments import scan_alignments
-from utils import concatenate_vcfs, run_bedtools_cmd
+from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, get_tmp_file
 
 
 def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp,
@@ -89,14 +89,12 @@ def get_ensemble_region(record):
     thread_logger = logging.getLogger(
         "{} ({})".format(get_ensemble_region.__name__, multiprocessing.current_process().name))
     try:
-        cmd = "bedtools slop -i {} -g {} -b {}".format(region, reference + ".fai",
-                                                       matrix_base_pad + 3)
-        ensemble_bed_region_file_tmp = run_bedtools_cmd(
-            cmd, run_logger=thread_logger)
-        cmd = "bedtools intersect -a {} -b {} -u".format(
-            ensemble_bed, ensemble_bed_region_file_tmp)
-        run_bedtools_cmd(cmd, output_fn=ensemble_bed_region_file,
-                         run_logger=thread_logger)
+        ensemble_bed_region_file_tmp = bedtools_slop(
+            region, reference + ".fai", args=" -b {}".format(matrix_base_pad + 3),
+            run_logger=thread_logger)
+        bedtools_intersect(
+            ensemble_bed, ensemble_bed_region_file_tmp, args=" -u",
+            output_fn=ensemble_bed_region_file, run_logger=thread_logger)
         return ensemble_bed_region_file
 
     except Exception as ex:
@@ -150,29 +148,25 @@ def extract_candidate_split_regions(
             for line in f_:
                 if not line.strip():
                     continue
-                if line[0]!="#":
+                if line[0] != "#":
                     is_empty = False
                     break
-        logger.info([filtered_vcf,is_empty])
+        logger.info([filtered_vcf, is_empty])
         if not is_empty:
             cmd = '''grep -v "#" {}'''.format(filtered_vcf)
             candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
             cmd = '''awk '{{print $1"\t"$2"\t"$2+length($4)}}' {}'''.format(
                 candidates_bed)
             candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools sort -i {}".format(candidates_bed)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools slop -i {} -g {} -b {}".format(candidates_bed,
-                                                           reference + ".fai", matrix_base_pad + 3)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools merge -i {} -d {}".format(
-                candidates_bed, merge_d_for_short_read)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-        else:
-            candidates_bed = tempfile.NamedTemporaryFile(
-                prefix="tmpbed_", suffix=".bed", delete=False)
-            candidates_bed = candidates_bed.name
+            candidates_bed = bedtools_sort(candidates_bed, run_logger=logger)
+            candidates_bed = bedtools_slop(
+                candidates_bed, reference + ".fai", args=" -b {}".format(matrix_base_pad + 3),
+                run_logger=logger)
 
+            candidates_bed = bedtools_merge(
+                candidates_bed, args=" -d {}".format(merge_d_for_short_read), run_logger=logger)
+        else:
+            candidates_bed = get_tmp_file()
 
         if ensemble_beds:
             cmd = "cat {} {}".format(
@@ -182,20 +176,14 @@ def extract_candidate_split_regions(
             cmd = "cut -f 1,2,3 {}".format(
                 candidates_bed)
             candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools sort -i {}".format(
-                candidates_bed)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = "bedtools merge -i {} -d {} ".format(
-                candidates_bed, merge_d_for_short_read)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            candidates_bed = bedtools_sort(candidates_bed, run_logger=logger)
+            candidates_bed = bedtools_merge(
+                candidates_bed, args=" -d {}".format(merge_d_for_short_read), run_logger=logger)
 
-        cmd = "bedtools intersect -a {} -b {}".format(
-            candidates_bed, split_region_)
-        candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-        cmd = "bedtools sort -i {}".format(
-            candidates_bed)
-        run_bedtools_cmd(cmd, output_fn=candidates_region_file,
-                         run_logger=logger)
+        candidates_bed = bedtools_intersect(
+            candidates_bed, split_region_, run_logger=logger)
+        bedtools_sort(candidates_bed,
+                      output_fn=candidates_region_file, run_logger=logger)
 
         candidates_split_regions.append(candidates_region_file)
     return candidates_split_regions
@@ -247,7 +235,6 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
             logger.error("Aborting!")
             raise Exception(
                 "The dbSNP file should be a tabix indexed file with .vcf.gz format. No {}.tbi file exists.".format(dbsnp))
-
 
     ensemble_bed = None
     if ensemble_tsv:
@@ -321,15 +308,15 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         os.mkdir(work_normal)
     logger.info("Scan normal bam (and extracting quality scores).")
     normal_counts, _, _ = process_split_region("normal", work_normal, region_bed, reference, mode, normal_bam,
-                                                  None, scan_window_size, 0.2, min_mapq,
-                                                  None, min_dp, max_dp,
-                                                  filter_duplicate,
-                                                  good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
-                                                  ins_min_af, del_min_af, del_merge_min_af,
-                                                  ins_merge_min_af, merge_r,
-                                                  scan_alignments_binary, restart, num_threads,
-                                                  calc_qual=True,
-                                                  regions=candidates_split_regions)
+                                               None, scan_window_size, 0.2, min_mapq,
+                                               None, min_dp, max_dp,
+                                               filter_duplicate,
+                                               good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
+                                               ins_min_af, del_min_af, del_merge_min_af,
+                                               ins_merge_min_af, merge_r,
+                                               scan_alignments_binary, restart, num_threads,
+                                               calc_qual=True,
+                                               regions=candidates_split_regions)
 
     work_dataset = os.path.join(work, "dataset")
     if restart or not os.path.exists(work_dataset):

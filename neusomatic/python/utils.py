@@ -118,3 +118,87 @@ def prob2phred(p, max_phred=100):
         if Q > max_phred:
             Q = max_phred
     return Q
+
+
+def write_tsv_file(tsv_file, records, sep='\t', add_fields=[]):
+    with open(tsv_file, "w") as f_o:
+        for x in records:
+            f_o.write(sep.join(map(str, x + add_fields)) + "\n")
+
+
+def read_tsv_file(tsv_file, sep='\t', fields=None):
+    records = []
+    with open(tsv_file) as i_f:
+        for line in i_f:
+            if not line.strip():
+                continue
+            x = line.strip().split(sep)
+            if fields is not None:
+                x = [x[i] for i in fields]
+            records.append(x)
+    return records
+
+
+def vcf_2_bed(vcf_file, bed_file, add_fields=[]):
+    with open(bed_file, "w") as f_o, open(vcf_file, "r") as f_i:
+        for line in f_i:
+            if not line.strip():
+                continue
+            if line[0] == "#":
+                continue
+            x = line.strip().split("\t")
+            f_o.write(
+                "\t".join(map(str, [x[0], int(x[1]), int(x[1]) + 1, x[3], x[4]] + add_fields)) + "\n")
+
+
+def bedtools_sort(bed_file, args="", output_fn=None, run_logger=None):
+    cmd = "bedtools sort -i {} {}".format(bed_file, args)
+    if output_fn is None:
+        output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
+    else:
+        run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
+    return output_fn
+
+
+def bedtools_merge(bed_file, args="", output_fn=None, run_logger=None):
+    cmd = "bedtools merge -i {} {}".format(bed_file, args)
+    if output_fn is None:
+        output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
+    else:
+        run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
+    return output_fn
+
+
+def bedtools_window(a_bed_file, b_bed_file, args="", output_fn=None, run_logger=None):
+    cmd = "bedtools window -a {} -b {} {}".format(a_bed_file, b_bed_file, args)
+    if output_fn is None:
+        output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
+    else:
+        run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
+    return output_fn
+
+
+def bedtools_intersect(a_bed_file, b_bed_file, args="", output_fn=None, run_logger=None):
+    cmd = "bedtools intersect -a {} -b {} {}".format(
+        a_bed_file, b_bed_file, args)
+    if output_fn is None:
+        output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
+    else:
+        run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
+    return output_fn
+
+
+def bedtools_slop(bed_file, genome, args="", output_fn=None, run_logger=None):
+    cmd = "bedtools slop -i {} -g {} {}".format(bed_file, genome, args)
+    if output_fn is None:
+        output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
+    else:
+        run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
+    return output_fn
+
+
+def get_tmp_file(prefix="tmpbed_", suffix=".bed", delete=False):
+    myfile = tempfile.NamedTemporaryFile(
+        prefix=prefix, suffix=suffix, delete=delete)
+    myfile = myfile.name
+    return myfile
