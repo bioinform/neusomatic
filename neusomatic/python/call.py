@@ -592,6 +592,9 @@ if __name__ == '__main__':
                         help='output directory', required=True)
     parser.add_argument('--checkpoint', type=str,
                         help='network model checkpoint path', required=True)
+    parser.add_argument('--ensemble',
+                        help='Enable calling for ensemble mode',
+                        action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     parser.add_argument('--batch_size', type=int,
