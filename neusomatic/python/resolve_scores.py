@@ -10,7 +10,7 @@ import traceback
 
 import numpy as np
 
-from utils import get_chromosomes_order, read_tsv_file, bedtools_window
+from utils import get_chromosomes_order, read_tsv_file, bedtools_window, skip_empty
 
 
 def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
@@ -30,9 +30,7 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
 
     intervals_dict = {}
     with open(tmp_) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
+        for line in skip_empty(i_f):
             interval = line.strip().split("\t")
             id_ = "{}-{}-{}-{}".format(interval[0],
                                        interval[1], interval[3], interval[4])

@@ -19,7 +19,7 @@ import shutil
 import pysam
 import numpy as np
 
-from utils import concatenate_files, run_shell_command, bedtools_sort, bedtools_merge, get_tmp_file
+from utils import concatenate_files, run_shell_command, bedtools_sort, bedtools_merge, get_tmp_file, skip_empty
 from split_bed import split_region
 
 
@@ -95,9 +95,7 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
             os.mkdir(work)
         total_len = 0
         with open(regions_bed) as r_f:
-            for line in r_f:
-                if not line.strip():
-                    continue
+            for line in skip_empty(r_f):
                 chrom, st, en = line.strip().split("\t")[0:3]
                 total_len += int(en) - int(st) + 1
         if not restart:
@@ -105,9 +103,7 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
             spilt_total_len = 0
             for split_file in split_region_files:
                 with open(split_file) as s_f:
-                    for line in s_f:
-                        if not line.strip():
-                            continue
+                    for line in skip_empty(s_f):
                         chrom, st, en = line.strip().split("\t")[0:3]
                         spilt_total_len += int(en) - int(st)
             if spilt_total_len >= split_len_ratio * total_len:

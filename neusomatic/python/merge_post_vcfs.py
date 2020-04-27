@@ -10,7 +10,7 @@ import logging
 
 import numpy as np
 
-from utils import get_chromosomes_order
+from utils import get_chromosomes_order, skip_empty
 
 
 def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, out_vcf,
@@ -24,9 +24,7 @@ def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, out_vcf,
 
     good_records = []
     # Use fileinput to stream as if the two files were concatenated
-    for line in fileinput.input([no_resolve_vcf, resolved_vcf]):
-        if line[0] == "#":
-            continue
+    for line in skip_empty(fileinput.input([no_resolve_vcf, resolved_vcf])):
         chrom, pos, _, ref, alt, score, _, info, format_, gt = line.strip().split()
         good_records.append([chrom, pos, ref, alt, gt, score])
 

@@ -20,7 +20,7 @@ import pysam
 from scipy.misc import imresize
 
 from split_bed import split_region
-from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect, bedtools_slop, get_tmp_file
+from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty
 
 
 NUC_to_NUM_hp = {"A": 1, "C": 2, "G": 3, "T": 4, "N": 5}
@@ -883,11 +883,7 @@ def find_records(input_record):
         anns = {}
         if ensemble_bed:
             with open(not_in_ensemble_bed) as ni_f:
-                for line in ni_f:
-                    if not line.strip():
-                        continue
-                    if line[0] == "#":
-                        continue
+                for line in skip_empty(ni_f):
                     record = line.strip().split("\t")
                     chrom, pos, ref, alt = [str(record[0]), int(
                         record[1]), record[3], record[4]]
@@ -908,11 +904,7 @@ def find_records(input_record):
             curren_pos_records = []
             emit_flag = False
             with open(in_ensemble_bed) as ni_f:
-                for line in ni_f:
-                    if not line.strip():
-                        continue
-                    if line[0] == "#":
-                        continue
+                for line in skip_empty(ni_f):
                     record = line.strip().split("\t")
                     if curren_pos_records:
                         if (record[0] == curren_pos_records[0][0] and record[1] == curren_pos_records[0][1] and
@@ -1016,11 +1008,7 @@ def find_records(input_record):
 
         else:
             with open(split_pred_vcf_file, 'r') as vcf_reader:
-                for line in vcf_reader:
-                    if not line.strip():
-                        continue
-                    if line[0] == "#":
-                        continue
+                for line in skip_empty(vcf_reader):
                     record = line.strip().split()
                     chrom, pos, ref, alt = [record[0], int(
                         record[1]), record[3], record[4]]
@@ -1047,11 +1035,7 @@ def find_records(input_record):
         truth_records = []
         i = 0
         with open(split_truth_vcf_file, 'r') as vcf_reader:
-            for line in vcf_reader:
-                if not line.strip():
-                    continue
-                if line[0] == "#":
-                    continue
+            for line in skip_empty(vcf_reader):
                 record = line.strip().split()
                 truth_records.append(
                     [record[0], int(record[1]), record[3], record[4], str(i)])
@@ -1067,9 +1051,7 @@ def find_records(input_record):
             records_bed, truth_bed, args=" -w 5 -v", run_logger=thread_logger)
         none_records_ids = []
         with open(none_records_0) as i_f:
-            for line in i_f:
-                if not line.strip():
-                    continue
+            for line in skip_empty(i_f):
                 x = line.strip().split("\t")
                 none_records_ids.append(int(x[5]))
 
@@ -1079,9 +1061,7 @@ def find_records(input_record):
         map_pred_2_truth = {}
         map_truth_2_pred = {}
         with open(other_records) as i_f:
-            for line in i_f:
-                if not line.strip():
-                    continue
+            for line in skip_empty(i_f):
                 record = line.strip().split("\t")
                 id_pred = int(record[5])
                 id_truth = int(record[11])
@@ -1365,10 +1345,8 @@ def extract_ensemble(work, ensemble_tsv):
                          "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
                          "InDel_Length"]
     with open(ensemble_tsv) as s_f:
-        for line in s_f:
-            if not line.strip():
-                continue
-            if line[0:5] == "CHROM":
+        for line in skip_empty(s_f):
+            if line.startswith("CHROM"):
                 header_pos = line.strip().split()[0:5]
                 header = line.strip().split()[5:105]
                 header_en = list(filter(
@@ -1517,21 +1495,15 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
         tumor_pred_vcf_file, region_bed_file, args=" -u", run_logger=logger)
     len_candids = 0
     with open(tmp_) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
-            if line[0] != "#":
-                len_candids += 1
+        for line in skip_empty(i_f):
+            len_candids += 1
 
     if ensemble_bed:
         tmp_ = bedtools_intersect(
             ensemble_bed, region_bed_file, args=" -u", run_logger=logger)
         with open(tmp_) as i_f:
             for line in i_f:
-                if not line.strip():
-                    continue
-                if line[0] != "#":
-                    len_candids += 1
+                len_candids += 1
     logger.info("len_candids: {}".format(len_candids))
     num_splits = max(len_candids // split_batch_size, num_threads)
     split_region_files = split_region(

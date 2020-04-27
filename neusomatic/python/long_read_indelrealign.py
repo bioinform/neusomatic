@@ -25,7 +25,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import DNAAlphabet
 
-from utils import run_shell_command, get_chromosomes_order, run_bedtools_cmd, write_tsv_file, read_tsv_file, bedtools_sort, bedtools_merge, get_tmp_file
+from utils import run_shell_command, get_chromosomes_order, run_bedtools_cmd, write_tsv_file, read_tsv_file, bedtools_sort, bedtools_merge, get_tmp_file, skip_empty
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -636,11 +636,7 @@ def find_realign_dict(realign_bed_file, chrom):
     realign_dict = {}
     chrom_regions = set([])
     with open(realign_bed) as r_f:
-        for line in r_f:
-            if not line.strip():
-                continue
-            if line[0] == "#":
-                continue
+        for line in skip_empty(r_f):
             interval = line.strip().split("\t")
             chrom, start, end, query_name = interval[0:4]
             pos, start_idx, end_idx, cigarstring, del_start, del_end, pos_start, pos_end, new_cigar, \
@@ -831,9 +827,7 @@ def do_realign(region, info_file, thr_realign=0.0135, max_N=1000):
     sum_nm_indel = 0
     c = 0
     with open(info_file) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
+        for line in skip_empty(i_f):
             x = line.strip().split()
             sum_nm_snp += int(x[-2])
             sum_nm_indel += int(x[-1])
@@ -1029,9 +1023,7 @@ def extend_regions_hp(region_bed_file, extended_region_bed_file, ref_fasta_file,
     with pysam.Fastafile(ref_fasta_file) as ref_fasta:
         intervals = []
         with open(region_bed_file) as r_f:
-            for line in r_f:
-                if not line.strip():
-                    continue
+            for line in skip_empty(r_f):
                 interval = line.strip().split("\t")
                 chrom, start, end = interval[0:3]
                 start, end = int(start), int(end)
@@ -1098,9 +1090,7 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
     with pysam.Fastafile(ref_fasta_file) as ref_fasta:
         intervals = []
         with open(region_bed_file) as r_f:
-            for line in r_f:
-                if not line.strip():
-                    continue
+            for line in skip_empty(r_f):
                 interval = line.strip().split("\t")
                 chrom, start, end = interval[0:3]
                 start, end = int(start), int(end)
@@ -1233,22 +1223,14 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
     region_bed_merged = region_bed_file
     len_merged = 0
     with open(region_bed_merged) as r_b:
-        for line in r_b:
-            if not line.strip():
-                continue
-            if line[0] != "#":
-                continue
+        for line in skip_empty(r_b):
             len_merged += 1
     while True:
         region_bed_merged_tmp = bedtools_merge(
             region_bed_merged, args=" -d {}".format(pad * 2), run_logger=logger)
         len_tmp = 0
         with open(region_bed_merged_tmp) as r_b:
-            for line in r_b:
-                if not line.strip():
-                    continue
-                if line[0] != "#":
-                    continue
+            for line in skip_empty(r_b):
                 len_tmp += 1
         if len_tmp == len_merged:
             break

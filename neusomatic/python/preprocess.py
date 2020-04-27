@@ -19,7 +19,7 @@ import tempfile
 from filter_candidates import filter_candidates
 from generate_dataset import generate_dataset, extract_ensemble
 from scan_alignments import scan_alignments
-from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, get_tmp_file
+from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty
 
 
 def split_dbsnp(record):
@@ -190,12 +190,9 @@ def extract_candidate_split_regions(
 
         is_empty = True
         with open(filtered_vcf) as f_:
-            for line in f_:
-                if not line.strip():
-                    continue
-                if line[0] != "#":
-                    is_empty = False
-                    break
+            for line in skip_empty(f_):
+                is_empty = False
+                break
         logger.info([filtered_vcf, is_empty])
         if not is_empty:
             cmd = '''grep -v "#" {}'''.format(filtered_vcf)

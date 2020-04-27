@@ -11,7 +11,7 @@ import multiprocessing
 import pysam
 import numpy as np
 
-from utils import safe_read_info_dict, run_bedtools_cmd, vcf_2_bed, write_tsv_file, bedtools_sort, get_tmp_file
+from utils import safe_read_info_dict, run_bedtools_cmd, vcf_2_bed, write_tsv_file, bedtools_sort, get_tmp_file, skip_empty
 
 
 def filter_candidates(candidate_record):
@@ -26,11 +26,7 @@ def filter_candidates(candidate_record):
 
         records = {}
         with open(candidates_vcf) as v_f:
-            for line in v_f:
-                if not line.strip():
-                    continue
-                if line[0] == "#":
-                    continue
+            for line in skip_empty(v_f):
                 if len(line.strip().split()) != 10:
                     raise RuntimeError(
                         "Bad VCF line (<10 fields): {}".format(line))
@@ -285,15 +281,11 @@ def filter_candidates(candidate_record):
 
             non_in_dbsnp_ids = []
             with open(non_in_dbsnp_1) as i_f:
-                for line in i_f:
-                    if not line.strip():
-                        continue
+                for line in skip_empty(i_f):
                     x = line.strip().split("\t")
                     non_in_dbsnp_ids.append(int(x[5]))
             with open(non_in_dbsnp_2) as i_f:
-                for line in i_f:
-                    if not line.strip():
-                        continue
+                for line in skip_empty(i_f):
                     x = line.strip().split("\t")
                     non_in_dbsnp_ids.append(int(x[5]))
             final_records = list(map(lambda x: x[1], filter(

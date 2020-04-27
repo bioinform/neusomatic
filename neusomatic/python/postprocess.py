@@ -21,7 +21,7 @@ import numpy as np
 from extract_postprocess_targets import extract_postprocess_targets
 from merge_post_vcfs import merge_post_vcfs
 from resolve_variants import resolve_variants
-from utils import concatenate_files, get_chromosomes_order, bedtools_window
+from utils import concatenate_files, get_chromosomes_order, bedtools_window, skip_empty
 from long_read_indelrealign import long_read_indelrealign
 from resolve_scores import resolve_scores
 from _version import __version__
@@ -89,9 +89,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
     for s_e, dd in [0, in_candidates], [1, in_ensemble]:
         if dd:
             with open(dd) as i_f:
-                for line in i_f:
-                    if not line.strip():
-                        continue
+                for line in skip_empty(i_f):
                     x = line.strip().split("\t")
                     tag = "-".join([str(chroms_order[x[0]]), x[1], x[3], x[4]])
                     scores[tag] = [x[5], x[6], x[7], x[9]]
@@ -114,9 +112,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
         fina_info_tag[tag] = hits[0][5:]
 
     with open(notin_any) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
+        for line in skip_empty(i_f):
             x = line.strip().split("\t")
             tag = "-".join([str(chroms_order[x[0]]), x[1], x[3], x[4]])
             fina_info_tag[tag] = [0, 0, 0, 0]

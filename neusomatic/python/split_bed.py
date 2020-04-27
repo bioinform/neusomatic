@@ -9,7 +9,7 @@ import traceback
 from random import shuffle
 import logging
 
-from utils import write_tsv_file, bedtools_sort, bedtools_merge
+from utils import write_tsv_file, bedtools_sort, bedtools_merge, skip_empty
 
 
 def split_region(work, region_bed_file, num_splits, max_region=1000000, min_region=20, shuffle_intervals=False):
@@ -24,9 +24,7 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
 
     intervals = []
     with open(regions_bed) as r_f:
-        for line in r_f:
-            if not line.strip():
-                continue
+        for line in skip_empty(r_f):
             chrom, start, end = line.strip().split("\t")[0:3]
             start, end = int(start), int(end)
             if end - start + 1 > max_region:

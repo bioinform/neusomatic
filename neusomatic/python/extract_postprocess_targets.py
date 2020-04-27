@@ -8,6 +8,7 @@ import argparse
 import traceback
 import logging
 
+from utils import skip_empty
 
 def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
     logger = logging.getLogger(extract_postprocess_targets.__name__)
@@ -24,8 +25,8 @@ def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
     with open(input_vcf) as i_f, open(out_vcf, "w") as o_f, open(redo_vcf, "w") as r_f, open(redo_bed, "w") as r_b:
         r_f.write("##fileformat=VCFv4.2\n")
         r_f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
-        for line in i_f:
-            if len(line) < 2 or line[0] == '#':
+        for line in skip_empty(i_f):
+            if len(line) < 2:
                 continue
 
             chrom, pos, _, ref, alt, _, _, _, _, gt = line.strip().split()

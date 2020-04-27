@@ -14,7 +14,7 @@ import traceback
 import pysam
 import numpy as np
 
-from utils import get_chromosomes_order, read_tsv_file, bedtools_sort, bedtools_merge, get_tmp_file
+from utils import get_chromosomes_order, read_tsv_file, bedtools_sort, bedtools_merge, get_tmp_file, skip_empty
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -168,11 +168,7 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
 
     variants = {}
     with open(target_vcf_file) as tv_f:
-        for line in tv_f:
-            if not line.strip():
-                continue
-            if line[0] == "#":
-                continue
+        for line in skip_empty(tv_f):
             fields = line.strip().split()
             id_ = int(fields[2])
             if len(fields[4]) < len(fields[3]):
@@ -186,9 +182,7 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
             variants[id_].append(fields + [vartype])
     map_args = []
     with open(target_bed_file) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
+        for line in skip_empty(i_f):
             tb = line.strip().split("\t")
             chrom, start, end, id_ = tb[0:4]
             id_ = int(id_)

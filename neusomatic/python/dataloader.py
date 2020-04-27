@@ -15,6 +15,8 @@ import numpy as np
 import torch
 import resource
 
+from utils import skip_empty
+
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
@@ -65,9 +67,7 @@ def extract_info_tsv(record):
     try:
         n_none = 0
         with open(tsv, "r") as i_f:
-            for line in i_f:
-                if not line.strip():
-                    continue
+            for line in skip_empty(i_f):
                 tag = line.strip().split()[2]
                 n_none += (1 if "NONE" in tag else 0)
         n_var = L - n_none
@@ -86,9 +86,7 @@ def extract_info_tsv(record):
         cnt_var = 0
         with open(tsv, "r") as i_f:
             i = -1
-            for i, line in enumerate(i_f):
-                if not line.strip():
-                    continue
+            for i, line in enumerate(skip_empty(i_f)):
                 fields = line.strip().split()
                 ii = int(fields[0])
                 assert ii == i
