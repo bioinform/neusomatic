@@ -27,7 +27,7 @@ def filter_candidates(candidate_record):
             "---------------------Filter Candidates---------------------")
 
         if dbsnp:
-            if dbsnp[-6:] != "vcf.gz":
+            if not dbsnp.endswith("vcf.gz"):
                 thread_logger.error("Aborting!")
                 raise Exception(
                     "The dbSNP file should be a tabix indexed file with .vcf.gz format")

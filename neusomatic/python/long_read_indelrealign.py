@@ -859,6 +859,9 @@ def do_realign(region, info_file, max_realign_dp, thr_realign=0.0135):
 
 
 def find_var(out_fasta_file, snp_min_af, del_min_af, ins_min_af, scale_maf, simplify):
+    # Find variants from MSA:
+    # In each column the AF is calculated
+    # The low AF vars in each column are discarded and the variant is extracted
     logger = logging.getLogger(find_var.__name__)
     records = SeqIO.to_dict(SeqIO.parse(out_fasta_file, "fasta"))
     if set(map(int, records.keys())) ^ set(range(len(records))):
