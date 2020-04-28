@@ -12,7 +12,8 @@ import multiprocessing
 import pysam
 import numpy as np
 
-from utils import safe_read_info_dict, run_bedtools_cmd, vcf_2_bed, write_tsv_file, bedtools_sort, get_tmp_file
+from utils import safe_read_info_dict, run_bedtools_cmd, vcf_2_bed, write_tsv_file, bedtools_sort, get_tmp_file, skip_empty
+from defaults import VCF_HEADER
 
 
 def filter_candidates(candidate_record):
@@ -37,11 +38,7 @@ def filter_candidates(candidate_record):
 
         records = {}
         with open(candidates_vcf) as v_f:
-            for line in v_f:
-                if not line.strip():
-                    continue
-                if line[0] == "#":
-                    continue
+            for line in skip_empty(v_f):
                 if len(line.strip().split()) != 10:
                     raise RuntimeError(
                         "Bad VCF line (<10 fields): {}".format(line))
@@ -273,7 +270,7 @@ def filter_candidates(candidate_record):
         if dbsnp:
             dbsnp_tb = pysam.TabixFile(dbsnp)
         with open(filtered_candidates_vcf, "w") as o_f:
-            o_f.write("##fileformat=VCFv4.2\n")
+            o_f.write("{}\n".format(VCF_HEADER))
             o_f.write(
                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
             for record in final_records:

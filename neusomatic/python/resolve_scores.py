@@ -10,7 +10,8 @@ import traceback
 
 import numpy as np
 
-from utils import get_chromosomes_order, read_tsv_file, bedtools_window
+from utils import get_chromosomes_order, read_tsv_file, bedtools_window, skip_empty
+from defaults import VCF_HEADER
 
 
 def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
@@ -30,9 +31,7 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
 
     intervals_dict = {}
     with open(tmp_) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
+        for line in skip_empty(i_f):
             interval = line.strip().split("\t")
             id_ = "{}-{}-{}-{}".format(interval[0],
                                        interval[1], interval[3], interval[4])
@@ -72,7 +71,7 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
     out_variants = sorted(final_intervals, key=lambda x: [
                           chroms_order[x[0]], int(x[1])])
     with open(output_vcf, "w") as o_f:
-        o_f.write("##fileformat=VCFv4.2\n")
+        o_f.write("{}\n".format(VCF_HEADER))
         o_f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
         for var in out_variants:
             o_f.write("\t".join(var) + "\n")

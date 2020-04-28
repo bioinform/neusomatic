@@ -20,16 +20,10 @@ import pysam
 from PIL import Image
 
 from split_bed import split_region
-from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect, bedtools_slop, get_tmp_file
+from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty
+from defaults import NUM_ENS_FEATURES, VCF_HEADER
 
-
-NUC_to_NUM_hp = {"A": 1, "C": 2, "G": 3, "T": 4, "N": 5}
-NUC_to_NUM = {"a": 1, "c": 2, "g": 3, "t": 4, "-": 5, " ": 0, "A": 1, "C": 2, "G": 3, "T": 4, "N": 5,
-              "b": 1, "d": 2, "h": 3, "u": 4}
-snp = {"a": "b", "c": "d", "g": "h", "t": "u"}
-NUM_to_NUC = {v: k for k, v in NUC_to_NUM.items()}
-NUM_to_NUC_hp = {v: k for k, v in NUC_to_NUM_hp.items()}
-
+NUC_to_NUM_tabix = {"A": 1, "C": 2, "G": 3, "T": 4, "-": 0}
 
 def get_type(ref, alt):
     logger = logging.getLogger(get_type.__name__)
@@ -55,7 +49,6 @@ def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad, chrom
                                                                         pos - matrix_base_pad, pos + matrix_base_pad, count_bed))
         tabix_records = []
 
-    NUC_to_NUM_tabix = {"A": 1, "C": 2, "G": 3, "T": 4, "-": 0}
     matrix_ = []
     bq_matrix_ = []
     mq_matrix_ = []
@@ -869,14 +862,13 @@ def find_records(input_record):
             concatenate_vcfs(
                 [split_pred_vcf_file, split_missed_ensemble_bed_file], split_pred_with_missed_file)
 
-            cmd = '''awk '{{print $1"\t"$2"\t.\t"$4"\t"$5"\t.\t.\t.\t.\t."}}' {}'''.format(
-                split_pred_with_missed_file)
-            tmp_ = run_bedtools_cmd(
-                cmd, run_logger=thread_logger)
-
+            tmp_=get_tmp_file()
+            with open(split_pred_with_missed_file) as i_f, open(tmp_,"w") as o_f:
+                for line in skip_empty(i_f):
+                    x = line.strip().split("\t")
+                    o_f.write("\t".join(list(map(str,[x[0],x[1],".",x[3],x[4],".",".",".",".","."])))+"\n")
             bedtools_sort(tmp_, output_fn=split_pred_with_missed_file,
                           run_logger=thread_logger)
-
             not_in_ensemble_bed = bedtools_window(
                 split_pred_with_missed_file, split_ensemble_bed_file, args=" -w 1 -v", run_logger=thread_logger)
             in_ensemble_bed = bedtools_window(
@@ -888,11 +880,7 @@ def find_records(input_record):
         fasta_file = pysam.Fastafile(ref_file)
         if ensemble_bed:
             with open(not_in_ensemble_bed) as ni_f:
-                for line in ni_f:
-                    if not line.strip():
-                        continue
-                    if line[0] == "#":
-                        continue
+                for line in skip_empty(ni_f):
                     record = line.strip().split("\t")
                     chrom, pos, ref, alt = [str(record[0]), int(
                         record[1]), record[3], record[4]]
@@ -907,17 +895,13 @@ def find_records(input_record):
                         r_ = [[chrom, pos, ref, alt]]
                     for rr in r_:
                         records.append(rr + [str(i)])
-                        anns[i] = [0] * 93
+                        anns[i] = [0] * NUM_ENS_FEATURES
                         i += 1
 
             curren_pos_records = []
             emit_flag = False
             with open(in_ensemble_bed) as ni_f:
-                for line in ni_f:
-                    if not line.strip():
-                        continue
-                    if line[0] == "#":
-                        continue
+                for line in skip_empty(ni_f):
                     record = line.strip().split("\t")
                     if curren_pos_records:
                         if (record[0] == curren_pos_records[0][0] and record[1] == curren_pos_records[0][1] and
@@ -934,6 +918,8 @@ def find_records(input_record):
                             for record_ in curren_pos_records:
                                 chrom, pos, ref, alt = [str(record_[0]), int(
                                     record_[1]), record_[3], record_[4]]
+                                ens_chrom, ens_pos, ens_ref, ens_alt = [str(record_[10]), int(
+                                    record_[11]), record_[13], record_[14]]
                                 r_ = []
                                 if len(ref) == len(alt) and len(ref) > 1:
                                     for ii in range(len(ref)):
@@ -945,19 +931,19 @@ def find_records(input_record):
                                 else:
                                     r_ = [[chrom, pos, ref, alt]]
 
-                                ann = [0] * 93
-                                if record_[1] == record_[11]:
-                                    if record_[3] == record_[13] and record_[4] == record_[14]:
+                                ann = [0] * NUM_ENS_FEATURES
+                                if pos == ens_pos:
+                                    if ref == ens_ref and alt == ens_alt:
                                         ann = record_[15:]
-                                    elif (len(record_[3]) > len(record_[4]) and len(record_[13]) > len(record_[14]) and
-                                            (record_[4]) == (record_[14])):
-                                        if ((len(record_[3]) > len(record_[13]) and record_[3][0:len(record_[13])] == record_[13]) or (
-                                                len(record_[13]) > len(record_[3]) and record_[13][0:len(record_[3])] == record_[3])):
+                                    elif (len(ref) > len(alt) and len(ens_ref) > len(ens_alt) and
+                                            (alt) == (ens_alt)):
+                                        if ((len(ref) > len(ens_ref) and ref[0:len(ens_ref)] == ens_ref) or (
+                                                len(ens_ref) > len(ref) and ens_ref[0:len(ref)] == ref)):
                                             ann = record_[15:]
-                                    elif (len(record_[3]) < len(record_[4]) and len(record_[13]) < len(record_[14]) and
-                                            (record_[3]) == (record_[13])):
-                                        if ((len(record_[4]) > len(record_[14]) and record_[4][0:len(record_[14])] == record_[14]) or (
-                                                len(record_[14]) > len(record_[4]) and record_[14][0:len(record_[4])] == record_[4])):
+                                    elif (len(ref) < len(alt) and len(ens_ref) < len(ens_alt) and
+                                            (ref) == (ens_ref)):
+                                        if ((len(alt) > len(ens_alt) and alt[0:len(ens_alt)] == ens_alt) or (
+                                                len(ens_alt) > len(alt) and ens_alt[0:len(alt)] == alt)):
                                             ann = record_[15:]
                                 if ann:
                                     ann = list(map(float, ann))
@@ -980,6 +966,8 @@ def find_records(input_record):
                     for record_ in curren_pos_records:
                         chrom, pos, ref, alt = [str(record_[0]), int(
                             record_[1]), record_[3], record_[4]]
+                        ens_chrom, ens_pos, ens_ref, ens_alt = [str(record_[10]), int(
+                            record_[11]), record_[13], record_[14]]
                         r_ = []
                         if len(ref) == len(alt) and len(ref) > 1:
                             for ii in range(len(ref)):
@@ -991,19 +979,19 @@ def find_records(input_record):
                         else:
                             r_ = [[chrom, pos, ref, alt]]
 
-                        ann = [0] * 93
-                        if record_[1] == record_[11]:
-                            if record_[3] == record_[13] and record_[4] == record_[14]:
+                        ann = [0] * NUM_ENS_FEATURES
+                        if pos == ens_pos:
+                            if ref == ens_ref and alt == ens_alt:
                                 ann = record_[15:]
-                            elif (len(record_[3]) > len(record_[4]) and len(record_[13]) > len(record_[14]) and
-                                    (record_[4]) == (record_[14])):
-                                if ((len(record_[3]) > len(record_[13]) and record_[3][0:len(record_[13])] == record_[13]) or (
-                                        len(record_[13]) > len(record_[3]) and record_[13][0:len(record_[3])] == record_[3])):
+                            elif (len(ref) > len(alt) and len(ens_ref) > len(ens_alt) and
+                                    (alt) == (ens_alt)):
+                                if ((len(ref) > len(ens_ref) and ref[0:len(ens_ref)] == ens_ref) or (
+                                        len(ens_ref) > len(ref) and ens_ref[0:len(ref)] == ref)):
                                     ann = record_[15:]
-                            elif (len(record_[3]) < len(record_[4]) and len(record_[13]) < len(record_[14]) and
-                                    (record_[3]) == (record_[13])):
-                                if ((len(record_[4]) > len(record_[14]) and record_[4][0:len(record_[14])] == record_[14]) or (
-                                        len(record_[14]) > len(record_[4]) and record_[14][0:len(record_[4])] == record_[4])):
+                            elif (len(ref) < len(alt) and len(ens_ref) < len(ens_alt) and
+                                    (ref) == (ens_ref)):
+                                if ((len(alt) > len(ens_alt) and alt[0:len(ens_alt)] == ens_alt) or (
+                                        len(ens_alt) > len(alt) and ens_alt[0:len(alt)] == alt)):
                                     ann = record_[15:]
                         if ann:
                             ann = list(map(float, ann))
@@ -1021,11 +1009,7 @@ def find_records(input_record):
 
         else:
             with open(split_pred_vcf_file, 'r') as vcf_reader:
-                for line in vcf_reader:
-                    if not line.strip():
-                        continue
-                    if line[0] == "#":
-                        continue
+                for line in skip_empty(vcf_reader):
                     record = line.strip().split()
                     chrom, pos, ref, alt = [record[0], int(
                         record[1]), record[3], record[4]]
@@ -1052,11 +1036,7 @@ def find_records(input_record):
         truth_records = []
         i = 0
         with open(split_truth_vcf_file, 'r') as vcf_reader:
-            for line in vcf_reader:
-                if not line.strip():
-                    continue
-                if line[0] == "#":
-                    continue
+            for line in skip_empty(vcf_reader):
                 record = line.strip().split()
                 pos = int(record[1])
                 if len(record[3]) != len(record[4]) and min(len(record[3]), len(record[4])) > 0 and record[3][0] != record[4][0]:
@@ -1080,9 +1060,7 @@ def find_records(input_record):
             records_bed, truth_bed, args=" -w 5 -v", run_logger=thread_logger)
         none_records_ids = []
         with open(none_records_0) as i_f:
-            for line in i_f:
-                if not line.strip():
-                    continue
+            for line in skip_empty(i_f):
                 x = line.strip().split("\t")
                 none_records_ids.append(int(x[5]))
 
@@ -1092,9 +1070,7 @@ def find_records(input_record):
         map_pred_2_truth = {}
         map_truth_2_pred = {}
         with open(other_records) as i_f:
-            for line in i_f:
-                if not line.strip():
-                    continue
+            for line in skip_empty(i_f):
                 record = line.strip().split("\t")
                 id_pred = int(record[5])
                 id_truth = int(record[11])
@@ -1377,10 +1353,8 @@ def extract_ensemble(work, ensemble_tsv):
                          "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
                          "InDel_Length"]
     with open(ensemble_tsv) as s_f:
-        for line in s_f:
-            if not line.strip():
-                continue
-            if line[0:5] == "CHROM":
+        for line in skip_empty(s_f):
+            if line.startswith("CHROM"):
                 header_pos = line.strip().split()[0:5]
                 header = line.strip().split()[5:105]
                 header_en = list(filter(
@@ -1517,7 +1491,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     if mode == "call":
         truth_vcf_file = os.path.join(work, "empty.vcf")
         with open(truth_vcf_file, "w") as o_f:
-            o_f.write("##fileformat=VCFv4.2\n")
+            o_f.write("{}\n".format(VCF_HEADER))
             o_f.write(
                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
 
@@ -1529,21 +1503,15 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
         tumor_pred_vcf_file, region_bed_file, args=" -u", run_logger=logger)
     len_candids = 0
     with open(tmp_) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
-            if line[0] != "#":
-                len_candids += 1
+        for line in skip_empty(i_f):
+            len_candids += 1
 
     if ensemble_bed:
         tmp_ = bedtools_intersect(
             ensemble_bed, region_bed_file, args=" -u", run_logger=logger)
         with open(tmp_) as i_f:
             for line in i_f:
-                if not line.strip():
-                    continue
-                if line[0] != "#":
-                    len_candids += 1
+                len_candids += 1
     logger.info("len_candids: {}".format(len_candids))
     num_splits = max(len_candids // split_batch_size, num_threads)
     split_region_files = split_region(

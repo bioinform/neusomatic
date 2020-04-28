@@ -24,9 +24,7 @@ import pickle
 from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset, matrix_transform
 from merge_tsvs import merge_tsvs
-
-type_class_dict = {"DEL": 0, "INS": 1, "NONE": 2, "SNP": 3}
-vartype_classes = ['DEL', 'INS', 'NONE', 'SNP']
+from defaults import TYPE_CLASS_DICT, VARTYPE_CLASSES
 
 import torch._utils
 try:
@@ -51,17 +49,17 @@ def make_weights_for_balanced_classes(count_class_t, count_class_l, nclasses_t, 
     count_class_t = list(count_class_t)
     count_class_l = list(count_class_l)
     if none_count:
-        count_class_t[type_class_dict["NONE"]] = none_count
+        count_class_t[TYPE_CLASS_DICT["NONE"]] = none_count
         count_class_l[0] = none_count
 
     logger.info("count type classes: {}".format(
-        list(zip(vartype_classes, count_class_t))))
+        list(zip(VARTYPE_CLASSES, count_class_t))))
     N = float(sum(count_class_t))
     for i in range(nclasses_t):
         w_t[i] = (1 - (float(count_class_t[i]) / float(N))) / float(nclasses_t)
     w_t = np.array(w_t)
     logger.info("weight type classes: {}".format(
-        list(zip(vartype_classes, w_t))))
+        list(zip(VARTYPE_CLASSES, w_t))))
 
     logger.info("count length classes: {}".format(list(
         zip(range(nclasses_l), count_class_l))))
@@ -77,7 +75,7 @@ def make_weights_for_balanced_classes(count_class_t, count_class_l, nclasses_t, 
 def test(net, epoch, validation_loader, use_cuda):
     logger = logging.getLogger(test.__name__)
     net.eval()
-    nclasses = len(vartype_classes)
+    nclasses = len(VARTYPE_CLASSES)
     class_correct = list(0. for i in range(nclasses))
     class_total = list(0. for i in range(nclasses))
     class_p_total = list(0. for i in range(nclasses))
@@ -106,7 +104,7 @@ def test(net, epoch, validation_loader, use_cuda):
         _, len_pred = torch.max(outputs3.data.cpu(), 1)
         preds = {}
         for i, _ in enumerate(paths[0]):
-            preds[i] = [vartype_classes[predicted[i]], pos_pred[i], len_pred[i]]
+            preds[i] = [VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i]]
 
         if labels.size()[0] > 1:
             compare_labels = (predicted == labels).squeeze()
@@ -115,7 +113,7 @@ def test(net, epoch, validation_loader, use_cuda):
         false_preds = np.where(compare_labels.numpy() == 0)[0]
         if len(false_preds) > 0:
             for i in false_preds:
-                falses.append([paths[0][i], vartype_classes[predicted[i]], pos_pred[i], len_pred[i],
+                falses.append([paths[0][i], VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i],
                                list(
                                    np.round(F.softmax(outputs1[i, :], 0).data.cpu().numpy(), 4)),
                                list(
@@ -148,7 +146,7 @@ def test(net, epoch, validation_loader, use_cuda):
         F1 = 2 * PR * SN / (PR + SN + 0.0001)
         logger.info('Epoch {}: Type Accuracy of {:>5} ({}) : {:.2f}  {:.2f} {:.2f}'.format(
             epoch,
-            vartype_classes[i], class_total[i],
+            VARTYPE_CLASSES[i], class_total[i],
             SN, PR, F1))
     logger.info('Epoch {}: Type Accuracy of the network on the {} test candidates: {:.4f} %'.format(
         epoch, sum(class_total), (

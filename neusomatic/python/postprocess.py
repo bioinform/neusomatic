@@ -21,10 +21,11 @@ import numpy as np
 from extract_postprocess_targets import extract_postprocess_targets
 from merge_post_vcfs import merge_post_vcfs
 from resolve_variants import resolve_variants
-from utils import concatenate_files, get_chromosomes_order, bedtools_window
+from utils import concatenate_files, get_chromosomes_order, bedtools_window, skip_empty
 from long_read_indelrealign import long_read_indelrealign
 from resolve_scores import resolve_scores
 from _version import __version__
+from defaults import VCF_HEADER
 
 
 def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
@@ -35,7 +36,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
     if ensemble_tsv:
         ensemble_candids_vcf = os.path.join(work, "ensemble_candids.vcf")
         with open(ensemble_tsv) as e_f, open(ensemble_candids_vcf, "w") as c_f:
-            c_f.write("##fileformat=VCFv4.2\n")
+            c_f.write("{}\n".format(VCF_HEADER))
             c_f.write(
                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
             for line in e_f:
@@ -89,9 +90,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
     for s_e, dd in [0, in_candidates], [1, in_ensemble]:
         if dd:
             with open(dd) as i_f:
-                for line in i_f:
-                    if not line.strip():
-                        continue
+                for line in skip_empty(i_f):
                     x = line.strip().split("\t")
                     tag = "-".join([str(chroms_order[x[0]]), x[1], x[3], x[4]])
                     scores[tag] = [x[5], x[6], x[7], x[9]]
@@ -114,9 +113,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
         fina_info_tag[tag] = hits[0][5:]
 
     with open(notin_any) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
+        for line in skip_empty(i_f):
             x = line.strip().split("\t")
             tag = "-".join([str(chroms_order[x[0]]), x[1], x[3], x[4]])
             fina_info_tag[tag] = [0, 0, 0, 0]
@@ -125,7 +122,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
     tags = sorted(fina_info_tag.keys(), key=lambda x: list(map(int, x.split("-")[0:2]
                                                                )))
     with open(output_vcf, "w") as o_f:
-        o_f.write("##fileformat=VCFv4.2\n")
+        o_f.write("{}\n".format(VCF_HEADER))
         o_f.write("##NeuSomatic Version={}\n".format(__version__))
         o_f.write(
             "##INFO=<ID=SCORE,Number=1,Type=Float,Description=\"Prediction probability score\">\n")

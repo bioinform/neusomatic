@@ -15,11 +15,12 @@ import numpy as np
 import torch
 import resource
 
+from utils import skip_empty
+from defaults import TYPE_CLASS_DICT, VARTYPE_CLASSES
+
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
-
-type_class_dict = {"DEL": 0, "INS": 1, "NONE": 2, "SNP": 3}
 
 
 class matrix_transform():
@@ -52,7 +53,7 @@ def candidate_loader_tsv(tsv, open_tsv, idx, i):
         anns = list(map(float, fields[4:]))
     else:
         anns = []
-    label = type_class_dict[tag.split(".")[4]]
+    label = TYPE_CLASS_DICT[tag.split(".")[4]]
     if not open_tsv:
         i_f.close()
     return tag, im, anns, label
@@ -65,9 +66,7 @@ def extract_info_tsv(record):
     try:
         n_none = 0
         with open(tsv, "r") as i_f:
-            for line in i_f:
-                if not line.strip():
-                    continue
+            for line in skip_empty(i_f):
                 tag = line.strip().split()[2]
                 n_none += (1 if "NONE" in tag else 0)
         n_var = L - n_none
@@ -86,9 +85,7 @@ def extract_info_tsv(record):
         cnt_var = 0
         with open(tsv, "r") as i_f:
             i = -1
-            for i, line in enumerate(i_f):
-                if not line.strip():
-                    continue
+            for i, line in enumerate(skip_empty(i_f)):
                 fields = line.strip().split()
                 ii = int(fields[0])
                 assert ii == i
@@ -100,12 +97,12 @@ def extract_info_tsv(record):
                     var_ids.append(j)
                 j += 1
                 _, _, _, _, vartype, _, length, _, _ = tag.split(".")
-                count_class_t[type_class_dict[vartype]] += 1
+                count_class_t[TYPE_CLASS_DICT[vartype]] += 1
                 count_class_l[min(int(length), 3)] += 1
                 if ((cnt_var < max_load_candidates_var) and ("NONE" not in tag)) or (
                         (cnt_none < max_load_candidates_none) and ("NONE" in tag)):
                     im = extract_zlib(base64.b64decode(fields[3]))
-                    label = type_class_dict[tag.split(".")[4]]
+                    label = TYPE_CLASS_DICT[tag.split(".")[4]]
                     if len(fields) > 4:
                         anns = list(map(float, fields[4:]))
                     else:
