@@ -16,16 +16,16 @@ import logging
 from random import shuffle
 import csv
 import functools
+import tempfile
 
 import numpy as np
-import pybedtools
 import pysam
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import DNAAlphabet
 
-from utils import run_shell_command, get_chromosomes_order
+from utils import run_shell_command, get_chromosomes_order, run_bedtools_cmd, write_tsv_file, read_tsv_file, bedtools_sort, bedtools_merge, get_tmp_file, skip_empty
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -296,6 +296,8 @@ def prepare_fasta(work, region, input_bam, ref_fasta_file, include_ref, split_i)
                 cnt = 1
                 with pysam.Samfile(input_bam, "rb") as samfile:
                     for record in samfile.fetch(region.chrom, region.start, region.end + 1):
+                        if record.is_unmapped:
+                            continue
                         if record.is_supplementary and "SA" in dict(record.tags):
                             sas = dict(record.tags)["SA"].split(";")
                             sas = list(filter(None, sas))
@@ -376,6 +378,8 @@ def split_bam_to_chunks(work, region, input_bam, chunk_size=200,
     records = []
     with pysam.Samfile(input_bam, "rb") as samfile:
         for record in samfile.fetch(region.chrom, region.start, region.end + 1):
+            if record.is_unmapped:
+                continue
             if record.is_supplementary and "SA" in dict(record.tags):
                 sas = dict(record.tags)["SA"].split(";")
                 sas = list(filter(None, sas))
@@ -625,22 +629,30 @@ def merge_cigartuples(tuple1, tuple2):
 
 def find_realign_dict(realign_bed_file, chrom):
     logger = logging.getLogger(find_realign_dict.__name__)
-    realign_bed = pybedtools.BedTool(
-        realign_bed_file).filter(lambda x: x[0] == chrom).saveas()
+
+    realign_bed = get_tmp_file()
+    with open(realign_bed_file) as i_f, open(realign_bed, "w") as o_f:
+        for line in skip_empty(i_f):
+            x=line.strip().split()
+            if x[0]==chrom:
+                o_f.write(line)
+
     realign_dict = {}
     chrom_regions = set([])
-    for interval in realign_bed:
-        chrom, start, end, query_name = interval[0:4]
-        pos, start_idx, end_idx, cigarstring, del_start, del_end, pos_start, pos_end, new_cigar, \
-            excess_start, excess_end = interval[6:]
-        q_key = "{}_{}_{}".format(query_name, pos, cigarstring)
-        if q_key not in realign_dict:
-            realign_dict[q_key] = Realign_Read(
-                query_name, chrom, pos, cigarstring)
-        realign_dict[q_key].add_realignment(start, end, start_idx, end_idx, del_start,
-                                            del_end, pos_start, pos_end, new_cigar, excess_start,
-                                            excess_end)
-        chrom_regions.add("{}-{}".format(start, end))
+    with open(realign_bed) as r_f:
+        for line in skip_empty(r_f):
+            interval = line.strip().split("\t")
+            chrom, start, end, query_name = interval[0:4]
+            pos, start_idx, end_idx, cigarstring, del_start, del_end, pos_start, pos_end, new_cigar, \
+                excess_start, excess_end = interval[6:]
+            q_key = "{}_{}_{}".format(query_name, pos, cigarstring)
+            if q_key not in realign_dict:
+                realign_dict[q_key] = Realign_Read(
+                    query_name, chrom, pos, cigarstring)
+            realign_dict[q_key].add_realignment(start, end, start_idx, end_idx, del_start,
+                                                del_end, pos_start, pos_end, new_cigar, excess_start,
+                                                excess_end)
+            chrom_regions.add("{}-{}".format(start, end))
     chrom_regions = sorted(
         map(lambda x: list(map(int, x.split("-"))), chrom_regions))
     return realign_dict, chrom_regions
@@ -667,6 +679,8 @@ def correct_bam_chrom(input_record):
                     done_regions = True
                 in_active_region = False
                 for record in samfile.fetch(chrom):
+                    if record.is_unmapped:
+                        continue
                     if not done_regions and in_active_region and record.pos > next_region[1]:
                         if region_cnt == len(chrom_regions) - 1:
                             done_regions = True
@@ -710,6 +724,8 @@ def correct_bam_all(work, input_bam, output_bam, ref_fasta_file, realign_bed_fil
                     done_regions = True
                 in_active_region = False
                 for record in samfile.fetch(chrom):
+                    if record.is_unmapped:
+                        continue
                     if not done_regions and in_active_region and record.pos > next_region[1]:
                         if region_cnt == len(chrom_regions) - 1:
                             done_regions = True
@@ -815,7 +831,7 @@ def do_realign(region, info_file, thr_realign=0.0135, max_N=1000):
     sum_nm_indel = 0
     c = 0
     with open(info_file) as i_f:
-        for line in i_f:
+        for line in skip_empty(i_f):
             x = line.strip().split()
             sum_nm_snp += int(x[-2])
             sum_nm_indel += int(x[-1])
@@ -914,11 +930,12 @@ def run_realignment(input_record):
     try:
         region = Region(target_region, pad, len_chr)
 
-        original_tempdir = pybedtools.get_tempdir()
-        pybedtmp = os.path.join(work, "pybedtmp_{}".format(region.__str__()))
-        if not os.path.exists(pybedtmp):
-            os.mkdir(pybedtmp)
-        pybedtools.set_tempdir(pybedtmp)
+        original_tempdir = tempfile.tempdir
+        bed_tempdir = os.path.join(
+            work, "bed_tmpdir_{}".format(region.__str__()))
+        if not os.path.exists(bed_tempdir):
+            os.mkdir(bed_tempdir)
+        tempfile.tempdir = bed_tempdir
         variant = []
         all_entries = []
         input_bam_splits, lens_splits = split_bam_to_chunks(
@@ -980,8 +997,8 @@ def run_realignment(input_record):
                 ro = dp - ao
                 variant = [region.chrom, pos, ref, alt, dp, ro, ao]
 
-        shutil.rmtree(pybedtmp)
-        pybedtools.set_tempdir(original_tempdir)
+        shutil.rmtree(bed_tempdir)
+        tempfile.tempdir = original_tempdir
         return all_entries, variant
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
@@ -1006,50 +1023,58 @@ class fasta_seq:
 
 def extend_regions_hp(region_bed_file, extended_region_bed_file, ref_fasta_file,
                       chrom_lengths, pad):
+    # If boundaries of regions are in the middle of a homopolymer, this function extends the region
+    # to fully include the homopolymer
     logger = logging.getLogger(extend_regions_hp.__name__)
     with pysam.Fastafile(ref_fasta_file) as ref_fasta:
-        region_bed = pybedtools.BedTool(region_bed_file)
         intervals = []
-        for interval in region_bed:
-            chrom, start, end = interval[0:3]
-            start, end = int(start), int(end)
-            s_base = ref_fasta.fetch(
-                chrom, start - pad, start - pad + 1).upper()
-            e_base = ref_fasta.fetch(chrom, end + pad, end + pad + 1).upper()
-            new_start = start
-            i = start - pad - 1
-            while True:
-                base = ref_fasta.fetch(chrom, i, i + 1).upper()
-                if base == s_base:
-                    new_start -= 1
-                else:
-                    break
-                i -= 1
-                if i <= 3:
-                    break
-            new_end = end
-            i = end + pad + 1
-            while True:
-                base = ref_fasta.fetch(chrom, i, i + 1).upper()
-                if base == e_base:
+        with open(region_bed_file) as r_f:
+            for line in skip_empty(r_f):
+                interval = line.strip().split("\t")
+                chrom, start, end = interval[0:3]
+                start, end = int(start), int(end)
+                s_base = ref_fasta.fetch(
+                    chrom, start - pad, start - pad + 1).upper()
+                e_base = ref_fasta.fetch(
+                    chrom, end + pad, end + pad + 1).upper()
+                new_start = start
+                i = start - pad - 1
+                while True:
+                    base = ref_fasta.fetch(chrom, i, i + 1).upper()
+                    if base == s_base:
+                        new_start -= 1
+                    else:
+                        break
+                    i -= 1
+                    if i <= 3:
+                        break
+                new_end = end
+                i = end + pad + 1
+                while True:
+                    base = ref_fasta.fetch(chrom, i, i + 1).upper()
+                    if base == e_base:
+                        new_end += 1
+                    else:
+                        break
+                    i += 1
+                    if i >= chrom_lengths[chrom] - 3:
+                        break
+                if ref_fasta.fetch(chrom, new_end + pad, new_end + pad + 1
+                                   ).upper() == ref_fasta.fetch(chrom, new_end - 1 + pad,
+                                                                new_end + pad).upper():
                     new_end += 1
-                else:
-                    break
-                i += 1
-                if i >= chrom_lengths[chrom] - 3:
-                    break
-            if ref_fasta.fetch(chrom, new_end + pad, new_end + pad + 1
-                               ).upper() == ref_fasta.fetch(chrom, new_end - 1 + pad,
-                                                            new_end + pad).upper():
-                new_end += 1
-            if ref_fasta.fetch(chrom, new_start - pad, new_start - pad + 1
-                               ).upper() == ref_fasta.fetch(chrom, new_start - pad + 1,
-                                                            new_start - pad + 2).upper():
-                new_start -= 1
-            seq, new_seq = ref_fasta.fetch(chrom, start - pad, end + pad + 1).upper(
-            ), ref_fasta.fetch(chrom, new_start - pad, new_end + pad + 1).upper()
-            intervals.append(pybedtools.Interval(chrom, new_start, new_end))
-        pybedtools.BedTool(intervals).sort().saveas(extended_region_bed_file)
+                if ref_fasta.fetch(chrom, new_start - pad, new_start - pad + 1
+                                   ).upper() == ref_fasta.fetch(chrom, new_start - pad + 1,
+                                                                new_start - pad + 2).upper():
+                    new_start -= 1
+                seq, new_seq = ref_fasta.fetch(chrom, start - pad, end + pad + 1).upper(
+                ), ref_fasta.fetch(chrom, new_start - pad, new_end + pad + 1).upper()
+                intervals.append([chrom, new_start, new_end])
+
+        tmp_ = get_tmp_file()
+        write_tsv_file(tmp_, intervals)
+        bedtools_sort(tmp_, output_fn=extended_region_bed_file,
+                      run_logger=logger)
 
 
 def check_rep(ref_seq, left_right, w):
@@ -1069,99 +1094,104 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
                           chrom_lengths, pad):
     logger = logging.getLogger(extend_regions_repeat.__name__)
     with pysam.Fastafile(ref_fasta_file) as ref_fasta:
-        region_bed = pybedtools.BedTool(region_bed_file)
         intervals = []
-        for interval in region_bed:
-            chrom, start, end = interval[0:3]
-            start, end = int(start), int(end)
-            w = 3
-            new_start = max(start - pad - w, 1)
-            new_end = min(end + pad + w, chrom_lengths[chrom] - 2)
-            ref_seq = ref_fasta.fetch(chrom, new_start, new_end + 1).upper()
-            cnt_s = 0
-            while check_rep(ref_seq, "left", 2):
-                new_start -= 2
+        with open(region_bed_file) as r_f:
+            for line in skip_empty(r_f):
+                interval = line.strip().split("\t")
+                chrom, start, end = interval[0:3]
+                start, end = int(start), int(end)
+                w = 3
+                new_start = max(start - pad - w, 1)
+                new_end = min(end + pad + w, chrom_lengths[chrom] - 2)
                 ref_seq = ref_fasta.fetch(
                     chrom, new_start, new_end + 1).upper()
-                cnt_s += 2
-            if cnt_s == 0:
-                while check_rep(ref_seq, "left", 3):
-                    new_start -= 3
+                cnt_s = 0
+                while check_rep(ref_seq, "left", 2):
+                    new_start -= 2
                     ref_seq = ref_fasta.fetch(
                         chrom, new_start, new_end + 1).upper()
-                    cnt_s += 3
-            if cnt_s == 0:
-                while check_rep(ref_seq, "left", 4):
-                    new_start -= 4
+                    cnt_s += 2
+                if cnt_s == 0:
+                    while check_rep(ref_seq, "left", 3):
+                        new_start -= 3
+                        ref_seq = ref_fasta.fetch(
+                            chrom, new_start, new_end + 1).upper()
+                        cnt_s += 3
+                if cnt_s == 0:
+                    while check_rep(ref_seq, "left", 4):
+                        new_start -= 4
+                        ref_seq = ref_fasta.fetch(
+                            chrom, new_start, new_end + 1).upper()
+                        cnt_s += 4
+                if cnt_s == 0:
+                    new_start += w
                     ref_seq = ref_fasta.fetch(
                         chrom, new_start, new_end + 1).upper()
-                    cnt_s += 4
-            if cnt_s == 0:
-                new_start += w
-                ref_seq = ref_fasta.fetch(
-                    chrom, new_start, new_end + 1).upper()
-            if cnt_s == 0:
-                while check_rep(ref_seq, "left", 3):
-                    new_start -= 3
-                    ref_seq = ref_fasta.fetch(
-                        chrom, new_start, new_end + 1).upper()
-                    cnt_s += 3
-            if cnt_s == 0:
-                while check_rep(ref_seq, "left", 4):
-                    new_start -= 4
-                    ref_seq = ref_fasta.fetch(
-                        chrom, new_start, new_end + 1).upper()
-                    cnt_s += 4
-            if cnt_s == 0:
-                while check_rep(ref_seq, "left", 4):
-                    new_start -= 4
-                    ref_seq = ref_fasta.fetch(
-                        chrom, new_start, new_end + 1).upper()
-                    cnt_s += 4
-            cnt_e = 0
-            while check_rep(ref_seq, "right", 2):
-                new_end += 2
-                ref_seq = ref_fasta.fetch(
-                    chrom, new_start, new_end + 1).upper()
-                cnt_e += 2
-            if cnt_e == 0:
-                while check_rep(ref_seq, "right", 3):
-                    new_end += 3
-                    ref_seq = ref_fasta.fetch(
-                        chrom, new_start, new_end + 1).upper()
-                    cnt_e += 3
-            if cnt_e == 0:
-                while check_rep(ref_seq, "right", 4):
-                    new_end += 4
-                    ref_seq = ref_fasta.fetch(
-                        chrom, new_start, new_end + 1).upper()
-                    cnt_e += 4
-
-            if cnt_e == 0:
-                new_end -= w
-                ref_seq = ref_fasta.fetch(
-                    chrom, new_start, new_end + 1).upper()
-            if cnt_e == 0:
+                if cnt_s == 0:
+                    while check_rep(ref_seq, "left", 3):
+                        new_start -= 3
+                        ref_seq = ref_fasta.fetch(
+                            chrom, new_start, new_end + 1).upper()
+                        cnt_s += 3
+                if cnt_s == 0:
+                    while check_rep(ref_seq, "left", 4):
+                        new_start -= 4
+                        ref_seq = ref_fasta.fetch(
+                            chrom, new_start, new_end + 1).upper()
+                        cnt_s += 4
+                if cnt_s == 0:
+                    while check_rep(ref_seq, "left", 4):
+                        new_start -= 4
+                        ref_seq = ref_fasta.fetch(
+                            chrom, new_start, new_end + 1).upper()
+                        cnt_s += 4
+                cnt_e = 0
                 while check_rep(ref_seq, "right", 2):
                     new_end += 2
                     ref_seq = ref_fasta.fetch(
                         chrom, new_start, new_end + 1).upper()
                     cnt_e += 2
-            if cnt_e == 0:
-                while check_rep(ref_seq, "right", 3):
-                    new_end += 3
+                if cnt_e == 0:
+                    while check_rep(ref_seq, "right", 3):
+                        new_end += 3
+                        ref_seq = ref_fasta.fetch(
+                            chrom, new_start, new_end + 1).upper()
+                        cnt_e += 3
+                if cnt_e == 0:
+                    while check_rep(ref_seq, "right", 4):
+                        new_end += 4
+                        ref_seq = ref_fasta.fetch(
+                            chrom, new_start, new_end + 1).upper()
+                        cnt_e += 4
+
+                if cnt_e == 0:
+                    new_end -= w
                     ref_seq = ref_fasta.fetch(
                         chrom, new_start, new_end + 1).upper()
-                    cnt_e += 3
-            if cnt_e == 0:
-                while check_rep(ref_seq, "right", 4):
-                    new_end += 4
-                    ref_seq = ref_fasta.fetch(
-                        chrom, new_start, new_end + 1).upper()
-                    cnt_e += 4
-            intervals.append(pybedtools.Interval(
-                chrom, new_start + pad, new_end - pad))
-        pybedtools.BedTool(intervals).sort().saveas(extended_region_bed_file)
+                if cnt_e == 0:
+                    while check_rep(ref_seq, "right", 2):
+                        new_end += 2
+                        ref_seq = ref_fasta.fetch(
+                            chrom, new_start, new_end + 1).upper()
+                        cnt_e += 2
+                if cnt_e == 0:
+                    while check_rep(ref_seq, "right", 3):
+                        new_end += 3
+                        ref_seq = ref_fasta.fetch(
+                            chrom, new_start, new_end + 1).upper()
+                        cnt_e += 3
+                if cnt_e == 0:
+                    while check_rep(ref_seq, "right", 4):
+                        new_end += 4
+                        ref_seq = ref_fasta.fetch(
+                            chrom, new_start, new_end + 1).upper()
+                        cnt_e += 4
+                intervals.append([chrom, new_start + pad, new_end - pad])
+
+        tmp_ = get_tmp_file()
+        write_tsv_file(tmp_, intervals, add_fields=[".", ".", "."])
+        bedtools_sort(tmp_, output_fn=extended_region_bed_file,
+                      run_logger=logger)
 
 
 def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_file,
@@ -1196,18 +1226,28 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
         region_bed_file, extended_region_bed_file, ref_fasta_file, chrom_lengths, pad)
     region_bed_file = extended_region_bed_file
 
-    region_bed = pybedtools.BedTool(region_bed_file)
-
-    region_bed_merged = pybedtools.BedTool(region_bed)
+    region_bed_merged = region_bed_file
+    len_merged = 0
+    with open(region_bed_merged) as r_b:
+        for line in skip_empty(r_b):
+            len_merged += 1
     while True:
-        region_bed_merged_tmp = region_bed_merged.merge(d=pad * 2)
-        if len(region_bed_merged_tmp) == len(region_bed_merged):
+        region_bed_merged_tmp = bedtools_merge(
+            region_bed_merged, args=" -d {}".format(pad * 2), run_logger=logger)
+        len_tmp = 0
+        with open(region_bed_merged_tmp) as r_b:
+            for line in skip_empty(r_b):
+                len_tmp += 1
+        if len_tmp == len_merged:
             break
         region_bed_merged = region_bed_merged_tmp
-    region_bed_merged.saveas(os.path.join(work, "regions_merged.bed"))
+        len_merged = len_tmp
+    shutil.copyfile(region_bed_merged, os.path.join(
+        work, "regions_merged.bed"))
 
-    target_regions = list(map(
-        lambda x: [x[0], int(x[1]), int(x[2])], region_bed_merged))
+    target_regions = read_tsv_file(region_bed_merged, fields=range(3))
+    target_regions = list(
+        map(lambda x: [x[0], int(x[1]), int(x[2])], target_regions))
 
     get_var = True if output_vcf else False
     pool = multiprocessing.Pool(num_threads)
@@ -1253,30 +1293,26 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, region_bed_f
                                           dp, ro, ao), ])
                     o_f.write(line + "\n")
 
-    original_tempdir = pybedtools.get_tempdir()
-    pybedtmp = os.path.join(work, "pybedtmp")
-    if not os.path.exists(pybedtmp):
-        os.mkdir(pybedtmp)
-    pybedtools.set_tempdir(pybedtmp)
+    original_tempdir = tempfile.tempdir
+    bed_tempdir = os.path.join(work, "bed_tmpdir")
+    if not os.path.exists(bed_tempdir):
+        os.mkdir(bed_tempdir)
+    tempfile.tempdir = bed_tempdir
 
     if realign_entries:
         realign_entries = functools.reduce(lambda x, y: x + y, realign_entries)
     realign_bed_file = os.path.join(work, "realign.bed")
     realign_entries.sort()
-    relaign_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(x[0], x[1],
-                                                                       x[2], x[
-                                                                           3],
-                                                                       otherfields=list(map(lambda y: str(y).encode('utf-8'), x[4:]))),
-                                         realign_entries)).saveas(realign_bed_file)
-
-    relaign_bed = pybedtools.BedTool(realign_bed_file)
+    with open(realign_bed_file, "w") as o_f:
+        for x in realign_entries:
+            o_f.write("\t".join(map(str, x[0:4] + [".", "."] + x[4:])) + "\n")
 
     if output_bam:
         parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file,
                              realign_bed_file, num_threads)
 
-    shutil.rmtree(pybedtmp)
-    pybedtools.set_tempdir(original_tempdir)
+    shutil.rmtree(bed_tempdir)
+    tempfile.tempdir = original_tempdir
 
     logger.info("Done")
 

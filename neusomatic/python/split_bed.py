@@ -9,7 +9,7 @@ import traceback
 from random import shuffle
 import logging
 
-import pybedtools
+from utils import write_tsv_file, bedtools_sort, bedtools_merge, skip_empty
 
 
 def split_region(work, region_bed_file, num_splits, max_region=1000000, min_region=20, shuffle_intervals=False):
@@ -18,20 +18,24 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
 
     logger.info("------------------------Split region-----------------------")
 
-    regions_bed = pybedtools.BedTool(region_bed_file).sort().merge(d=0)
+    regions_bed = bedtools_sort(region_bed_file, run_logger=logger)
+    regions_bed = bedtools_merge(
+        regions_bed, args=" -d 0", run_logger=logger)
+
     intervals = []
-    for region in regions_bed:
-        chrom, start, end = region.chrom, region.start, region.end
-        if region.length + 1 > max_region:
-            for i in range(start, end + 1, max_region):
-                intervals.append(pybedtools.Interval(
-                    chrom, i, min(end, i + max_region - 1)))
-        else:
-            intervals.append(region)
+    with open(regions_bed) as r_f:
+        for line in skip_empty(r_f):
+            chrom, start, end = line.strip().split("\t")[0:3]
+            start, end = int(start), int(end)
+            if end - start + 1 > max_region:
+                for i in range(start, end + 1, max_region):
+                    intervals.append(
+                        [chrom, i, min(end, i + max_region - 1)])
+            else:
+                intervals.append([chrom, start, end])
     if shuffle_intervals:
         shuffle(intervals)
-    regions_bed = pybedtools.BedTool(intervals).saveas()
-    total_len = sum(map(lambda x: int(x[2]) - int(x[1]) + 1, regions_bed))
+    total_len = sum(map(lambda x: int(x[2]) - int(x[1]) + 1, intervals))
     logger.info("Total length: {}".format(total_len))
     split_len = total_len // num_splits
     split_regions = []
@@ -39,7 +43,7 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
     sofar_len = 0
     current_len = 0
     split_lens = []
-    for region in regions_bed:
+    for region in intervals:
         chrom, start, end = region[0:3]
         start, end = int(start), int(end)
         s = start
@@ -51,7 +55,7 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
                 e = min(s + 2 * min_region - 1, end)
             if (end - e) < 2 * min_region:
                 e = end
-            current_regions.append(pybedtools.Interval(chrom, s, e))
+            current_regions.append([chrom, s, e])
             current_len += e - s + 1
             if (current_len >= split_len):
                 sofar_len += current_len
@@ -69,7 +73,10 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
     split_region_files = []
     for i, split_region_ in enumerate(split_regions):
         split_region_file = os.path.join(work, "region_{}.bed".format(i))
-        pybedtools.BedTool(split_region_).saveas(split_region_file)
+        logger.info(split_region_file)
+        write_tsv_file(split_region_file, split_region_,
+                       add_fields=[".", ".", "."])
+
         logger.info("Split {}: {}".format(i, split_lens[i]))
         split_region_files.append(split_region_file)
     sum_len = sum(split_lens)

@@ -11,11 +11,11 @@ import re
 import logging
 import traceback
 
-import pybedtools
 import pysam
 import numpy as np
 
-from utils import get_chromosomes_order
+from utils import get_chromosomes_order, read_tsv_file, bedtools_sort, bedtools_merge, get_tmp_file, skip_empty
+from defaults import VCF_HEADER
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -88,7 +88,6 @@ def find_resolved_variants(input_record):
             vartype = vartypes[0]
             score = max(scores)
             if vartype == "DEL":
-                intervals = []
                 dels = []
                 with pysam.AlignmentFile(input_bam) as samfile:
                     for record in samfile.fetch(chrom, start, end):
@@ -97,10 +96,8 @@ def find_resolved_variants(input_record):
                 dels = list(filter(lambda x: (
                     start <= x[1] <= end) or start <= x[2] <= end, dels))
                 if dels:
-                    intervals = list(map(lambda x: pybedtools.Interval(
-                        x[0], x[1], x[2]), dels))
-                    bed = pybedtools.BedTool(intervals).saveas()
-                    del_strs = list(map(lambda x: "---".join(x[0:3]), bed))
+                    del_strs = list(
+                        map(lambda x: "---".join(map(str, x[0:3])), dels))
                     uniq_dels = list(set(del_strs))
                     uniq_dels_count = {}
                     for del_ in uniq_dels:
@@ -109,11 +106,20 @@ def find_resolved_variants(input_record):
                     for del_ in uniq_dels:
                         if uniq_dels_count[del_] <= max_count * 0.5:
                             del uniq_dels_count[del_]
-                    new_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[2])),
-                                                     list(map(lambda x: x.split("---"), uniq_dels_count.keys())))).saveas()
-                    new_bed = new_bed.sort().merge(c=[1], o="count")
-                    out_variants.extend(list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
-                        x[1]) - 1, int(x[2])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])), "0/1", score], new_bed)))
+                    new_bed = get_tmp_file()
+                    with open(new_bed, "w") as f_o:
+                        for k in uniq_dels_count.keys():
+                            x = k.split("---")
+                            f_o.write(
+                                "\t".join(map(str, x + [".", "."])) + "\n")
+                    new_bed = bedtools_sort(new_bed, run_logger=thread_logger)
+
+                    new_bed = bedtools_merge(
+                        new_bed, args=" -c 1 -o count", run_logger=thread_logger)
+                    vs = read_tsv_file(new_bed, fields=range(4))
+                    vs = list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
+                        x[1]) - 1, int(x[2])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])), "0/1", score], vs))
+                    out_variants.extend(vs)
             elif vartype == "INS":
                 intervals = []
                 inss = []
@@ -124,10 +130,8 @@ def find_resolved_variants(input_record):
                 inss = list(filter(lambda x: (
                     start <= x[1] <= end) or start <= x[2] <= end, inss))
                 if inss:
-                    intervals = list(map(lambda x: pybedtools.Interval(
-                        x[0], x[1], x[2], x[3]), inss))
-                    bed = pybedtools.BedTool(intervals).saveas()
-                    ins_strs = list(map(lambda x: "---".join(x[0:4]), bed))
+                    ins_strs = list(
+                        map(lambda x: "---".join(map(str, x[0:4])), inss))
                     uniq_inss = list(set(ins_strs))
                     uniq_inss_count = {}
                     for ins_ in uniq_inss:
@@ -138,10 +142,18 @@ def find_resolved_variants(input_record):
                     for ins_ in uniq_inss:
                         if uniq_inss_count[ins_] <= max_count * 0.5 or 0 < abs(int(ins_.split("---")[1]) - max_pos) < 4:
                             del uniq_inss_count[ins_]
-                    new_bed = pybedtools.BedTool(map(lambda x: pybedtools.Interval(x[0], int(x[1]), int(x[2]), x[3]),
-                                                     list(map(lambda x: x.split("---"), uniq_inss_count.keys())))).sort()
-                    out_variants.extend(list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
-                        x[1]) - 1, int(x[1])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])) + x[3], "0/1", score], new_bed)))
+
+                    new_bed = get_tmp_file()
+                    with open(new_bed, "w") as f_o:
+                        for k in uniq_inss_count.keys():
+                            x = k.split("---")
+                            f_o.write(
+                                "\t".join(map(str, x + [".", "."])) + "\n")
+                    new_bed = bedtools_sort(new_bed, run_logger=thread_logger)
+                    vs = read_tsv_file(new_bed, fields=range(4))
+                    vs = list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
+                        x[1]) - 1, int(x[1])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])) + x[3], "0/1", score], vs))
+                    out_variants.extend(vs)
         return out_variants
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
@@ -157,9 +169,7 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
 
     variants = {}
     with open(target_vcf_file) as tv_f:
-        for line in tv_f:
-            if line[0] == "#":
-                continue
+        for line in skip_empty(tv_f):
             fields = line.strip().split()
             id_ = int(fields[2])
             if len(fields[4]) < len(fields[3]):
@@ -171,13 +181,14 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
             if id_ not in variants:
                 variants[id_] = []
             variants[id_].append(fields + [vartype])
-    target_bed = pybedtools.BedTool(target_bed_file)
     map_args = []
-    for tb in target_bed:
-        chrom, start, end, id_ = tb[0:4]
-        id_ = int(id_)
-        map_args.append([chrom, start, end, variants[id_],
-                         input_bam, reference])
+    with open(target_bed_file) as i_f:
+        for line in skip_empty(i_f):
+            tb = line.strip().split("\t")
+            chrom, start, end, id_ = tb[0:4]
+            id_ = int(id_)
+            map_args.append([chrom, start, end, variants[id_],
+                             input_bam, reference])
 
     pool = multiprocessing.Pool(num_threads)
     try:
@@ -200,7 +211,7 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
     out_variants = sorted(out_variants, key=lambda x: [
                           chroms_order[x[0]], int(x[1])])
     with open(resolved_vcf, "w") as o_f:
-        o_f.write("##fileformat=VCFv4.2\n")
+        o_f.write("{}\n".format(VCF_HEADER))
         o_f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
         for chrom, pos, ref, alt, gt, phred_score in out_variants:
             if ref != alt:

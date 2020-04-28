@@ -7,6 +7,8 @@ import shutil
 import shlex
 import subprocess
 import logging
+import traceback
+import tempfile
 
 import pysam
 import numpy as np
@@ -17,7 +19,7 @@ logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
 
 
-def run_shell_command(command, stdout=None, stderr=None, run_logger=None):
+def run_shell_command(command, stdout=None, stderr=None, run_logger=None, no_print=False):
     stdout_fd = open(stdout, "w") if stdout else None
     stderr_fd = open(stderr, "w") if stderr else None
     my_logger = logger
@@ -25,7 +27,8 @@ def run_shell_command(command, stdout=None, stderr=None, run_logger=None):
         my_logger = run_logger
 
     fixed_command = shlex.split(command)
-    my_logger.info("Running command: {}".format(fixed_command))
+    if not no_print:
+        my_logger.info("Running command: {}".format(fixed_command))
     returncode = subprocess.check_call(
         fixed_command, stdout=stdout_fd, stderr=stderr_fd)
     if stdout_fd:
@@ -81,6 +84,28 @@ def safe_read_info_dict(d, field, t=str, default_val=""):
     return t(d[field]) if field in d else default_val
 
 
+def run_bedtools_cmd(command, output_fn=None, run_logger=None):
+    if output_fn is None:
+        tmpfn = tempfile.NamedTemporaryFile(
+            prefix="tmpbed_", suffix=".bed", delete=False)
+        output_fn = tmpfn.name
+    stderr_file = output_fn + ".stderr"
+    if run_logger is None:
+        run_logger = logger
+    try:
+        returncode = run_shell_command(command, stdout=output_fn, stderr=stderr_file,
+                                       run_logger=run_logger, no_print=True)
+        os.remove(stderr_file)
+        return output_fn
+    except Exception as ex:
+        run_logger.error(traceback.format_exc())
+        run_logger.error(ex)
+        err_msg = "Command {} failed.".format(command)
+        if os.path.exists(stderr_file) and os.path.getsize(stderr_file):
+            err_msg += "\nPlease check error log at {}".format(stderr_file)
+        raise Exception(err_msg)
+
+
 def prob2phred(p, max_phred=100):
     '''Convert prob to Phred-scale quality score.'''
     assert 0 <= p <= 1
@@ -93,3 +118,93 @@ def prob2phred(p, max_phred=100):
         if Q > max_phred:
             Q = max_phred
     return Q
+
+
+def write_tsv_file(tsv_file, records, sep='\t', add_fields=[]):
+    with open(tsv_file, "w") as f_o:
+        for x in records:
+            f_o.write(sep.join(map(str, x + add_fields)) + "\n")
+
+def skip_empty(fh, skip_header=True):
+    for line in fh:
+        if skip_header and line.startswith("#"):
+            continue
+        if not line.strip():
+            continue
+        yield line
+
+def read_tsv_file(tsv_file, sep='\t', fields=None):
+    records = []
+    with open(tsv_file) as i_f:
+        for line in skip_empty(i_f):
+            x = line.strip().split(sep)
+            if fields is not None:
+                x = [x[i] for i in fields]
+            records.append(x)
+    return records
+
+def vcf_2_bed(vcf_file, bed_file, add_fields=[], len_ref=False, keep_ref_alt=True):
+    with open(bed_file, "w") as f_o, open(vcf_file, "r") as f_i:
+        for line in skip_empty(f_i):
+            x = line.strip().split("\t")
+            len_=1 if not len_ref else len(x[3])
+            if keep_ref_alt:
+                f_o.write(
+                    "\t".join(map(str, [x[0], int(x[1]), int(x[1]) + len_, x[3], x[4]] + add_fields)) + "\n")
+            else:
+                f_o.write(
+                    "\t".join(map(str, [x[0], int(x[1]), int(x[1]) + len_] + add_fields)) + "\n")
+
+
+
+def bedtools_sort(bed_file, args="", output_fn=None, run_logger=None):
+    cmd = "bedtools sort -i {} {}".format(bed_file, args)
+    if output_fn is None:
+        output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
+    else:
+        run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
+    return output_fn
+
+
+def bedtools_merge(bed_file, args="", output_fn=None, run_logger=None):
+    cmd = "bedtools merge -i {} {}".format(bed_file, args)
+    if output_fn is None:
+        output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
+    else:
+        run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
+    return output_fn
+
+
+def bedtools_window(a_bed_file, b_bed_file, args="", output_fn=None, run_logger=None):
+    cmd = "bedtools window -a {} -b {} {}".format(a_bed_file, b_bed_file, args)
+    if output_fn is None:
+        output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
+    else:
+        run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
+    return output_fn
+
+
+def bedtools_intersect(a_bed_file, b_bed_file, args="", output_fn=None, run_logger=None):
+    cmd = "bedtools intersect -a {} -b {} {}".format(
+        a_bed_file, b_bed_file, args)
+    if output_fn is None:
+        output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
+    else:
+        run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
+    return output_fn
+
+
+def bedtools_slop(bed_file, genome, args="", output_fn=None, run_logger=None):
+    cmd = "bedtools slop -i {} -g {} {}".format(bed_file, genome, args)
+    if output_fn is None:
+        output_fn = run_bedtools_cmd(cmd, run_logger=run_logger)
+    else:
+        run_bedtools_cmd(cmd, output_fn=output_fn, run_logger=run_logger)
+    return output_fn
+
+
+def get_tmp_file(prefix="tmpbed_", suffix=".bed", delete=False):
+    myfile = tempfile.NamedTemporaryFile(
+        prefix=prefix, suffix=suffix, delete=delete)
+    myfile = myfile.name
+    return myfile

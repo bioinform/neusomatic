@@ -16,13 +16,11 @@ import traceback
 import logging
 import shutil
 
-import pybedtools
 import pysam
 import numpy as np
 
-from utils import concatenate_files, run_shell_command
+from utils import concatenate_files, run_shell_command, bedtools_sort, bedtools_merge, get_tmp_file, skip_empty
 from split_bed import split_region
-
 
 def run_scan_alignments(record):
     work, reference, scan_alignments_binary, split_region_file, \
@@ -40,19 +38,21 @@ def run_scan_alignments(record):
             raise IOError("File not found: {}".format(scan_alignments_binary))
         if not os.path.exists(work):
             os.mkdir(work)
-        if len(pybedtools.BedTool(split_region_file)) > 0:
+        if os.path.getsize(split_region_file) > 0:
             cmd = "{} --ref {} -b {} -L {} --out_vcf_file {}/candidates.vcf --out_count_file {}/count.bed \
                         --window_size {} --min_af {} --min_mapq {} --max_depth {} {}".format(
                 scan_alignments_binary, reference, input_bam, split_region_file,
-                work, work, window_size, maf, min_mapq, max_dp*window_size/100.0, filter_duplicate_str)
+                work, work, window_size, maf, min_mapq, max_dp * window_size / 100.0, filter_duplicate_str)
             if calc_qual:
                 cmd += " --calculate_qual_stat"
             run_shell_command(cmd, stdout=os.path.join(work, "scan.out"),
                               stderr=os.path.join(work, "scan.err"),
                               run_logger=thread_logger)
         else:
-            pybedtools.BedTool([]).saveas(os.path.join(work, "candidates.vcf"))
-            pybedtools.BedTool([]).saveas(os.path.join(work, "count.bed"))
+            with open(os.path.join(work, "candidates.vcf"), "w") as o_f:
+                pass
+            with open(os.path.join(work, "count.bed"), "w") as o_f:
+                pass
 
         pysam.tabix_index(os.path.join(work, "count.bed"), preset="bed")
         concatenate_files([split_region_file],
@@ -77,32 +77,42 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
 
     logger.info("-------------------Scan Alignment BAM----------------------")
 
+    split_len_ratio = 0.98
     if not split_region_files:
         if regions_bed_file:
-            regions_bed = pybedtools.BedTool(
-                regions_bed_file).sort().merge(d=0)
+            regions_bed = bedtools_sort(regions_bed_file, run_logger=logger)
+            regions_bed = bedtools_merge(
+                regions_bed, args=" -d 0", run_logger=logger)
         else:
-            intervals = []
+            regions_bed = get_tmp_file()
             with pysam.AlignmentFile(input_bam, "rb") as samfile:
-                for chrom, length in zip(samfile.references, samfile.lengths):
-                    intervals.append(pybedtools.Interval(chrom, 1, length - 1))
-            regions_bed = pybedtools.BedTool(intervals).saveas()
+                with open(regions_bed, "w") as tmpfile:
+                    for chrom, length in zip(samfile.references, samfile.lengths):
+                        tmpfile.write("{}\t{}\t{}\t.\t.\t.\n".format(
+                            chrom, 1, length - 1))
         if not os.path.exists(work):
             os.mkdir(work)
-        total_len = sum(map(lambda x: int(x[2]) - int(x[1]) + 1, regions_bed))
-
+        total_len = 0
+        with open(regions_bed) as r_f:
+            for line in skip_empty(r_f):
+                chrom, st, en = line.strip().split("\t")[0:3]
+                total_len += int(en) - int(st) + 1
         if not restart:
             split_region_files = glob.glob(os.path.join(work, "region_*.bed"))
-            spilt_total_len = sum(map(lambda x: sum(
-                [y.length for y in pybedtools.BedTool(x)]), split_region_files))
-            if spilt_total_len >= 0.98 * total_len:
+            spilt_total_len = 0
+            for split_file in split_region_files:
+                with open(split_file) as s_f:
+                    for line in skip_empty(s_f):
+                        chrom, st, en = line.strip().split("\t")[0:3]
+                        spilt_total_len += int(en) - int(st)
+            if spilt_total_len >= split_len_ratio * total_len:
                 split_region_files = sorted(split_region_files,
                                             key=lambda x: int(
                                                 os.path.basename(x).split(".bed")[0].split(
                                                     "_")[1]))
         if not split_region_files:
             regions_bed_file = os.path.join(work, "all_regions.bed")
-            regions_bed.saveas(regions_bed_file)
+            shutil.move(regions_bed, regions_bed_file)
 
             num_split = max(int(np.ceil((total_len // 10000000) //
                                         num_threads) * num_threads), num_threads)
