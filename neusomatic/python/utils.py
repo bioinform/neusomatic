@@ -125,30 +125,36 @@ def write_tsv_file(tsv_file, records, sep='\t', add_fields=[]):
         for x in records:
             f_o.write(sep.join(map(str, x + add_fields)) + "\n")
 
+def skip_empty(fh, skip_header=True):
+    for line in fh:
+        if skip_header and line.startswith("#"):
+            continue
+        if not line.strip():
+            continue
+        yield line
 
 def read_tsv_file(tsv_file, sep='\t', fields=None):
     records = []
     with open(tsv_file) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
+        for line in skip_empty(i_f):
             x = line.strip().split(sep)
             if fields is not None:
                 x = [x[i] for i in fields]
             records.append(x)
     return records
 
-
-def vcf_2_bed(vcf_file, bed_file, add_fields=[]):
+def vcf_2_bed(vcf_file, bed_file, add_fields=[], len_ref=False, keep_ref_alt=True):
     with open(bed_file, "w") as f_o, open(vcf_file, "r") as f_i:
-        for line in f_i:
-            if not line.strip():
-                continue
-            if line[0] == "#":
-                continue
+        for line in skip_empty(f_i):
             x = line.strip().split("\t")
-            f_o.write(
-                "\t".join(map(str, [x[0], int(x[1]), int(x[1]) + 1, x[3], x[4]] + add_fields)) + "\n")
+            len_=1 if not len_ref else len(x[3])
+            if keep_ref_alt:
+                f_o.write(
+                    "\t".join(map(str, [x[0], int(x[1]), int(x[1]) + len_, x[3], x[4]] + add_fields)) + "\n")
+            else:
+                f_o.write(
+                    "\t".join(map(str, [x[0], int(x[1]), int(x[1]) + len_] + add_fields)) + "\n")
+
 
 
 def bedtools_sort(bed_file, args="", output_fn=None, run_logger=None):

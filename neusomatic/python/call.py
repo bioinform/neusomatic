@@ -27,6 +27,7 @@ from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset, matrix_transform
 from utils import get_chromosomes_order, prob2phred
 from merge_tsvs import merge_tsvs
+from defaults import VARTYPE_CLASSES
 
 import torch._utils
 try:
@@ -52,10 +53,10 @@ def get_type(ref, alt):
         return "SNP"
 
 
-def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cuda):
+def call_variants(net, call_loader, out_dir, model_tag, use_cuda):
     logger = logging.getLogger(call_variants.__name__)
     net.eval()
-    nclasses = len(vartype_classes)
+    nclasses = len(VARTYPE_CLASSES)
     final_preds = {}
     none_preds = {}
     true_path = {}
@@ -91,15 +92,15 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
         preds = {}
         for i, path_ in enumerate(paths[0]):
             path = path_.split("/")[-1]
-            preds[i] = [vartype_classes[predicted[i]], pos_pred[i], len_pred[i]]
-            if vartype_classes[predicted[i]] != "NONE":
+            preds[i] = [VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i]]
+            if VARTYPE_CLASSES[predicted[i]] != "NONE":
                 file_name = "{}/matrices_{}/{}.png".format(
                     out_dir, model_tag, path)
                 if not os.path.exists(file_name):
                     imwrite(file_name, np.array(
                         non_transformed_matrices[i, :, :, 0:3]))
                 true_path[path] = file_name
-                final_preds[path] = [vartype_classes[predicted[i]], pos_pred[i], len_pred[i],
+                final_preds[path] = [VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i],
                                      list(map(lambda x: round(x, 4), F.softmax(
                                          outputs1[i, :], 0).data.cpu().numpy())),
                                      list(map(lambda x: round(x, 4), F.softmax(
@@ -109,7 +110,7 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
                                      list(map(lambda x: round(x, 4),
                                               outputs3.data.cpu()[i].numpy()))]
             else:
-                none_preds[path] = [vartype_classes[predicted[i]], pos_pred[i], len_pred[i],
+                none_preds[path] = [VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i],
                                     list(map(lambda x: round(x, 4), F.softmax(
                                         outputs1[i, :], 0).data.cpu().numpy())),
                                     list(map(lambda x: round(x, 4), F.softmax(
@@ -125,7 +126,7 @@ def call_variants(net, vartype_classes, call_loader, out_dir, model_tag, use_cud
 
 
 def pred_vcf_records_path(record):
-    path, true_path_, pred_all, chroms, vartype_classes, ref_file = record
+    path, true_path_, pred_all, chroms, ref_file = record
     thread_logger = logging.getLogger(
         "{} ({})".format(pred_vcf_records_path.__name__, multiprocessing.current_process().name))
     try:
@@ -160,7 +161,7 @@ def pred_vcf_records_path(record):
             if sum(pred_probs) < min_acceptable_probmax:
                 break
             amx_prob = np.argmax(pred_probs)
-            type_pred = vartype_classes[amx_prob]
+            type_pred = VARTYPE_CLASSES[amx_prob]
             if type_pred == "NONE":
                 break
             center_pred = min(max(0, pred[1][0]), Iw - 1)
@@ -311,14 +312,14 @@ def pred_vcf_records_path(record):
         return None
 
 
-def pred_vcf_records(ref_file, final_preds, true_path, chroms, vartype_classes, num_threads):
+def pred_vcf_records(ref_file, final_preds, true_path, chroms, num_threads):
     logger = logging.getLogger(pred_vcf_records.__name__)
     logger.info(
         "Prepare VCF records for predicted somatic variants in this batch.")
     map_args = []
     for path in final_preds.keys():
         map_args.append([path, true_path[path], final_preds[path],
-                         chroms, vartype_classes, ref_file])
+                         chroms, ref_file])
 
     pool = multiprocessing.Pool(num_threads)
     try:
@@ -409,7 +410,6 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     with pysam.FastaFile(ref_file) as rf:
         chroms = rf.references
 
-    vartype_classes = ['DEL', 'INS', 'NONE', 'SNP']
     data_transform = matrix_transform((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 
     ensemble = False
@@ -542,9 +542,9 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                 continue
 
             final_preds_, none_preds_, true_path_ = call_variants(
-                net, vartype_classes, call_loader, out_dir, model_tag, use_cuda)
+                net, call_loader, out_dir, model_tag, use_cuda)
             all_vcf_records.extend(pred_vcf_records(
-                ref_file, final_preds_, true_path_, chroms, vartype_classes, num_threads))
+                ref_file, final_preds_, true_path_, chroms, num_threads))
             all_vcf_records_none.extend(
                 pred_vcf_records_none(none_preds_, chroms))
 
