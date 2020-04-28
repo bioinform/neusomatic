@@ -630,9 +630,13 @@ def merge_cigartuples(tuple1, tuple2):
 def find_realign_dict(realign_bed_file, chrom):
     logger = logging.getLogger(find_realign_dict.__name__)
 
-    cmd = '''awk '($1=="{}"){{print $0}}' {}'''.format(
-        chrom, realign_bed_file)
-    realign_bed = run_bedtools_cmd(cmd, run_logger=logger)
+    realign_bed = get_tmp_file()
+    with open(realign_bed_file) as i_f, open(realign_bed, "w") as o_f:
+        for line in skip_empty(i_f):
+            x=line.strip().split()
+            if x[0]==chrom:
+                o_f.write(line)
+
     realign_dict = {}
     chrom_regions = set([])
     with open(realign_bed) as r_f:

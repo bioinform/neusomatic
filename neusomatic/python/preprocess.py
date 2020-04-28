@@ -19,7 +19,7 @@ import tempfile
 from filter_candidates import filter_candidates
 from generate_dataset import generate_dataset, extract_ensemble
 from scan_alignments import scan_alignments
-from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty
+from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty, vcf_2_bed
 
 
 def split_dbsnp(record):
@@ -195,11 +195,9 @@ def extract_candidate_split_regions(
                 break
         logger.info([filtered_vcf, is_empty])
         if not is_empty:
-            cmd = '''grep -v "#" {}'''.format(filtered_vcf)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
-            cmd = '''awk '{{print $1"\t"$2"\t"$2+length($4)}}' {}'''.format(
-                candidates_bed)
-            candidates_bed = run_bedtools_cmd(cmd, run_logger=logger)
+            candidates_bed = get_tmp_file()
+            vcf_2_bed(filtered_vcf,candidates_bed, len_ref=True, keep_ref_alt=False)
+
             candidates_bed = bedtools_sort(candidates_bed, run_logger=logger)
             candidates_bed = bedtools_slop(
                 candidates_bed, reference + ".fai", args=" -b {}".format(matrix_base_pad + 3),

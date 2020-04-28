@@ -274,11 +274,13 @@ def filter_candidates(candidate_record):
             non_in_dbsnp_2 = bedtools_window(
                 filtered_bed, dbsnp, args=" -w 0", run_logger=thread_logger)
 
-            cmd = '''awk '($2!=$8)||($4!=$10)||($5!=$11){{print $0}}' {}'''.format(
-                non_in_dbsnp_2)
-            non_in_dbsnp_2 = run_bedtools_cmd(cmd, run_logger=thread_logger)
-            non_in_dbsnp_2 = bedtools_sort(
-                non_in_dbsnp_2, run_logger=thread_logger)
+            tmp_ = get_tmp_file()
+            with open(non_in_dbsnp_2) as i_f, open(tmp_, "w") as o_f:
+                for line in skip_empty(i_f):
+                    x = line.strip().split()
+                    if x[1]!=x[7] or x[3]!=x[9] or x[4]!=x[10]:
+                        o_f.write(line)
+            non_in_dbsnp_2 = tmp_
 
             non_in_dbsnp_ids = []
             with open(non_in_dbsnp_1) as i_f:

@@ -858,14 +858,13 @@ def find_records(input_record):
             concatenate_vcfs(
                 [split_pred_vcf_file, split_missed_ensemble_bed_file], split_pred_with_missed_file)
 
-            cmd = '''awk '{{print $1"\t"$2"\t.\t"$4"\t"$5"\t.\t.\t.\t.\t."}}' {}'''.format(
-                split_pred_with_missed_file)
-            tmp_ = run_bedtools_cmd(
-                cmd, run_logger=thread_logger)
-
+            tmp_=get_tmp_file()
+            with open(split_pred_with_missed_file) as i_f, open(tmp_,"w") as o_f:
+                for line in skip_empty(i_f):
+                    x = line.strip().split("\t")
+                    o_f.write("\t".join(list(map(str,[x[0],x[1],".",x[3],x[4],".",".",".",".","."])))+"\n")
             bedtools_sort(tmp_, output_fn=split_pred_with_missed_file,
                           run_logger=thread_logger)
-
             not_in_ensemble_bed = bedtools_window(
                 split_pred_with_missed_file, split_ensemble_bed_file, args=" -w 1 -v", run_logger=thread_logger)
             in_ensemble_bed = bedtools_window(
