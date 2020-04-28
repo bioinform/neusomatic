@@ -11,7 +11,7 @@ import logging
 import numpy as np
 
 from utils import get_chromosomes_order, skip_empty
-
+from defaults import VCF_HEADER
 
 def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, out_vcf,
                     pass_threshold, lowqual_threshold):
@@ -29,7 +29,7 @@ def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, out_vcf,
         good_records.append([chrom, pos, ref, alt, gt, score])
 
     with open(out_vcf, "w") as o_f:
-        o_f.write("##fileformat=VCFv4.2\n")
+        o_f.write("{}\n".format(VCF_HEADER))
         o_f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
         for record in sorted(good_records, key=lambda x: [chroms_order[x[0]], x[1]]):
             chrom, pos, ref, alt, gt, score = record

@@ -15,6 +15,7 @@ import pysam
 import numpy as np
 
 from utils import get_chromosomes_order, read_tsv_file, bedtools_sort, bedtools_merge, get_tmp_file, skip_empty
+from defaults import VCF_HEADER
 
 CIGAR_MATCH = 0
 CIGAR_INS = 1
@@ -210,7 +211,7 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
     out_variants = sorted(out_variants, key=lambda x: [
                           chroms_order[x[0]], int(x[1])])
     with open(resolved_vcf, "w") as o_f:
-        o_f.write("##fileformat=VCFv4.2\n")
+        o_f.write("{}\n".format(VCF_HEADER))
         o_f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
         for chrom, pos, ref, alt, gt, phred_score in out_variants:
             if ref != alt:

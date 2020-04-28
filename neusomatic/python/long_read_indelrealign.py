@@ -1019,6 +1019,8 @@ class fasta_seq:
 
 def extend_regions_hp(region_bed_file, extended_region_bed_file, ref_fasta_file,
                       chrom_lengths, pad):
+    # If boundaries of regions are in the middle of a homopolymer, this function extends the region
+    # to fully include the homopolymer
     logger = logging.getLogger(extend_regions_hp.__name__)
     with pysam.Fastafile(ref_fasta_file) as ref_fasta:
         intervals = []

@@ -25,6 +25,7 @@ from utils import concatenate_files, get_chromosomes_order, bedtools_window, ski
 from long_read_indelrealign import long_read_indelrealign
 from resolve_scores import resolve_scores
 from _version import __version__
+from defaults import VCF_HEADER
 
 
 def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
@@ -35,7 +36,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
     if ensemble_tsv:
         ensemble_candids_vcf = os.path.join(work, "ensemble_candids.vcf")
         with open(ensemble_tsv) as e_f, open(ensemble_candids_vcf, "w") as c_f:
-            c_f.write("##fileformat=VCFv4.2\n")
+            c_f.write("{}\n".format(VCF_HEADER))
             c_f.write(
                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
             for line in e_f:
@@ -121,7 +122,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
     tags = sorted(fina_info_tag.keys(), key=lambda x: list(map(int, x.split("-")[0:2]
                                                                )))
     with open(output_vcf, "w") as o_f:
-        o_f.write("##fileformat=VCFv4.2\n")
+        o_f.write("{}\n".format(VCF_HEADER))
         o_f.write("##NeuSomatic Version={}\n".format(__version__))
         o_f.write(
             "##INFO=<ID=SCORE,Number=1,Type=Float,Description=\"Prediction probability score\">\n")
