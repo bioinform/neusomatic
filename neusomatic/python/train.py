@@ -518,6 +518,9 @@ if __name__ == '__main__':
                         help=' validation candidate tsv files', default=[])
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
+    parser.add_argument('--ensemble',
+                        help='Enable training for ensemble mode',
+                        action="store_true")
     parser.add_argument('--batch_size', type=int,
                         help='batch size', default=1000)
     parser.add_argument('--max_epochs', type=int,
