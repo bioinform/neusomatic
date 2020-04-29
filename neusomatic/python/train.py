@@ -451,9 +451,11 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
 
                 loss.backward()
                 optimizer.step()
-                loss_s.append(loss.data)
+                loss_data = copy.deepcopy(loss.cpu().data)
+                del loss
+                loss_s.append(loss_data)
 
-                running_loss += loss.data
+                running_loss += loss_data
                 if i_ % print_freq == print_freq - 1:
                     logger.info('epoch: {}, iter: {:>7}, lr: {}, loss: {:.5f}'.format(
                                 n_epoch + prev_epochs, len(loss_s),
