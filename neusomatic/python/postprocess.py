@@ -21,7 +21,7 @@ import numpy as np
 from extract_postprocess_targets import extract_postprocess_targets
 from merge_post_vcfs import merge_post_vcfs
 from resolve_variants import resolve_variants
-from utils import concatenate_files, get_chromosomes_order, bedtools_window, skip_empty
+from utils import concatenate_files, get_chromosomes_order, bedtools_window, skip_empty, run_bedtools_cmd
 from long_read_indelrealign import long_read_indelrealign
 from resolve_scores import resolve_scores
 from _version import __version__
