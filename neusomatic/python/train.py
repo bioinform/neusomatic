@@ -24,7 +24,7 @@ import pickle
 from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset, matrix_transform
 from merge_tsvs import merge_tsvs
-from defaults import TYPE_CLASS_DICT, VARTYPE_CLASSES
+from defaults import TYPE_CLASS_DICT, VARTYPE_CLASSES, NUM_ENS_FEATURES, NUM_ST_FEATURES
 
 import torch._utils
 try:
@@ -220,13 +220,12 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
 
     ensemble = False
     with open(candidates_tsv[0]) as i_f:
-        for line in i_f:
-            x=line.strip().split()
-            if len(x)==97:
-                ensemble=True
-            break
+        x=i_f.readline().strip().split()
+        if len(x) == NUM_ENS_FEATURES+4:
+            ensemble = True
+
+    num_channels = NUM_ENS_FEATURES + NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
     
-    num_channels = 119 if ensemble else 26
     logger.info("Number of channels: {}".format(num_channels))
     net = NeuSomaticNet(num_channels)
     if use_cuda:

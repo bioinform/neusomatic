@@ -27,7 +27,7 @@ from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset, matrix_transform
 from utils import get_chromosomes_order, prob2phred
 from merge_tsvs import merge_tsvs
-from defaults import VARTYPE_CLASSES
+from defaults import VARTYPE_CLASSES, NUM_ENS_FEATURES, NUM_ST_FEATURES
 
 import torch._utils
 try:
@@ -414,13 +414,11 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
     ensemble = False
     with open(candidates_tsv[0]) as i_f:
-        for line in i_f:
-            x = line.strip().split()
-            if len(x) == 97:
-                ensemble = True
-            break
+        x=i_f.readline().strip().split()
+        if len(x) == NUM_ENS_FEATURES+4:
+            ensemble = True
 
-    num_channels = 119 if ensemble else 26
+    num_channels = NUM_ENS_FEATURES+NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
     logger.info("Number of channels: {}".format(num_channels))
     net = NeuSomaticNet(num_channels)
     if use_cuda:

@@ -348,33 +348,23 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                         work_dataset_split, "merged_features.bed")
                     if not os.path.exists(merged_features_bed) or restart:
                         exclude_ens_variants = []
-                        with open(merged_features_bed, "w") as o_f:
-                            with open(ensemble_beds[i]) as i_f:
-                                for line in i_f:
-                                    if not line.strip():
-                                        continue
-                                    if line[0] == "#":
-                                        o_f.write(line)
-                                        continue
-                                    chrom, pos, _, ref, alt = line.strip().split("\t")[
-                                        0:5]
-                                    var_id = "-".join([chrom, pos, ref, alt])
-                                    exclude_ens_variants.append(var_id)
+                        with open(merged_features_bed, "w") as o_f, open(ensemble_beds[i]) as i_f_1, open(extra_features_bed) as i_f_2:
+                            for line in skip_empty(i_f_1, skip_header=False):
+                                if line.startswith("#"):
                                     o_f.write(line)
-                            with open(extra_features_bed) as i_f:
-                                for line in i_f:
-                                    if not line.strip():
-                                        continue
-                                    if line[0] == "#":
-                                        continue
-                                    chrom, pos, _, ref, alt = line.strip().split("\t")[
-                                        0:5]
-                                    var_id = "-".join([chrom, pos, ref, alt])
-                                    if var_id in exclude_ens_variants:
-                                        continue
-                                    o_f.write(line)
-                    # concatenate_files([extra_features_bed, ensemble_beds[
-                    # i]], merged_features_bed, check_file_existence=True)
+                                    continue
+                                chrom, pos, _, ref, alt = line.strip().split("\t")[
+                                    0:5]
+                                var_id = "-".join([chrom, pos, ref, alt])
+                                exclude_ens_variants.append(var_id)
+                                o_f.write(line)
+                            for line in skip_empty(i_f_2):
+                                chrom, pos, _, ref, alt = line.strip().split("\t")[
+                                    0:5]
+                                var_id = "-".join([chrom, pos, ref, alt])
+                                if var_id in exclude_ens_variants:
+                                    continue
+                                o_f.write(line)
                     ensemble_bed_i = merged_features_bed
                 else:
                     ensemble_bed_i = extra_features_bed

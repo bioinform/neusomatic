@@ -16,6 +16,7 @@ import numpy as np
 import sequencing_features
 import genomic_file_handlers as genome
 from read_info_extractor import rescale
+from utils import skip_empty
 
 
 def extract_features(candidate_record):
@@ -224,11 +225,7 @@ def extend_features(candidates_vcf,
     if cosmic:
         cosmic_vars = {}
         with open(cosmic) as i_f:
-            for line in i_f:
-                if not line.strip():
-                    continue
-                if line[0] == "#":
-                    continue
+            for line in skip_empty(i_f):
                 x = line.strip().split("\t")
                 chrom, pos, _, ref, alts, _, _, info = x[0:8]
                 num_cases = info.split("CNT=")[1].split(
@@ -240,11 +237,7 @@ def extend_features(candidates_vcf,
     if exclude_variants:
         exclude_vars = []
         with open(exclude_variants) as i_f:
-            for line in i_f:
-                if not line.strip():
-                    continue
-                if line[0] == "#":
-                    continue
+            for line in skip_empty(i_f):
                 if exclude_variants.split(".")[-1]=="tsv" and line[0:5]=="CHROM":
                     continue
                 x = line.strip().split("\t")
@@ -254,25 +247,16 @@ def extend_features(candidates_vcf,
 
     n_variants = 0
     with open(candidates_vcf) as i_f:
-        for line in i_f:
-            if not line.strip():
-                continue
-            if line[0] == "#":
-                continue
+        for line in skip_empty(i_f):
             n_variants += 1
     logger.info("Number of variants: {}".format(n_variants))
-    split_len = n_variants // num_threads
+    split_len = (n_variants + num_threads - 1) // num_threads
     pool = multiprocessing.Pool(num_threads)
     map_args = []
     with open(candidates_vcf) as i_f:
         i = 0
         batch = []
-        for line in i_f:
-            if not line.strip():
-                continue
-            if line[0] == "#":
-                continue
-
+        for line in skip_empty(i_f):
             chrom, pos, _, ref, alt = line.strip().split("\t")[0:5]
             var_id = "-".join([chrom, pos, ref, alt])
             if exclude_variants:
