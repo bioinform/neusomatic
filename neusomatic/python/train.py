@@ -89,7 +89,7 @@ def test(net, epoch, validation_loader, use_cuda):
         (matrices, labels, _, var_len_s, _), (paths) = data
 
         paths_ = copy.deepcopy(paths)
-        del paths 
+        del paths
         paths = paths_
 
         matrices = Variable(matrices)
@@ -220,12 +220,12 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
 
     ensemble = False
     with open(candidates_tsv[0]) as i_f:
-        x=i_f.readline().strip().split()
-        if len(x) == NUM_ENS_FEATURES+4:
+        x = i_f.readline().strip().split()
+        if len(x) == NUM_ENS_FEATURES + 4:
             ensemble = True
 
     num_channels = NUM_ENS_FEATURES + NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
-    
+
     logger.info("Number of channels: {}".format(num_channels))
     net = NeuSomaticNet(num_channels)
     if use_cuda:

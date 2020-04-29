@@ -25,6 +25,7 @@ from defaults import NUM_ENS_FEATURES, VCF_HEADER
 
 NUC_to_NUM_tabix = {"A": 1, "C": 2, "G": 3, "T": 4, "-": 0}
 
+
 def get_type(ref, alt):
     logger = logging.getLogger(get_type.__name__)
     len_diff = len(ref) - len(alt.split(",")[0])
@@ -862,11 +863,12 @@ def find_records(input_record):
             concatenate_vcfs(
                 [split_pred_vcf_file, split_missed_ensemble_bed_file], split_pred_with_missed_file)
 
-            tmp_=get_tmp_file()
-            with open(split_pred_with_missed_file) as i_f, open(tmp_,"w") as o_f:
+            tmp_ = get_tmp_file()
+            with open(split_pred_with_missed_file) as i_f, open(tmp_, "w") as o_f:
                 for line in skip_empty(i_f):
                     x = line.strip().split("\t")
-                    o_f.write("\t".join(list(map(str,[x[0],x[1],".",x[3],x[4],".",".",".",".","."])))+"\n")
+                    o_f.write("\t".join(
+                        list(map(str, [x[0], x[1], ".", x[3], x[4], ".", ".", ".", ".", "."]))) + "\n")
             bedtools_sort(tmp_, output_fn=split_pred_with_missed_file,
                           run_logger=thread_logger)
             not_in_ensemble_bed = bedtools_window(

@@ -215,8 +215,9 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
         os.mkdir(work_lr_indel_realign)
         ra_resolved_vcf = os.path.join(
             work, "candidates_preds.ra_resolved.vcf")
-        not_resolved_bed = os.path.join(work, "candidates_preds.not_ra_resolved.bed")
-        long_read_indelrealign(work_lr_indel_realign, tumor_bam, None, ra_resolved_vcf, 
+        not_resolved_bed = os.path.join(
+            work, "candidates_preds.not_ra_resolved.bed")
+        long_read_indelrealign(work_lr_indel_realign, tumor_bam, None, ra_resolved_vcf,
                                not_resolved_bed, target_bed,
                                reference, num_threads, lr_pad,
                                lr_chunk_size, lr_chunk_scale, lr_snp_min_af,
@@ -227,12 +228,12 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
                                msa_binary)
         resolve_scores(tumor_bam, ra_resolved_vcf, target_vcf, resolved_vcf)
 
-        not_resolved_vcf = os.path.join(work, "candidates_preds.not_ra_resolved.vcf")
+        not_resolved_vcf = os.path.join(
+            work, "candidates_preds.not_ra_resolved.vcf")
         cmd = "bedtools intersect -a {} -b {} -u".format(
             target_vcf, not_resolved_bed)
         run_bedtools_cmd(cmd, output_fn=not_resolved_vcf, run_logger=logger)
 
-        
         all_no_resolve = concatenate_files(
             [no_resolve, ensembled_preds, not_resolved_vcf], os.path.join(work, "no_resolve.vcf"))
 

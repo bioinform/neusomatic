@@ -24,7 +24,7 @@ def resolve_scores(input_bam, ra_vcf, target_vcf, output_vcf):
 
     final_intervals = read_tsv_file(tmp_)
     for x in final_intervals:
-        x[5] = str(np.round(-10*np.log10(0.25),4))
+        x[5] = str(np.round(-10 * np.log10(0.25), 4))
 
     tmp_ = bedtools_window(
         ra_vcf, target_vcf, args=" -w 5", run_logger=logger)

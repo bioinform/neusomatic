@@ -414,11 +414,11 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
     ensemble = False
     with open(candidates_tsv[0]) as i_f:
-        x=i_f.readline().strip().split()
-        if len(x) == NUM_ENS_FEATURES+4:
+        x = i_f.readline().strip().split()
+        if len(x) == NUM_ENS_FEATURES + 4:
             ensemble = True
 
-    num_channels = NUM_ENS_FEATURES+NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
+    num_channels = NUM_ENS_FEATURES + NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
     logger.info("Number of channels: {}".format(num_channels))
     net = NeuSomaticNet(num_channels)
     if use_cuda:

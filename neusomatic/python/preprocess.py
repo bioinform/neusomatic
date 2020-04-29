@@ -152,7 +152,8 @@ def extract_candidate_split_regions(
         logger.info([filtered_vcf, is_empty])
         if not is_empty:
             candidates_bed = get_tmp_file()
-            vcf_2_bed(filtered_vcf,candidates_bed, len_ref=True, keep_ref_alt=False)
+            vcf_2_bed(filtered_vcf, candidates_bed,
+                      len_ref=True, keep_ref_alt=False)
 
             candidates_bed = bedtools_sort(candidates_bed, run_logger=logger)
             candidates_bed = bedtools_slop(

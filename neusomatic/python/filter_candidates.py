@@ -276,14 +276,15 @@ def filter_candidates(candidate_record):
             for record in final_records:
                 if dbsnp:
                     chrom, pos, ref, alt = record[0:4]
-                    var_id = "-".join(map(str,[chrom, pos, ref, alt]))
+                    var_id = "-".join(map(str, [chrom, pos, ref, alt]))
                     region = "{}:{}-{}".format(chrom, pos, pos + 1)
                     dbsnp_vars = []
                     for x in dbsnp_tb.fetch(region=region):
                         chrom_, pos_, _, ref_, alts_ = x.strip().split("\t")[
                             0:5]
                         for alt_ in alts_.split(","):
-                            dbsnp_var_id = "-".join(map(str,[chrom_, pos_, ref_, alt_]))
+                            dbsnp_var_id = "-".join(map(str,
+                                                        [chrom_, pos_, ref_, alt_]))
                             dbsnp_vars.append(dbsnp_var_id)
                     if var_id in dbsnp_vars:
                         continue

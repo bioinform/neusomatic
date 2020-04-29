@@ -238,7 +238,7 @@ def extend_features(candidates_vcf,
         exclude_vars = []
         with open(exclude_variants) as i_f:
             for line in skip_empty(i_f):
-                if exclude_variants.split(".")[-1]=="tsv" and line[0:5]=="CHROM":
+                if exclude_variants.split(".")[-1] == "tsv" and line[0:5] == "CHROM":
                     continue
                 x = line.strip().split("\t")
                 chrom, pos, _, ref, alt = x[0:5]

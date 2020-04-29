@@ -13,6 +13,7 @@ import numpy as np
 from utils import get_chromosomes_order, skip_empty
 from defaults import VCF_HEADER
 
+
 def merge_post_vcfs(ref, resolved_vcf, no_resolve_vcf, out_vcf,
                     pass_threshold, lowqual_threshold):
 

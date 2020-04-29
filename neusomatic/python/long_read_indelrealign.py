@@ -646,8 +646,8 @@ def find_realign_dict(realign_bed_file, chrom):
     realign_bed = get_tmp_file()
     with open(realign_bed_file) as i_f, open(realign_bed, "w") as o_f:
         for line in skip_empty(i_f):
-            x=line.strip().split()
-            if x[0]==chrom:
+            x = line.strip().split()
+            if x[0] == chrom:
                 o_f.write(line)
 
     realign_dict = {}
@@ -923,30 +923,31 @@ def find_var(out_fasta_file, snp_min_af, del_min_af, ins_min_af, scale_maf, simp
         is_ins = False
         is_del = False
         done = False
-        for i, (r, a) in enumerate(zip(list(ref_seq)+[0], list(alt_seq)+[0])):
+        for i, (r, a) in enumerate(zip(list(ref_seq) + [0], list(alt_seq) + [0])):
             if i in i_afs:
                 af = afs[i_afs.index(i)]
             else:
                 af = 0
             if r == a:
-                done=True
+                done = True
             else:
-                if r==0 and a!=0:
+                if r == 0 and a != 0:
                     if not is_ins:
-                        done=True
-                elif r!=0 and a==0:
+                        done = True
+                elif r != 0 and a == 0:
                     if not is_del:
-                        done=True
+                        done = True
                 else:
-                    done=True
+                    done = True
             if done:
                 if current_alt:
                     rr = "".join(map(lambda x: NUM_to_NUC[
-                             x], filter(lambda x: x > 0, current_ref)))
+                        x], filter(lambda x: x > 0, current_ref)))
                     aa = "".join(map(lambda x: NUM_to_NUC[
-                             x], filter(lambda x: x > 0, current_alt)))
-                    variants.append([current_bias, rr, aa, np.array(current_af)])
-                    done=False
+                        x], filter(lambda x: x > 0, current_alt)))
+                    variants.append(
+                        [current_bias, rr, aa, np.array(current_af)])
+                    done = False
                     current_ref = []
                     current_alt = []
                     current_af = []
@@ -958,12 +959,13 @@ def find_var(out_fasta_file, snp_min_af, del_min_af, ins_min_af, scale_maf, simp
                 current_ref.append(r)
                 current_alt.append(a)
                 current_af.append(af)
-                is_ins = r==0 and a!=0
-                is_del = r!=0 and a==0
+                is_ins = r == 0 and a != 0
+                is_del = r != 0 and a == 0
             if r != 0:
                 bias += 1
 
     return variants
+
 
 def TrimREFALT(ref, alt, pos):
     logger = logging.getLogger(TrimREFALT.__name__)
@@ -1061,12 +1063,14 @@ def run_realignment(input_record):
                 for var in vars_:
                     pos_, ref_seq, alt_seq, afs = var
                     if ref_seq != alt_seq:
-                        ref, alt, pos = ref_seq, alt_seq, int(region.start) + 1 + pos_
+                        ref, alt, pos = ref_seq, alt_seq, int(
+                            region.start) + 1 + pos_
                         if pos > 1:
-                            num_add_before = min(40, pos-1)
-                            before = ref_fasta.fetch(region.chrom, pos - num_add_before, pos-1).upper()
+                            num_add_before = min(40, pos - 1)
+                            before = ref_fasta.fetch(
+                                region.chrom, pos - num_add_before, pos - 1).upper()
                             print(before)
-                            pos -= num_add_before-1
+                            pos -= num_add_before - 1
                             ref = before + ref
                             alt = before + alt
                         ref, alt, pos = TrimREFALT(

@@ -11,6 +11,7 @@ import logging
 from utils import skip_empty
 from defaults import VCF_HEADER
 
+
 def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
     logger = logging.getLogger(extract_postprocess_targets.__name__)
 

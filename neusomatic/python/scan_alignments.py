@@ -22,6 +22,7 @@ import numpy as np
 from utils import concatenate_files, run_shell_command, bedtools_sort, bedtools_merge, get_tmp_file, skip_empty
 from split_bed import split_region
 
+
 def run_scan_alignments(record):
     work, reference, scan_alignments_binary, split_region_file, \
         input_bam, window_size, maf, min_mapq, max_dp, filter_duplicate, calc_qual = record
