@@ -1311,7 +1311,6 @@ def find_records(input_record):
         records_r = [records[x] for k, w in good_records.items() for x in w]
 
         N_none = len(none_records_ids)
-        thread_logger.info("N_none: {} ".format(N_none))
         none_records = list(map(lambda x: records[x], none_records_ids))
         none_records = sorted(none_records, key=lambda x: [x[0], int(x[1])])
 
