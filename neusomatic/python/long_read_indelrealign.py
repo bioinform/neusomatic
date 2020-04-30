@@ -1100,7 +1100,6 @@ def run_realignment(input_record):
                 if skipped > 0:
                     not_realigned_region = target_region
 
-        return all_entries, variants, not_realigned_region
         shutil.rmtree(bed_tempdir)
         tempfile.tempdir = original_tempdir
         return all_entries, variants, not_realigned_region
@@ -1232,17 +1231,17 @@ def extend_regions_repeat(region_bed_file, extended_region_bed_file, ref_fasta_f
                     ref_seq = ref_fasta.fetch(
                         chrom, new_start, new_end + 1).upper()
                 if cnt_s == 0:
+                    while check_rep(ref_seq, "left", 2):
+                        new_start -= 2
+                        ref_seq = ref_fasta.fetch(
+                            chrom, new_start, new_end + 1).upper()
+                        cnt_s += 2
+                if cnt_s == 0:
                     while check_rep(ref_seq, "left", 3):
                         new_start -= 3
                         ref_seq = ref_fasta.fetch(
                             chrom, new_start, new_end + 1).upper()
                         cnt_s += 3
-                if cnt_s == 0:
-                    while check_rep(ref_seq, "left", 4):
-                        new_start -= 4
-                        ref_seq = ref_fasta.fetch(
-                            chrom, new_start, new_end + 1).upper()
-                        cnt_s += 4
                 if cnt_s == 0:
                     while check_rep(ref_seq, "left", 4):
                         new_start -= 4
