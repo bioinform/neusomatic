@@ -35,17 +35,11 @@ def extract_features(candidate_record):
             var_id = "-".join([chrom, pos, ref, alt])
             pos = int(pos)
             my_coordinate = [chrom, pos]
-            nBamFeatures = sequencing_features.from_bam(
-                nbam, my_coordinate, ref, alt, min_mapq, min_bq)
-            tBamFeatures = sequencing_features.from_bam(
-                tbam, my_coordinate, ref, alt, min_mapq, min_bq)
+            nBamFeatures = sequencing_features.AlignmentFeatures(nbam, my_coordinate, ref, alt, min_mapq, min_bq)
+            tBamFeatures = sequencing_features.AlignmentFeatures(tbam, my_coordinate, ref, alt, min_mapq, min_bq)
 
-            n_ref = nBamFeatures['ref_for'] + nBamFeatures['ref_rev']
-            n_alt = nBamFeatures['alt_for'] + nBamFeatures['alt_rev']
-            t_ref = tBamFeatures['ref_for'] + tBamFeatures['ref_rev']
-            t_alt = tBamFeatures['alt_for'] + tBamFeatures['alt_rev']
-            sor = sequencing_features.somaticOddRatio(
-                n_ref, n_alt, t_ref, t_alt)
+            sor = sequencing_features.somaticOddRatio(nBamFeatures.nref, nBamFeatures.nalt, tBamFeatures.nref,
+                                                      tBamFeatures.nalt)
 
             homopolymer_length, site_homopolymer_length = sequencing_features.from_genome_reference(
                 ref_fa, my_coordinate, ref, alt)
@@ -58,12 +52,10 @@ def extract_features(candidate_record):
                 region = "{}:{}-{}".format(chrom, pos, pos + 1)
                 dbsnp_vars = {}
                 for x in dbsnp_tb.fetch(region=region):
-                    chrom_, pos_, _, ref_, alts_, _, _, info_ = x.strip().split("\t")[
-                        0:8]
+                    chrom_, pos_, _, ref_, alts_, _, _, info_ = x.strip().split("\t")[0:8]
                     for alt_ in alts_.split(","):
                         dbsnp_var_id = "-".join([chrom_, pos_, ref_, alt_])
-                        dbsnp_vars[
-                            dbsnp_var_id] = 1 if "COMMON=1" in info_ else 0
+                        dbsnp_vars[dbsnp_var_id] = 1 if "COMMON=1" in info_ else 0
                 if var_id in dbsnp_vars:
                     if_dbsnp = 1
                     if_common = dbsnp_vars[var_id]
@@ -77,83 +69,83 @@ def extract_features(candidate_record):
             COMMON = if_common
             if_COSMIC = if_cosmic
             COSMIC_CNT = num_cosmic_cases
-            Consistent_Mates = tBamFeatures['consistent_mates']
-            Inconsistent_Mates = tBamFeatures['inconsistent_mates']
-            N_DP = nBamFeatures['dp']
-            nBAM_REF_MQ = '%g' % nBamFeatures['ref_mq']
-            nBAM_ALT_MQ = '%g' % nBamFeatures['alt_mq']
-            nBAM_Z_Ranksums_MQ = '%g' % nBamFeatures['z_ranksums_mq']
-            nBAM_REF_BQ = '%g' % nBamFeatures['ref_bq']
-            nBAM_ALT_BQ = '%g' % nBamFeatures['alt_bq']
-            nBAM_Z_Ranksums_BQ = '%g' % nBamFeatures['z_ranksums_bq']
-            nBAM_REF_NM = '%g' % nBamFeatures['ref_NM']
-            nBAM_ALT_NM = '%g' % nBamFeatures['alt_NM']
-            nBAM_NM_Diff = '%g' % nBamFeatures['NM_Diff']
-            nBAM_REF_Concordant = nBamFeatures['ref_concordant_reads']
-            nBAM_REF_Discordant = nBamFeatures['ref_discordant_reads']
-            nBAM_ALT_Concordant = nBamFeatures['alt_concordant_reads']
-            nBAM_ALT_Discordant = nBamFeatures['alt_discordant_reads']
+            Consistent_Mates = tBamFeatures.consistent_mates
+            Inconsistent_Mates = tBamFeatures.inconsistent_mates
+            N_DP = nBamFeatures.dp
+            nBAM_REF_MQ = '%g' % nBamFeatures.ref_mq
+            nBAM_ALT_MQ = '%g' % nBamFeatures.alt_mq
+            nBAM_Z_Ranksums_MQ = '%g' % nBamFeatures.z_ranksums_mq
+            nBAM_REF_BQ = '%g' % nBamFeatures.ref_bq
+            nBAM_ALT_BQ = '%g' % nBamFeatures.alt_bq
+            nBAM_Z_Ranksums_BQ = '%g' % nBamFeatures.z_ranksums_bq
+            nBAM_REF_NM = '%g' % nBamFeatures.ref_NM
+            nBAM_ALT_NM = '%g' % nBamFeatures.alt_NM
+            nBAM_NM_Diff = '%g' % nBamFeatures.NM_Diff
+            nBAM_REF_Concordant = nBamFeatures.ref_concordant_reads
+            nBAM_REF_Discordant = nBamFeatures.ref_discordant_reads
+            nBAM_ALT_Concordant = nBamFeatures.alt_concordant_reads
+            nBAM_ALT_Discordant = nBamFeatures.alt_discordant_reads
             nBAM_Concordance_FET = rescale(
-                nBamFeatures['concordance_fet'], 'fraction', p_scale, 1001)
-            N_REF_FOR = nBamFeatures['ref_for']
-            N_REF_REV = nBamFeatures['ref_rev']
-            N_ALT_FOR = nBamFeatures['alt_for']
-            N_ALT_REV = nBamFeatures['alt_rev']
+                nBamFeatures.concordance_fet, 'fraction', p_scale, 1001)
+            N_REF_FOR = nBamFeatures.ref_for
+            N_REF_REV = nBamFeatures.ref_rev
+            N_ALT_FOR = nBamFeatures.alt_for
+            N_ALT_REV = nBamFeatures.alt_rev
             nBAM_StrandBias_FET = rescale(
-                nBamFeatures['strandbias_fet'], 'fraction', p_scale, 1001)
-            nBAM_Z_Ranksums_EndPos = '%g' % nBamFeatures['z_ranksums_endpos']
-            nBAM_REF_Clipped_Reads = nBamFeatures['ref_SC_reads']
-            nBAM_ALT_Clipped_Reads = nBamFeatures['alt_SC_reads']
+                nBamFeatures.strandbias_fet, 'fraction', p_scale, 1001)
+            nBAM_Z_Ranksums_EndPos = '%g' % nBamFeatures.z_ranksums_endpos
+            nBAM_REF_Clipped_Reads = nBamFeatures.ref_SC_reads
+            nBAM_ALT_Clipped_Reads = nBamFeatures.alt_SC_reads
             nBAM_Clipping_FET = rescale(
-                nBamFeatures['clipping_fet'], 'fraction', p_scale, 1001)
-            nBAM_MQ0 = nBamFeatures['MQ0']
-            nBAM_Other_Reads = nBamFeatures['noise_read_count']
-            nBAM_Poor_Reads = nBamFeatures['poor_read_count']
-            nBAM_REF_InDel_3bp = nBamFeatures['ref_indel_3bp']
-            nBAM_REF_InDel_2bp = nBamFeatures['ref_indel_2bp']
-            nBAM_REF_InDel_1bp = nBamFeatures['ref_indel_1bp']
-            nBAM_ALT_InDel_3bp = nBamFeatures['alt_indel_3bp']
-            nBAM_ALT_InDel_2bp = nBamFeatures['alt_indel_2bp']
-            nBAM_ALT_InDel_1bp = nBamFeatures['alt_indel_1bp']
+                nBamFeatures.clipping_fet, 'fraction', p_scale, 1001)
+            nBAM_MQ0 = nBamFeatures.MQ0
+            nBAM_Other_Reads = nBamFeatures.noise_read_count
+            nBAM_Poor_Reads = nBamFeatures.poor_read_count
+            nBAM_REF_InDel_3bp = nBamFeatures.ref_indel_3bp
+            nBAM_REF_InDel_2bp = nBamFeatures.ref_indel_2bp
+            nBAM_REF_InDel_1bp = nBamFeatures.ref_indel_1bp
+            nBAM_ALT_InDel_3bp = nBamFeatures.alt_indel_3bp
+            nBAM_ALT_InDel_2bp = nBamFeatures.alt_indel_2bp
+            nBAM_ALT_InDel_1bp = nBamFeatures.alt_indel_1bp
             SOR = sor
             MaxHomopolymer_Length = homopolymer_length
             SiteHomopolymer_Length = site_homopolymer_length
-            T_DP = tBamFeatures['dp']
-            tBAM_REF_MQ = '%g' % tBamFeatures['ref_mq']
-            tBAM_ALT_MQ = '%g' % tBamFeatures['alt_mq']
-            tBAM_Z_Ranksums_MQ = '%g' % tBamFeatures['z_ranksums_mq']
-            tBAM_REF_BQ = '%g' % tBamFeatures['ref_bq']
-            tBAM_ALT_BQ = '%g' % tBamFeatures['alt_bq']
-            tBAM_Z_Ranksums_BQ = '%g' % tBamFeatures['z_ranksums_bq']
-            tBAM_REF_NM = '%g' % tBamFeatures['ref_NM']
-            tBAM_ALT_NM = '%g' % tBamFeatures['alt_NM']
-            tBAM_NM_Diff = '%g' % tBamFeatures['NM_Diff']
-            tBAM_REF_Concordant = tBamFeatures['ref_concordant_reads']
-            tBAM_REF_Discordant = tBamFeatures['ref_discordant_reads']
-            tBAM_ALT_Concordant = tBamFeatures['alt_concordant_reads']
-            tBAM_ALT_Discordant = tBamFeatures['alt_discordant_reads']
+            T_DP = tBamFeatures.dp
+            tBAM_REF_MQ = '%g' % tBamFeatures.ref_mq
+            tBAM_ALT_MQ = '%g' % tBamFeatures.alt_mq
+            tBAM_Z_Ranksums_MQ = '%g' % tBamFeatures.z_ranksums_mq
+            tBAM_REF_BQ = '%g' % tBamFeatures.ref_bq
+            tBAM_ALT_BQ = '%g' % tBamFeatures.alt_bq
+            tBAM_Z_Ranksums_BQ = '%g' % tBamFeatures.z_ranksums_bq
+            tBAM_REF_NM = '%g' % tBamFeatures.ref_NM
+            tBAM_ALT_NM = '%g' % tBamFeatures.alt_NM
+            tBAM_NM_Diff = '%g' % tBamFeatures.NM_Diff
+            tBAM_REF_Concordant = tBamFeatures.ref_concordant_reads
+            tBAM_REF_Discordant = tBamFeatures.ref_discordant_reads
+            tBAM_ALT_Concordant = tBamFeatures.alt_concordant_reads
+            tBAM_ALT_Discordant = tBamFeatures.alt_discordant_reads
             tBAM_Concordance_FET = rescale(
-                tBamFeatures['concordance_fet'], 'fraction', p_scale, 1001)
-            T_REF_FOR = tBamFeatures['ref_for']
-            T_REF_REV = tBamFeatures['ref_rev']
-            T_ALT_FOR = tBamFeatures['alt_for']
-            T_ALT_REV = tBamFeatures['alt_rev']
+                tBamFeatures.concordance_fet, 'fraction', p_scale, 1001)
+            T_REF_FOR = tBamFeatures.ref_for
+            T_REF_REV = tBamFeatures.ref_rev
+            T_ALT_FOR = tBamFeatures.alt_for
+            T_ALT_REV = tBamFeatures.alt_rev
             tBAM_StrandBias_FET = rescale(
-                tBamFeatures['strandbias_fet'], 'fraction', p_scale, 1001)
-            tBAM_Z_Ranksums_EndPos = '%g' % tBamFeatures['z_ranksums_endpos']
-            tBAM_REF_Clipped_Reads = tBamFeatures['ref_SC_reads']
-            tBAM_ALT_Clipped_Reads = tBamFeatures['alt_SC_reads']
+                tBamFeatures.strandbias_fet, 'fraction', p_scale, 1001)
+            tBAM_Z_Ranksums_EndPos = '%g' % tBamFeatures.z_ranksums_endpos
+            tBAM_REF_Clipped_Reads = tBamFeatures.ref_SC_reads
+            tBAM_ALT_Clipped_Reads = tBamFeatures.alt_SC_reads
             tBAM_Clipping_FET = rescale(
-                tBamFeatures['clipping_fet'], 'fraction', p_scale, 1001)
-            tBAM_MQ0 = tBamFeatures['MQ0']
-            tBAM_Other_Reads = tBamFeatures['noise_read_count']
-            tBAM_Poor_Reads = tBamFeatures['poor_read_count']
-            tBAM_REF_InDel_3bp = tBamFeatures['ref_indel_3bp']
-            tBAM_REF_InDel_2bp = tBamFeatures['ref_indel_2bp']
-            tBAM_REF_InDel_1bp = tBamFeatures['ref_indel_1bp']
-            tBAM_ALT_InDel_3bp = tBamFeatures['alt_indel_3bp']
-            tBAM_ALT_InDel_2bp = tBamFeatures['alt_indel_2bp']
-            tBAM_ALT_InDel_1bp = tBamFeatures['alt_indel_1bp']
+                tBamFeatures.clipping_fet, 'fraction', p_scale, 1001)
+            tBAM_MQ0 = tBamFeatures.MQ0
+            tBAM_Other_Reads = tBamFeatures.noise_read_count
+            tBAM_Poor_Reads = tBamFeatures.poor_read_count
+            tBAM_REF_InDel_3bp = tBamFeatures.ref_indel_3bp
+            tBAM_REF_InDel_2bp = tBamFeatures.ref_indel_2bp
+            tBAM_REF_InDel_1bp = tBamFeatures.ref_indel_1bp
+            tBAM_ALT_InDel_3bp = tBamFeatures.alt_indel_3bp
+            tBAM_ALT_InDel_2bp = tBamFeatures.alt_indel_2bp
+            tBAM_ALT_InDel_1bp = tBamFeatures.alt_indel_1bp
             InDel_Length = indel_length
 
             ext_features.append([CHROM, POS, ".", REF, ALT, if_dbsnp, COMMON, if_COSMIC, COSMIC_CNT,
@@ -295,11 +287,11 @@ def extend_features(candidates_vcf,
         # ext_features=[]
         # for w in map_args:
         #     ext_features.append(extract_features(w))
+
         ext_features = pool.map_async(extract_features, map_args).get()
         pool.close()
         with open(output_tsv, "w") as o_f:
-            o_f.write(
-                "\t".join(header) + "\n")
+            o_f.write("\t".join(header) + "\n")
             for features in ext_features:
                 for w in features:
                     o_f.write(
