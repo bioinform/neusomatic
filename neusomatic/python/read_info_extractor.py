@@ -36,8 +36,8 @@ def position_of_aligned_read(read_i, target_position):
     '''
 
     flanking_deletion, flanking_insertion = nan, nan
-
-    for i, align_i in enumerate(read_i.get_aligned_pairs()):
+    aligned_pairs=read_i.get_aligned_pairs()
+    for i, align_i in enumerate(aligned_pairs):
 
         # If find a match:
         if align_i[1] == target_position:
@@ -52,22 +52,22 @@ def position_of_aligned_read(read_i, target_position):
             # Whether if it's a Deletion/Insertion depends on what happens after this position:
             # If the match (i.e., i, seq_i) is the final alignment, then you cannot know if it's an indel
             # if "i" is NOT the final alignment:
-            if i != len(read_i.get_aligned_pairs()) - 1:
+            if i != len(aligned_pairs) - 1:
 
                 indel_length = 0
                 # If the next alignment is the next sequenced base, then the
                 # target is either a reference read of a SNP/SNV:
-                if read_i.get_aligned_pairs()[i + 1][0] == seq_i + 1 and read_i.get_aligned_pairs()[i + 1][1] == target_position + 1:
+                if aligned_pairs[i + 1][0] == seq_i + 1 and aligned_pairs[i + 1][1] == target_position + 1:
 
                     code = 1  # Reference read for mismatch
 
                 # If the next reference position has no read position to it, it
                 # is DELETED in this read:
-                elif read_i.get_aligned_pairs()[i + 1][0] == None and read_i.get_aligned_pairs()[i + 1][1] == target_position + 1:
+                elif aligned_pairs[i + 1][0] == None and aligned_pairs[i + 1][1] == target_position + 1:
 
                     code = 2  # Deletion
 
-                    for align_j in read_i.get_aligned_pairs()[i + 1::]:
+                    for align_j in aligned_pairs[i + 1::]:
                         if align_j[0] == None:
                             indel_length -= 1
                         else:
@@ -78,11 +78,11 @@ def position_of_aligned_read(read_i, target_position):
                 # the inserted sequence is "too long" to align on a single
                 # read. In this case, the inserted length derived here is but a
                 # lower limit of the real inserted length.
-                elif read_i.get_aligned_pairs()[i + 1][0] == seq_i + 1 and read_i.get_aligned_pairs()[i + 1][1] == None:
+                elif aligned_pairs[i + 1][0] == seq_i + 1 and aligned_pairs[i + 1][1] == None:
 
                     code = 3  # Insertion or soft-clipping
 
-                    for align_j in read_i.get_aligned_pairs()[i + 1::]:
+                    for align_j in aligned_pairs[i + 1::]:
                         if align_j[1] == None:
                             indel_length += 1
                         else:
@@ -112,12 +112,12 @@ def position_of_aligned_read(read_i, target_position):
                     displacement = j * switch
                     seq_j = indel_seeker_i + displacement
 
-                    if 0 <= seq_j < len(read_i.get_aligned_pairs()):
+                    if 0 <= seq_j < len(aligned_pairs):
 
                         # If the reference position has no base aligned to it, it's a deletion.
                         # On the other hand, if the base has no reference base
                         # aligned to it, it's an insertion.
-                        if read_i.get_aligned_pairs()[seq_j][1] == None or read_i.get_aligned_pairs()[seq_j][0] == None:
+                        if aligned_pairs[seq_j][1] == None or aligned_pairs[seq_j][0] == None:
                             flanking_indel = j
                             break
         else:
