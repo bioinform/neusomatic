@@ -1388,7 +1388,7 @@ def extract_ensemble(ensemble_tsv, ensemble_bed, is_extend):
             n_vars += 1
     if n_vars > 0:
         ensemble_data = np.array(ensemble_data)[:, order_header]
-    header = np.array(header)[order_header].tolist()
+    header = np.array(header_)[order_header].tolist()
 
     cov_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
         "Consistent_Mates", "Inconsistent_Mates", "N_DP",

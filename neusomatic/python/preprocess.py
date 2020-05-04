@@ -94,7 +94,7 @@ def get_ensemble_region(record):
             region, reference + ".fai", args=" -b {}".format(matrix_base_pad + 3),
             run_logger=thread_logger)
         bedtools_intersect(
-            ensemble_bed, ensemble_bed_region_file_tmp, args=" -u",
+            ensemble_bed, ensemble_bed_region_file_tmp, args=" -u -header",
             output_fn=ensemble_bed_region_file, run_logger=thread_logger)
         return ensemble_bed_region_file
 
@@ -349,17 +349,26 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                         work_dataset_split, "merged_features.bed")
                     if not os.path.exists(merged_features_bed) or restart:
                         exclude_ens_variants = []
+                        header_line = ""
                         with open(merged_features_bed, "w") as o_f, open(ensemble_beds[i]) as i_f_1, open(extra_features_bed) as i_f_2:
                             for line in skip_empty(i_f_1, skip_header=False):
                                 if line.startswith("#"):
                                     o_f.write(line)
+                                    if not header_line:
+                                        header_line = line
+                                    else:
+                                        assert(header_line == line)
                                     continue
                                 chrom, pos, _, ref, alt = line.strip().split("\t")[
                                     0:5]
                                 var_id = "-".join([chrom, pos, ref, alt])
                                 exclude_ens_variants.append(var_id)
                                 o_f.write(line)
-                            for line in skip_empty(i_f_2):
+                            for line in skip_empty(i_f_2, skip_header=False):
+                                if line.startswith("#"):
+                                    if header_line:
+                                        assert(header_line == line)
+                                    continue
                                 chrom, pos, _, ref, alt = line.strip().split("\t")[
                                     0:5]
                                 var_id = "-".join([chrom, pos, ref, alt])

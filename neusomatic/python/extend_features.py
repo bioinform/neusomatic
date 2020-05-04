@@ -249,6 +249,7 @@ def extend_features(candidates_vcf,
         i = 0
         batch = []
         for line in skip_empty(i_f):
+            i += 1
             chrom, pos, _, ref, alt = line.strip().split("\t")[0:5]
             var_id = "-".join([chrom, pos, ref, alt])
             if exclude_variants:
@@ -260,11 +261,14 @@ def extend_features(candidates_vcf,
                 if_cosmic = 1
                 num_cosmic_cases = cosmic_vars[var_id]
             batch.append([chrom, pos, ref, alt, if_cosmic, num_cosmic_cases])
-            i += 1
             if len(batch) >= split_len or i == n_variants:
                 map_args.append((reference, tumor_bam, normal_bam,
                                  min_mapq, min_bq, dbsnp, batch))
                 batch = []
+        if batch:
+            map_args.append((reference, tumor_bam, normal_bam,
+                             min_mapq, min_bq, dbsnp, tumor_only, batch))
+
 
     logger.info("Number of batches: {}".format(len(map_args)))
     header = ["CHROM", "POS", "ID", "REF", "ALT", "if_dbsnp", "COMMON", "if_COSMIC", "COSMIC_CNT",
