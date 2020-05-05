@@ -78,10 +78,11 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
 
 
 def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
-                            matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_bed, tsv_batch_size):
+                            matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_bed, seq_complexity, tsv_batch_size):
     logger = logging.getLogger(generate_dataset_region.__name__)
     generate_dataset(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, None, ensemble_bed,
+                     seq_complexity,
                      tsv_batch_size)
 
 
@@ -193,6 +194,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                ensemble_tsv, long_read, restart, first_do_without_qual,
                filter_duplicate,
                add_extra_features,
+               seq_complexity,
                num_threads,
                scan_alignments_binary,):
     logger = logging.getLogger(preprocess.__name__)
@@ -237,7 +239,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         ensemble_bed = os.path.join(work, "ensemble.bed")
         logger.info("Extract ensemble info.")
         if restart or not os.path.exists(ensemble_bed):
-            extract_ensemble(ensemble_tsv, ensemble_bed, False)
+            extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, False)
 
     merge_d_for_short_read = 100
     candidates_split_regions = []
@@ -338,12 +340,13 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                     reference, tumor_bam, normal_bam,
                                     min_mapq, snp_min_bq,
                                     dbsnp, None,
+                                    seq_complexity,
                                     num_threads)
                 extra_features_bed = os.path.join(
                     work_dataset_split, "extra_features.bed")
                 if not os.path.exists(extra_features_bed) or restart:
                     extract_ensemble(extra_features_tsv,
-                                     extra_features_bed, True)
+                                     extra_features_bed, seq_complexity, True)
                 if ensemble_tsv:
                     merged_features_bed = os.path.join(
                         work_dataset_split, "merged_features.bed")
@@ -382,7 +385,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
             generate_dataset_region(work_dataset_split, truth_vcf, mode, filtered_vcf,
                                     candidates_split_region, tumor_count, normal_count, reference,
                                     matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, num_threads,
-                                    ensemble_bed_i, tsv_batch_size)
+                                    ensemble_bed_i, seq_complexity, tsv_batch_size)
 
     shutil.rmtree(bed_tempdir)
     tempfile.tempdir = original_tempdir
@@ -467,6 +470,9 @@ if __name__ == '__main__':
     parser.add_argument('--add_extra_features',
                         help='add extra input features',
                         action="store_true")
+    parser.add_argument('--seq_complexity',
+                        help='Compute linguistic sequence complexity features', 
+                        action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     parser.add_argument('--scan_alignments_binary', type=str,
@@ -485,6 +491,7 @@ if __name__ == '__main__':
                    args.ensemble_tsv, args.long_read, args.restart, args.first_do_without_qual,
                    args.filter_duplicate,
                    args.add_extra_features,
+                   args.seq_complexity,
                    args.num_threads,
                    args.scan_alignments_binary)
     except Exception as e:

@@ -203,6 +203,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                      merged_candidates_per_tsv, merged_max_num_tsvs, overwrite_merged_tsvs,
                      train_split_len,
                      normalize_channels,
+                     seq_complexity,
                      use_cuda):
     logger = logging.getLogger(train_neusomatic.__name__)
 
@@ -217,29 +218,6 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         torch.set_num_threads(num_threads)
 
     data_transform = matrix_transform((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-
-    ensemble = False
-    with open(candidates_tsv[0]) as i_f:
-        x = i_f.readline().strip().split()
-        if len(x) == NUM_ENS_FEATURES + 4:
-            ensemble = True
-
-    num_channels = NUM_ENS_FEATURES + NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
-
-    logger.info("Number of channels: {}".format(num_channels))
-    net = NeuSomaticNet(num_channels)
-    if use_cuda:
-        logger.info("GPU training!")
-        net.cuda()
-    else:
-        logger.info("CPU training!")
-
-    if torch.cuda.device_count() > 1:
-        logger.info("We use {} GPUs!".format(torch.cuda.device_count()))
-        net = nn.DataParallel(net)
-
-    if not os.path.exists("{}/models/".format(out_dir)):
-        os.mkdir("{}/models/".format(out_dir))
 
     if checkpoint:
         logger.info(
@@ -260,7 +238,48 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
             normalize_channels = False
         logger.info(
             "Override normalize_channels from pretrained checkpoint: {}".format(normalize_channels))
+        if "seq_complexity" in pretrained_dict:
+            seq_complexity = pretrained_dict["seq_complexity"]
+        else:
+            seq_complexity = False
+        logger.info(
+            "Override seq_complexity from pretrained checkpoint: {}".format(seq_complexity))
         prev_epochs = sofar_epochs + 1
+    else:
+        prev_epochs = 0
+        time_now = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+        tag = "neusomatic_{}".format(time_now)
+    logger.info("tag: {}".format(tag))
+
+    num_expected_ensemble = NUM_ENS_FEATURES
+    if seq_complexity:
+        num_expected_ensemble += 2
+
+    ensemble = False
+    with open(candidates_tsv[0]) as i_f:
+        x = i_f.readline().strip().split()
+        if len(x) == num_expected_ensemble + 4:
+            ensemble = True
+
+    num_channels = num_expected_ensemble + \
+        NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
+
+    logger.info("Number of channels: {}".format(num_channels))
+    net = NeuSomaticNet(num_channels)
+    if use_cuda:
+        logger.info("GPU training!")
+        net.cuda()
+    else:
+        logger.info("CPU training!")
+
+    if torch.cuda.device_count() > 1:
+        logger.info("We use {} GPUs!".format(torch.cuda.device_count()))
+        net = nn.DataParallel(net)
+
+    if not os.path.exists("{}/models/".format(out_dir)):
+        os.mkdir("{}/models/".format(out_dir))
+
+    if checkpoint:
         model_dict = net.state_dict()
         # 1. filter out unnecessary keys
         # pretrained_state_dict = {
@@ -278,11 +297,6 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         model_dict.update(pretrained_state_dict)
         # 3. load the new state dict
         net.load_state_dict(pretrained_state_dict)
-    else:
-        prev_epochs = 0
-        time_now = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-        tag = "neusomatic_{}".format(time_now)
-    logger.info("tag: {}".format(tag))
 
     shuffle(candidates_tsv)
 
@@ -403,8 +417,9 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "tag": tag,
                 "epoch": curr_epoch,
                 "coverage_thr": coverage_thr,
-                "normalize_channels": normalize_channels},
-               '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
+                "normalize_channels": normalize_channels,
+                "seq_complexity": seq_complexity
+                }, '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
 
     if len(train_sets) == 1:
         train_sets[0].open_candidate_tsvs()
@@ -469,6 +484,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                         "epoch": curr_epoch,
                         "coverage_thr": coverage_thr,
                         "normalize_channels": normalize_channels,
+                        "seq_complexity": seq_complexity,
                         }, '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
             if validation_candidates_tsv:
                 test(net, curr_epoch, validation_loader, use_cuda)
@@ -487,6 +503,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "epoch": curr_epoch,
                 "coverage_thr": coverage_thr,
                 "normalize_channels": normalize_channels,
+                "seq_complexity": seq_complexity,
                 }, '{}/models/checkpoint_{}_epoch{}.pth'.format(
         out_dir, tag, curr_epoch))
     if validation_candidates_tsv:
@@ -561,6 +578,9 @@ if __name__ == '__main__':
                         help='normalize BQ, MQ, and other bam-info channels by frequency of observed alleles. \
                               Will be overridden if pretrained model is provided',
                         action="store_true")
+    parser.add_argument('--seq_complexity',
+                        help='Compute linguistic sequence complexity features',
+                        action="store_true")
     args = parser.parse_args()
 
     logger.info(args)
@@ -578,6 +598,7 @@ if __name__ == '__main__':
                                       args.merged_candidates_per_tsv, args.merged_max_num_tsvs,
                                       args.overwrite_merged_tsvs, args.train_split_len,
                                       args.normalize_channels,
+                                      args.seq_complexity,
                                       use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())

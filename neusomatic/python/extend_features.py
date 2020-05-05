@@ -20,7 +20,7 @@ from utils import skip_empty
 
 
 def extract_features(candidate_record):
-    reference, tumor_bam, normal_bam, min_mapq, min_bq, dbsnp, batch = candidate_record
+    reference, tumor_bam, normal_bam, min_mapq, min_bq, dbsnp, seq_complexity, batch = candidate_record
     thread_logger = logging.getLogger(
         "{} ({})".format(extract_features.__name__, multiprocessing.current_process().name))
     try:
@@ -35,8 +35,10 @@ def extract_features(candidate_record):
             var_id = "-".join([chrom, pos, ref, alt])
             pos = int(pos)
             my_coordinate = [chrom, pos]
-            nBamFeatures = sequencing_features.AlignmentFeatures(nbam, my_coordinate, ref, alt, min_mapq, min_bq)
-            tBamFeatures = sequencing_features.AlignmentFeatures(tbam, my_coordinate, ref, alt, min_mapq, min_bq)
+            nBamFeatures = sequencing_features.AlignmentFeatures(
+                nbam, my_coordinate, ref, alt, min_mapq, min_bq)
+            tBamFeatures = sequencing_features.AlignmentFeatures(
+                tbam, my_coordinate, ref, alt, min_mapq, min_bq)
 
             sor = sequencing_features.somaticOddRatio(nBamFeatures.nref, nBamFeatures.nalt, tBamFeatures.nref,
                                                       tBamFeatures.nalt)
@@ -46,16 +48,31 @@ def extract_features(candidate_record):
 
             indel_length = len(alt) - len(ref)
 
+            if seq_complexity:
+                seq_span_80bp = ref_fa.fetch(my_coordinate[0], max(
+                    0, my_coordinate[1] - 41), my_coordinate[1] + 40)
+                seq_left_80bp = ref_fa.fetch(my_coordinate[0], max(
+                    0, my_coordinate[1] - 81), my_coordinate[1])
+                seq_right_80bp = ref_fa.fetch(my_coordinate[0], my_coordinate[
+                                              1], my_coordinate[1] + 81)
+                LC_spanning = sequencing_features.LC(seq_span_80bp)
+                LC_adjacent = min(sequencing_features.LC(
+                    seq_left_80bp), sequencing_features.LC(seq_right_80bp))
+                LC_spanning_phred = genome.p2phred(1 - LC_spanning, 40)
+                LC_adjacent_phred = genome.p2phred(1 - LC_adjacent, 40)
+
             if_dbsnp = 0
             if_common = 0
             if dbsnp:
                 region = "{}:{}-{}".format(chrom, pos, pos + 1)
                 dbsnp_vars = {}
                 for x in dbsnp_tb.fetch(region=region):
-                    chrom_, pos_, _, ref_, alts_, _, _, info_ = x.strip().split("\t")[0:8]
+                    chrom_, pos_, _, ref_, alts_, _, _, info_ = x.strip().split("\t")[
+                        0:8]
                     for alt_ in alts_.split(","):
                         dbsnp_var_id = "-".join([chrom_, pos_, ref_, alt_])
-                        dbsnp_vars[dbsnp_var_id] = 1 if "COMMON=1" in info_ else 0
+                        dbsnp_vars[
+                            dbsnp_var_id] = 1 if "COMMON=1" in info_ else 0
                 if var_id in dbsnp_vars:
                     if_dbsnp = 1
                     if_common = dbsnp_vars[var_id]
@@ -71,6 +88,10 @@ def extract_features(candidate_record):
             COSMIC_CNT = num_cosmic_cases
             Consistent_Mates = tBamFeatures.consistent_mates
             Inconsistent_Mates = tBamFeatures.inconsistent_mates
+            if seq_complexity:
+                Seq_Complexity_Span = LC_spanning_phred
+                Seq_Complexity_Adj = LC_adjacent_phred
+
             N_DP = nBamFeatures.dp
             nBAM_REF_MQ = '%g' % nBamFeatures.ref_mq
             nBAM_ALT_MQ = '%g' % nBamFeatures.alt_mq
@@ -148,21 +169,26 @@ def extract_features(candidate_record):
             tBAM_ALT_InDel_1bp = tBamFeatures.alt_indel_1bp
             InDel_Length = indel_length
 
-            ext_features.append([CHROM, POS, ".", REF, ALT, if_dbsnp, COMMON, if_COSMIC, COSMIC_CNT,
-                                 Consistent_Mates, Inconsistent_Mates, N_DP, nBAM_REF_MQ, nBAM_ALT_MQ, nBAM_Z_Ranksums_MQ,
-                                 nBAM_REF_BQ, nBAM_ALT_BQ, nBAM_Z_Ranksums_BQ, nBAM_REF_NM, nBAM_ALT_NM, nBAM_NM_Diff,
-                                 nBAM_REF_Concordant, nBAM_REF_Discordant, nBAM_ALT_Concordant, nBAM_ALT_Discordant,
-                                 nBAM_Concordance_FET, N_REF_FOR, N_REF_REV, N_ALT_FOR, N_ALT_REV, nBAM_StrandBias_FET,
-                                 nBAM_Z_Ranksums_EndPos, nBAM_REF_Clipped_Reads, nBAM_ALT_Clipped_Reads, nBAM_Clipping_FET,
-                                 nBAM_MQ0, nBAM_Other_Reads, nBAM_Poor_Reads, nBAM_REF_InDel_3bp, nBAM_REF_InDel_2bp,
-                                 nBAM_REF_InDel_1bp, nBAM_ALT_InDel_3bp, nBAM_ALT_InDel_2bp, nBAM_ALT_InDel_1bp, SOR,
-                                 MaxHomopolymer_Length, SiteHomopolymer_Length, T_DP, tBAM_REF_MQ, tBAM_ALT_MQ, tBAM_Z_Ranksums_MQ,
-                                 tBAM_REF_BQ, tBAM_ALT_BQ, tBAM_Z_Ranksums_BQ, tBAM_REF_NM, tBAM_ALT_NM, tBAM_NM_Diff,
-                                 tBAM_REF_Concordant, tBAM_REF_Discordant, tBAM_ALT_Concordant, tBAM_ALT_Discordant,
-                                 tBAM_Concordance_FET, T_REF_FOR, T_REF_REV, T_ALT_FOR, T_ALT_REV, tBAM_StrandBias_FET,
-                                 tBAM_Z_Ranksums_EndPos, tBAM_REF_Clipped_Reads, tBAM_ALT_Clipped_Reads, tBAM_Clipping_FET,
-                                 tBAM_MQ0, tBAM_Other_Reads, tBAM_Poor_Reads, tBAM_REF_InDel_3bp, tBAM_REF_InDel_2bp,
-                                 tBAM_REF_InDel_1bp, tBAM_ALT_InDel_3bp, tBAM_ALT_InDel_2bp, tBAM_ALT_InDel_1bp, InDel_Length])
+            features = [CHROM, POS, ".", REF, ALT, if_dbsnp, COMMON, if_COSMIC, COSMIC_CNT,
+                        Consistent_Mates, Inconsistent_Mates]
+            if seq_complexity:
+                features.extend([Seq_Complexity_Span, Seq_Complexity_Adj])
+            features.extend([N_DP, nBAM_REF_MQ, nBAM_ALT_MQ, nBAM_Z_Ranksums_MQ,
+                             nBAM_REF_BQ, nBAM_ALT_BQ, nBAM_Z_Ranksums_BQ, nBAM_REF_NM, nBAM_ALT_NM, nBAM_NM_Diff,
+                             nBAM_REF_Concordant, nBAM_REF_Discordant, nBAM_ALT_Concordant, nBAM_ALT_Discordant,
+                             nBAM_Concordance_FET, N_REF_FOR, N_REF_REV, N_ALT_FOR, N_ALT_REV, nBAM_StrandBias_FET,
+                             nBAM_Z_Ranksums_EndPos, nBAM_REF_Clipped_Reads, nBAM_ALT_Clipped_Reads, nBAM_Clipping_FET,
+                             nBAM_MQ0, nBAM_Other_Reads, nBAM_Poor_Reads, nBAM_REF_InDel_3bp, nBAM_REF_InDel_2bp,
+                             nBAM_REF_InDel_1bp, nBAM_ALT_InDel_3bp, nBAM_ALT_InDel_2bp, nBAM_ALT_InDel_1bp, SOR,
+                             MaxHomopolymer_Length, SiteHomopolymer_Length, T_DP, tBAM_REF_MQ, tBAM_ALT_MQ, tBAM_Z_Ranksums_MQ,
+                             tBAM_REF_BQ, tBAM_ALT_BQ, tBAM_Z_Ranksums_BQ, tBAM_REF_NM, tBAM_ALT_NM, tBAM_NM_Diff,
+                             tBAM_REF_Concordant, tBAM_REF_Discordant, tBAM_ALT_Concordant, tBAM_ALT_Discordant,
+                             tBAM_Concordance_FET, T_REF_FOR, T_REF_REV, T_ALT_FOR, T_ALT_REV, tBAM_StrandBias_FET,
+                             tBAM_Z_Ranksums_EndPos, tBAM_REF_Clipped_Reads, tBAM_ALT_Clipped_Reads, tBAM_Clipping_FET,
+                             tBAM_MQ0, tBAM_Other_Reads, tBAM_Poor_Reads, tBAM_REF_InDel_3bp, tBAM_REF_InDel_2bp,
+                             tBAM_REF_InDel_1bp, tBAM_ALT_InDel_3bp, tBAM_ALT_InDel_2bp, tBAM_ALT_InDel_1bp, InDel_Length])
+
+            ext_features.append(features)
         return ext_features
 
     except Exception as ex:
@@ -177,6 +203,7 @@ def extend_features(candidates_vcf,
                     reference, tumor_bam, normal_bam,
                     min_mapq, min_bq,
                     dbsnp, cosmic,
+                    seq_complexity,
                     num_threads):
 
     logger = logging.getLogger(extend_features.__name__)
@@ -263,29 +290,31 @@ def extend_features(candidates_vcf,
             batch.append([chrom, pos, ref, alt, if_cosmic, num_cosmic_cases])
             if len(batch) >= split_len or i == n_variants:
                 map_args.append((reference, tumor_bam, normal_bam,
-                                 min_mapq, min_bq, dbsnp, batch))
+                                 min_mapq, min_bq, dbsnp, seq_complexity, batch))
                 batch = []
         if batch:
             map_args.append((reference, tumor_bam, normal_bam,
-                             min_mapq, min_bq, dbsnp, tumor_only, batch))
-
+                             min_mapq, min_bq, dbsnp, seq_complexity, batch))
 
     logger.info("Number of batches: {}".format(len(map_args)))
     header = ["CHROM", "POS", "ID", "REF", "ALT", "if_dbsnp", "COMMON", "if_COSMIC", "COSMIC_CNT",
-              "Consistent_Mates", "Inconsistent_Mates", "N_DP", "nBAM_REF_MQ", "nBAM_ALT_MQ", "nBAM_Z_Ranksums_MQ",
-              "nBAM_REF_BQ", "nBAM_ALT_BQ", "nBAM_Z_Ranksums_BQ", "nBAM_REF_NM", "nBAM_ALT_NM", "nBAM_NM_Diff",
-              "nBAM_REF_Concordant", "nBAM_REF_Discordant", "nBAM_ALT_Concordant", "nBAM_ALT_Discordant",
-              "nBAM_Concordance_FET", "N_REF_FOR", "N_REF_REV", "N_ALT_FOR", "N_ALT_REV", "nBAM_StrandBias_FET",
-              "nBAM_Z_Ranksums_EndPos", "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads", "nBAM_Clipping_FET",
-              "nBAM_MQ0", "nBAM_Other_Reads", "nBAM_Poor_Reads", "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp",
-              "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp", "nBAM_ALT_InDel_1bp", "SOR",
-              "MaxHomopolymer_Length", "SiteHomopolymer_Length", "T_DP", "tBAM_REF_MQ", "tBAM_ALT_MQ", "tBAM_Z_Ranksums_MQ",
-              "tBAM_REF_BQ", "tBAM_ALT_BQ", "tBAM_Z_Ranksums_BQ", "tBAM_REF_NM", "tBAM_ALT_NM", "tBAM_NM_Diff",
-              "tBAM_REF_Concordant", "tBAM_REF_Discordant", "tBAM_ALT_Concordant", "tBAM_ALT_Discordant",
-              "tBAM_Concordance_FET", "T_REF_FOR", "T_REF_REV", "T_ALT_FOR", "T_ALT_REV", "tBAM_StrandBias_FET",
-              "tBAM_Z_Ranksums_EndPos", "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads", "tBAM_Clipping_FET",
-              "tBAM_MQ0", "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
-              "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp", "InDel_Length"]
+              "Consistent_Mates", "Inconsistent_Mates"]
+    if seq_complexity:
+        header.extend(["Seq_Complexity_Span", "Seq_Complexity_Adj"])
+    header.extend(["N_DP", "nBAM_REF_MQ", "nBAM_ALT_MQ", "nBAM_Z_Ranksums_MQ",
+                   "nBAM_REF_BQ", "nBAM_ALT_BQ", "nBAM_Z_Ranksums_BQ", "nBAM_REF_NM", "nBAM_ALT_NM", "nBAM_NM_Diff",
+                   "nBAM_REF_Concordant", "nBAM_REF_Discordant", "nBAM_ALT_Concordant", "nBAM_ALT_Discordant",
+                   "nBAM_Concordance_FET", "N_REF_FOR", "N_REF_REV", "N_ALT_FOR", "N_ALT_REV", "nBAM_StrandBias_FET",
+                   "nBAM_Z_Ranksums_EndPos", "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads", "nBAM_Clipping_FET",
+                   "nBAM_MQ0", "nBAM_Other_Reads", "nBAM_Poor_Reads", "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp",
+                   "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp", "nBAM_ALT_InDel_1bp", "SOR",
+                   "MaxHomopolymer_Length", "SiteHomopolymer_Length", "T_DP", "tBAM_REF_MQ", "tBAM_ALT_MQ", "tBAM_Z_Ranksums_MQ",
+                   "tBAM_REF_BQ", "tBAM_ALT_BQ", "tBAM_Z_Ranksums_BQ", "tBAM_REF_NM", "tBAM_ALT_NM", "tBAM_NM_Diff",
+                   "tBAM_REF_Concordant", "tBAM_REF_Discordant", "tBAM_ALT_Concordant", "tBAM_ALT_Discordant",
+                   "tBAM_Concordance_FET", "T_REF_FOR", "T_REF_REV", "T_ALT_FOR", "T_ALT_REV", "tBAM_StrandBias_FET",
+                   "tBAM_Z_Ranksums_EndPos", "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads", "tBAM_Clipping_FET",
+                   "tBAM_MQ0", "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
+                   "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp", "InDel_Length"])
 
     try:
         # ext_features=[]
@@ -337,6 +366,9 @@ if __name__ == '__main__':
                         help='dbSNP vcf (to annotate candidate variants)', default=None)
     parser.add_argument('--cosmic', type=str,
                         help='COSMIC vcf (to annotate candidate variants)', default=None)
+    parser.add_argument('--seq_complexity',
+                        help='Compute linguistic sequence complexity features',
+                        action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     args = parser.parse_args()
@@ -349,6 +381,7 @@ if __name__ == '__main__':
                                  args.reference, args.tumor_bam, args.normal_bam,
                                  args.min_mapq, args.min_bq,
                                  args.dbsnp, args.cosmic,
+                                 args.seq_complexity,
                                  args.num_threads,
                                  )
         if output is None:

@@ -826,7 +826,7 @@ def find_len(ref, alt):
 
 
 def find_records(input_record):
-    work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, work_index = input_record
+    work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, seq_complexity, work_index = input_record
     thread_logger = logging.getLogger(
         "{} ({})".format(find_records.__name__, multiprocessing.current_process().name))
     try:
@@ -848,6 +848,9 @@ def find_records(input_record):
         split_in_ensemble_bed = os.path.join(
             work, "in_ensemble_{}.bed".format(work_index))
 
+        num_ens_features = NUM_ENS_FEATURES
+        if seq_complexity:
+            num_ens_features += 2
         bedtools_intersect(
             truth_vcf_file, split_bed, args=" -u", output_fn=split_truth_vcf_file, run_logger=thread_logger)
         bedtools_intersect(
@@ -897,7 +900,7 @@ def find_records(input_record):
                         r_ = [[chrom, pos, ref, alt]]
                     for rr in r_:
                         records.append(rr + [str(i)])
-                        anns[i] = [0] * NUM_ENS_FEATURES
+                        anns[i] = [0] * num_ens_features
                         i += 1
 
             curren_pos_records = []
@@ -933,7 +936,7 @@ def find_records(input_record):
                                 else:
                                     r_ = [[chrom, pos, ref, alt]]
 
-                                ann = [0] * NUM_ENS_FEATURES
+                                ann = [0] * num_ens_features
                                 if pos == ens_pos:
                                     if ref == ens_ref and alt == ens_alt:
                                         ann = record_[15:]
@@ -1323,7 +1326,7 @@ def find_records(input_record):
         return None
 
 
-def extract_ensemble(ensemble_tsv, ensemble_bed, is_extend):
+def extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, is_extend):
     logger = logging.getLogger(extract_ensemble.__name__)
     ensemble_data = []
     ensemble_pos = []
@@ -1335,24 +1338,28 @@ def extract_ensemble(ensemble_tsv, ensemble_bed, is_extend):
                          "if_SomaticSniper", "if_VarDict", "MuSE_Tier", "if_LoFreq", "if_Scalpel", "if_Strelka",
                          "if_TNscope", "Strelka_Score", "Strelka_QSS", "Strelka_TQSS", "VarScan2_Score", "SNVMix2_Score",
                          "Sniper_Score", "VarDict_Score", "if_dbsnp", "COMMON", "if_COSMIC", "COSMIC_CNT",
-                         "Consistent_Mates", "Inconsistent_Mates", "N_DP", "nBAM_REF_MQ", "nBAM_ALT_MQ",
-                         "nBAM_Z_Ranksums_MQ", "nBAM_REF_BQ", "nBAM_ALT_BQ", "nBAM_Z_Ranksums_BQ", "nBAM_REF_NM",
-                         "nBAM_ALT_NM", "nBAM_NM_Diff", "nBAM_REF_Concordant", "nBAM_REF_Discordant",
-                         "nBAM_ALT_Concordant", "nBAM_ALT_Discordant", "nBAM_Concordance_FET", "N_REF_FOR", "N_REF_REV",
-                         "N_ALT_FOR", "N_ALT_REV", "nBAM_StrandBias_FET", "nBAM_Z_Ranksums_EndPos",
-                         "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads", "nBAM_Clipping_FET", "nBAM_MQ0",
-                         "nBAM_Other_Reads", "nBAM_Poor_Reads", "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp",
-                         "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp", "nBAM_ALT_InDel_1bp",
-                         "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "SOR", "MSI", "MSILEN", "SHIFT3",
-                         "MaxHomopolymer_Length", "SiteHomopolymer_Length", "T_DP", "tBAM_REF_MQ", "tBAM_ALT_MQ",
-                         "tBAM_Z_Ranksums_MQ", "tBAM_REF_BQ", "tBAM_ALT_BQ", "tBAM_Z_Ranksums_BQ", "tBAM_REF_NM",
-                         "tBAM_ALT_NM", "tBAM_NM_Diff", "tBAM_REF_Concordant", "tBAM_REF_Discordant",
-                         "tBAM_ALT_Concordant", "tBAM_ALT_Discordant", "tBAM_Concordance_FET", "T_REF_FOR",
-                         "T_REF_REV", "T_ALT_FOR", "T_ALT_REV", "tBAM_StrandBias_FET", "tBAM_Z_Ranksums_EndPos",
-                         "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads", "tBAM_Clipping_FET", "tBAM_MQ0",
-                         "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
-                         "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
-                         "InDel_Length"]
+                         "Consistent_Mates", "Inconsistent_Mates"]
+    if seq_complexity:
+        expected_features += ["Seq_Complexity_Span", "Seq_Complexity_Adj"]
+
+    expected_features += ["N_DP", "nBAM_REF_MQ", "nBAM_ALT_MQ",
+                          "nBAM_Z_Ranksums_MQ", "nBAM_REF_BQ", "nBAM_ALT_BQ", "nBAM_Z_Ranksums_BQ", "nBAM_REF_NM",
+                          "nBAM_ALT_NM", "nBAM_NM_Diff", "nBAM_REF_Concordant", "nBAM_REF_Discordant",
+                          "nBAM_ALT_Concordant", "nBAM_ALT_Discordant", "nBAM_Concordance_FET", "N_REF_FOR", "N_REF_REV",
+                          "N_ALT_FOR", "N_ALT_REV", "nBAM_StrandBias_FET", "nBAM_Z_Ranksums_EndPos",
+                          "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads", "nBAM_Clipping_FET", "nBAM_MQ0",
+                          "nBAM_Other_Reads", "nBAM_Poor_Reads", "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp",
+                          "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp", "nBAM_ALT_InDel_1bp",
+                          "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "SOR", "MSI", "MSILEN", "SHIFT3",
+                          "MaxHomopolymer_Length", "SiteHomopolymer_Length", "T_DP", "tBAM_REF_MQ", "tBAM_ALT_MQ",
+                          "tBAM_Z_Ranksums_MQ", "tBAM_REF_BQ", "tBAM_ALT_BQ", "tBAM_Z_Ranksums_BQ", "tBAM_REF_NM",
+                          "tBAM_ALT_NM", "tBAM_NM_Diff", "tBAM_REF_Concordant", "tBAM_REF_Discordant",
+                          "tBAM_ALT_Concordant", "tBAM_ALT_Discordant", "tBAM_Concordance_FET", "T_REF_FOR",
+                          "T_REF_REV", "T_ALT_FOR", "T_ALT_REV", "tBAM_StrandBias_FET", "tBAM_Z_Ranksums_EndPos",
+                          "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads", "tBAM_Clipping_FET", "tBAM_MQ0",
+                          "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
+                          "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
+                          "InDel_Length"]
     callers_features = ["if_MuTect", "if_VarScan2", "if_JointSNVMix2", "if_SomaticSniper", "if_VarDict", "MuSE_Tier",
                         "if_LoFreq", "if_Scalpel", "if_Strelka", "if_TNscope", "Strelka_Score", "Strelka_QSS",
                         "Strelka_TQSS", "VarScan2_Score", "SNVMix2_Score", "Sniper_Score", "VarDict_Score",
@@ -1370,8 +1377,9 @@ def extract_ensemble(ensemble_tsv, ensemble_bed, is_extend):
                     lambda x: x[1] in expected_features, enumerate(header_)))
                 header = list(map(lambda x: x[1], header_en))
                 if set(expected_features) - set(header):
-                    logger.error("The following features are missing from ensemble file: {}".format(
-                                 list(set(expected_features) - set(header))))
+                    logger.error("The following features are missing from ensemble file {}: {}".format(
+                        ensemble_tsv,
+                        list(set(expected_features) - set(header))))
                     raise Exception
                 order_header = []
                 for f in expected_features:
@@ -1443,6 +1451,8 @@ def extract_ensemble(ensemble_tsv, ensemble_bed, is_extend):
         lambda x: x[1] in ["SiteHomopolymer_Length"], enumerate(header))))
     InDel_Length = list(map(lambda x: x[0], filter(
         lambda x: x[1] in ["InDel_Length"], enumerate(header))))
+    Seq_Complexity_ = list(map(lambda x: x[0], filter(
+        lambda x: x[1] in ["Seq_Complexity_Span", "Seq_Complexity_Adj"], enumerate(header))))
 
     min_max_features = [[cov_features, 0, 2 * COV],
                         [mq_features, 0, 70],
@@ -1466,14 +1476,18 @@ def extract_ensemble(ensemble_tsv, ensemble_bed, is_extend):
                         [SiteHomopolymer_Length, 0, 50],
                         [InDel_Length, -30, 30],
                         ]
+    if seq_complexity:
+        min_max_features.append([Seq_Complexity_, 0, 40])
+
     selected_features = sorted([i for f in min_max_features for i in f[0]])
     selected_features_tags = list(map(lambda x: header[x], selected_features))
     if n_vars > 0:
         for i_s, mn, mx in min_max_features:
-            s = ensemble_data[:, np.array(i_s)]
-            s = np.maximum(np.minimum(s, mx), mn)
-            s = (s - mn) / (mx - mn)
-            ensemble_data[:, np.array(i_s)] = s
+            if i_s:
+                s = ensemble_data[:, np.array(i_s)]
+                s = np.maximum(np.minimum(s, mx), mn)
+                s = (s - mn) / (mx - mn)
+                ensemble_data[:, np.array(i_s)] = s
         ensemble_data = ensemble_data[:, selected_features]
         ensemble_data = ensemble_data.tolist()
     with open(ensemble_bed, "w")as f_:
@@ -1486,7 +1500,7 @@ def extract_ensemble(ensemble_tsv, ensemble_bed, is_extend):
 
 def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
-                     ensemble_bed, tsv_batch_size):
+                     ensemble_bed, seq_complexity, tsv_batch_size):
     logger = logging.getLogger(generate_dataset.__name__)
 
     logger.info("---------------------Generate Dataset----------------------")
@@ -1513,7 +1527,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     split_batch_size = 10000
     if ensemble_tsv and not ensemble_bed:
         ensemble_bed = os.path.join(work, "ensemble.bed")
-        extract_ensemble(ensemble_tsv, ensemble_bed, False)
+        extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, False)
 
     tmp_ = bedtools_intersect(
         tumor_pred_vcf_file, region_bed_file, args=" -u", run_logger=logger)
@@ -1540,7 +1554,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     map_args = []
     for i, split_region_file in enumerate(split_region_files):
         map_args.append((work, split_region_file, truth_vcf_file,
-                         tumor_pred_vcf_file, ref_file, ensemble_bed, i))
+                         tumor_pred_vcf_file, ref_file, ensemble_bed, seq_complexity, i))
     try:
         records_data = pool.map_async(find_records, map_args).get()
         pool.close()
@@ -1725,6 +1739,9 @@ if __name__ == '__main__':
                         help='Ensemble annotation tsv file (only for short read)', default=None)
     parser.add_argument('--ensemble_bed', type=str,
                         help='Ensemble annotation bed file (only for short read)', default=None)
+    parser.add_argument('--seq_complexity',
+                        help='Compute linguistic sequence complexity features',
+                        action="store_true")
     args = parser.parse_args()
     logger.info(args)
 
@@ -1743,12 +1760,13 @@ if __name__ == '__main__':
     num_threads = args.num_threads
     ensemble_tsv = args.ensemble_tsv
     ensemble_bed = args.ensemble_bed
+    seq_complexity = args.seq_complexity
     tsv_batch_size = args.tsv_batch_size
 
     try:
         generate_dataset(work, truth_vcf_file, mode, tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                          matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
-                         ensemble_bed, tsv_batch_size)
+                         ensemble_bed, seq_complexity, tsv_batch_size)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")

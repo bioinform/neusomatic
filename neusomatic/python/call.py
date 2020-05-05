@@ -412,13 +412,38 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
     data_transform = matrix_transform((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 
+    logger.info("Load pretrained model from checkpoint {}".format(checkpoint))
+    pretrained_dict = torch.load(
+        checkpoint, map_location=lambda storage, loc: storage)
+    pretrained_state_dict = pretrained_dict["state_dict"]
+    model_tag = pretrained_dict["tag"]
+    logger.info("tag: {}".format(model_tag))
+    coverage_thr = pretrained_dict["coverage_thr"]
+    if "normalize_channels" in pretrained_dict:
+        normalize_channels = pretrained_dict["normalize_channels"]
+    else:
+        normalize_channels = False
+    if "seq_complexity" in pretrained_dict:
+        seq_complexity = pretrained_dict["seq_complexity"]
+    else:
+        seq_complexity = False
+
+    logger.info("coverage_thr: {}".format(coverage_thr))
+    logger.info("normalize_channels: {}".format(normalize_channels))
+    logger.info("seq_complexity: {}".format(seq_complexity))
+
+    
+    num_expected_ensemble = NUM_ENS_FEATURES
+    if seq_complexity:
+        num_expected_ensemble += 2
     ensemble = False
     with open(candidates_tsv[0]) as i_f:
         x = i_f.readline().strip().split()
-        if len(x) == NUM_ENS_FEATURES + 4:
+        if len(x) == num_expected_ensemble + 4:
             ensemble = True
+    num_channels = num_expected_ensemble + \
+        NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
 
-    num_channels = NUM_ENS_FEATURES + NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
     logger.info("Number of channels: {}".format(num_channels))
     net = NeuSomaticNet(num_channels)
     if use_cuda:
@@ -430,26 +455,6 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     if torch.cuda.device_count() > 1:
         logger.info("We use {} GPUs!".format(torch.cuda.device_count()))
         net = nn.DataParallel(net)
-
-    if not os.path.exists(out_dir):
-        os.mkdir(out_dir)
-    logger.info("Load pretrained model from checkpoint {}".format(checkpoint))
-    pretrained_dict = torch.load(
-        checkpoint, map_location=lambda storage, loc: storage)
-    pretrained_state_dict = pretrained_dict["state_dict"]
-    model_tag = pretrained_dict["tag"]
-    logger.info("tag: {}".format(model_tag))
-
-    matrices_dir = "{}/matrices_{}".format(out_dir, model_tag)
-    if os.path.exists(matrices_dir):
-        logger.warning("Remove matrices directory: {}".format(matrices_dir))
-        shutil.rmtree(matrices_dir)
-    os.mkdir(matrices_dir)
-    coverage_thr = pretrained_dict["coverage_thr"]
-    if "normalize_channels" in pretrained_dict:
-        normalize_channels = pretrained_dict["normalize_channels"]
-    else:
-        normalize_channels = False
 
     model_dict = net.state_dict()
 
@@ -471,6 +476,16 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     model_dict.update(pretrained_state_dict)
     # 3. load the new state dict
     net.load_state_dict(pretrained_state_dict)
+
+
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+    matrices_dir = "{}/matrices_{}".format(out_dir, model_tag)
+    if os.path.exists(matrices_dir):
+        logger.warning("Remove matrices directory: {}".format(matrices_dir))
+        shutil.rmtree(matrices_dir)
+    os.mkdir(matrices_dir)
+
 
     new_split_tsvs_dir = os.path.join(out_dir, "split_tsvs")
     if os.path.exists(new_split_tsvs_dir):
