@@ -15,6 +15,7 @@ import traceback
 import logging
 
 import tempfile
+import numpy as np
 
 from filter_candidates import filter_candidates
 from generate_dataset import generate_dataset, extract_ensemble
@@ -78,11 +79,13 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
 
 
 def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
-                            matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_bed, seq_complexity, tsv_batch_size):
+                            matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_bed, seq_complexity, 
+                            no_feature_recomp_for_ensemble, tsv_batch_size):
     logger = logging.getLogger(generate_dataset_region.__name__)
     generate_dataset(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, None, ensemble_bed,
                      seq_complexity,
+                     no_feature_recomp_for_ensemble,
                      tsv_batch_size)
 
 
@@ -195,6 +198,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                filter_duplicate,
                add_extra_features,
                seq_complexity,
+               no_feature_recomp_for_ensemble,
                num_threads,
                scan_alignments_binary,):
     logger = logging.getLogger(preprocess.__name__)
@@ -239,7 +243,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         ensemble_bed = os.path.join(work, "ensemble.bed")
         logger.info("Extract ensemble info.")
         if restart or not os.path.exists(ensemble_bed):
-            extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, False)
+            extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, no_feature_recomp_for_ensemble, False)
 
     merge_d_for_short_read = 100
     candidates_split_regions = []
@@ -335,7 +339,9 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                 if not os.path.exists(extra_features_tsv) or restart:
                     extend_features(filtered_vcf,
                                     ensemble_beds[
-                                        i] if ensemble_tsv else None,
+                                        i] if (ensemble_tsv and no_feature_recomp_for_ensemble) else None,
+                                    ensemble_beds[
+                                        i] if (ensemble_tsv and not no_feature_recomp_for_ensemble) else None,
                                     extra_features_tsv,
                                     reference, tumor_bam, normal_bam,
                                     min_mapq, snp_min_bq,
@@ -346,38 +352,105 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                     work_dataset_split, "extra_features.bed")
                 if not os.path.exists(extra_features_bed) or restart:
                     extract_ensemble(extra_features_tsv,
-                                     extra_features_bed, seq_complexity, True)
+                                     extra_features_bed, seq_complexity, True, True)
                 if ensemble_tsv:
                     merged_features_bed = os.path.join(
                         work_dataset_split, "merged_features.bed")
                     if not os.path.exists(merged_features_bed) or restart:
                         exclude_ens_variants = []
                         header_line = ""
-                        with open(merged_features_bed, "w") as o_f, open(ensemble_beds[i]) as i_f_1, open(extra_features_bed) as i_f_2:
-                            for line in skip_empty(i_f_1, skip_header=False):
-                                if line.startswith("#"):
+                        if no_feature_recomp_for_ensemble:
+                            with open(merged_features_bed, "w") as o_f, open(ensemble_beds[i]) as i_f_1, open(extra_features_bed) as i_f_2:
+                                for line in skip_empty(i_f_1, skip_header=False):
+                                    if line.startswith("#"):
+                                        if not header_line:
+                                            header_line = line
+                                            o_f.write(line)
+                                        else:
+                                            if header_line != line:
+                                                logger.error(
+                                                    "{}!={}".format(header_line, line))
+                                                raise Exception
+                                        continue
+                                    chrom, pos, _, ref, alt = line.strip().split("\t")[
+                                        0:5]
+                                    var_id = "-".join([chrom, pos, ref, alt])
+                                    exclude_ens_variants.append(var_id)
                                     o_f.write(line)
-                                    if not header_line:
-                                        header_line = line
-                                    else:
-                                        assert(header_line == line)
-                                    continue
-                                chrom, pos, _, ref, alt = line.strip().split("\t")[
-                                    0:5]
-                                var_id = "-".join([chrom, pos, ref, alt])
-                                exclude_ens_variants.append(var_id)
-                                o_f.write(line)
-                            for line in skip_empty(i_f_2, skip_header=False):
-                                if line.startswith("#"):
-                                    if header_line:
-                                        assert(header_line == line)
-                                    continue
-                                chrom, pos, _, ref, alt = line.strip().split("\t")[
-                                    0:5]
-                                var_id = "-".join([chrom, pos, ref, alt])
-                                if var_id in exclude_ens_variants:
-                                    continue
-                                o_f.write(line)
+                                for line in skip_empty(i_f_2, skip_header=False):
+                                    if line.startswith("#"):
+                                        if header_line != line:
+                                            logger.error(
+                                                "{}!={}".format(header_line, line))
+                                            raise Exception
+                                        continue
+                                    chrom, pos, _, ref, alt = line.strip().split("\t")[
+                                        0:5]
+                                    var_id = "-".join([chrom, pos, ref, alt])
+                                    if var_id in exclude_ens_variants:
+                                        continue
+                                    o_f.write(line)
+                        else:
+                            callers_features = ["if_MuTect", "if_VarScan2", "if_JointSNVMix2", "if_SomaticSniper", "if_VarDict", "MuSE_Tier",
+                                                "if_LoFreq", "if_Scalpel", "if_Strelka", "if_TNscope", "Strelka_Score", "Strelka_QSS",
+                                                "Strelka_TQSS", "VarScan2_Score", "SNVMix2_Score", "Sniper_Score", "VarDict_Score",
+                                                "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "MSI", "MSILEN", "SHIFT3"]
+                            with open(merged_features_bed, "w") as o_f, open(ensemble_beds[i]) as i_f_1, open(extra_features_bed) as i_f_2:
+                                ens_variants_info = {}
+                                header_1_found = False
+                                header_2_found = False
+                                for line in skip_empty(i_f_1, skip_header=False):
+                                    if line.startswith("#"):
+                                        if not header_line:
+                                            header_line = line
+                                        else:
+                                            if header_line != line:
+                                                logger.error(
+                                                    "{}!={}".format(header_line, line))
+                                                raise Exception
+                                        header_ = line.strip().split()[5:]
+                                        header_caller = list(filter(
+                                            lambda x: x[1] in callers_features, enumerate(header_)))
+                                        header_caller_ = list(
+                                            map(lambda x: x[1], header_caller))
+                                        header_i = list(
+                                            map(lambda x: x[0], header_caller))
+                                        header_1_found = True
+                                        continue
+                                    assert header_1_found
+                                    fields = line.strip().split("\t")
+                                    chrom, pos, _, ref, alt = fields[0:5]
+                                    var_id = "-".join([chrom, pos, ref, alt])
+                                    ens_variants_info[var_id] = np.array(fields[5:])[
+                                        header_i]
+                                for line in skip_empty(i_f_2, skip_header=False):
+                                    if line.startswith("#"):
+                                        if header_line != line:
+                                            logger.error(
+                                                "{}!={}".format(header_line, line))
+                                        if not header_2_found:
+                                            header_2 = line.strip().split()[5:]
+                                            logger.info(header_2)
+                                            order_header = []
+                                            for f in header_caller_:
+                                                if f not in header_2:
+                                                    logger.info("Missing header field {}".format(f))
+                                                    raise Exception
+                                                order_header.append(header_2.index(f))
+                                            o_f.write(line)
+                                        header_2_found = True
+
+                                    assert header_2_found
+                                    fields = line.strip().split("\t")
+                                    chrom, pos, _, ref, alt = fields[0:5]
+                                    var_id = "-".join([chrom, pos, ref, alt])
+                                    if var_id in ens_variants_info:
+                                        fields_ = np.array(fields[5:])
+                                        fields_[order_header] = ens_variants_info[
+                                            var_id]
+                                        fields[5:] = fields_.tolist()
+                                    o_f.write(
+                                        "\t".join(list(map(str, fields))) + "\n")
                     ensemble_bed_i = merged_features_bed
                 else:
                     ensemble_bed_i = extra_features_bed
@@ -385,7 +458,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
             generate_dataset_region(work_dataset_split, truth_vcf, mode, filtered_vcf,
                                     candidates_split_region, tumor_count, normal_count, reference,
                                     matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, num_threads,
-                                    ensemble_bed_i, seq_complexity, tsv_batch_size)
+                                    ensemble_bed_i, seq_complexity, no_feature_recomp_for_ensemble, tsv_batch_size)
 
     shutil.rmtree(bed_tempdir)
     tempfile.tempdir = original_tempdir
@@ -471,7 +544,10 @@ if __name__ == '__main__':
                         help='add extra input features',
                         action="store_true")
     parser.add_argument('--seq_complexity',
-                        help='Compute linguistic sequence complexity features', 
+                        help='Compute linguistic sequence complexity features',
+                        action="store_true")
+    parser.add_argument('--no_feature_recomp_for_ensemble',
+                        help='Do not recompute features for ensemble_tsv',
                         action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
@@ -492,6 +568,7 @@ if __name__ == '__main__':
                    args.filter_duplicate,
                    args.add_extra_features,
                    args.seq_complexity,
+                   args.no_feature_recomp_for_ensemble,
                    args.num_threads,
                    args.scan_alignments_binary)
     except Exception as e:

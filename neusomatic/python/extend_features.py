@@ -199,6 +199,7 @@ def extract_features(candidate_record):
 
 def extend_features(candidates_vcf,
                     exclude_variants,
+                    add_variants,
                     output_tsv,
                     reference, tumor_bam, normal_bam,
                     min_mapq, min_bq,
@@ -253,8 +254,8 @@ def extend_features(candidates_vcf,
                     var_id = "-".join([chrom, pos, ref, alt])
                     cosmic_vars[var_id] = num_cases
 
+    exclude_vars = set([])
     if exclude_variants:
-        exclude_vars = []
         with open(exclude_variants) as i_f:
             for line in skip_empty(i_f):
                 if exclude_variants.split(".")[-1] == "tsv" and line[0:5] == "CHROM":
@@ -262,7 +263,18 @@ def extend_features(candidates_vcf,
                 x = line.strip().split("\t")
                 chrom, pos, _, ref, alt = x[0:5]
                 var_id = "-".join([chrom, pos, ref, alt])
-                exclude_vars.append(var_id)
+                exclude_vars.add(var_id)
+
+    add_vars = set([])
+    if add_variants:
+        with open(add_variants) as i_f:
+            for line in skip_empty(i_f):
+                if add_variants.split(".")[-1] == "tsv" and line[0:5] == "CHROM":
+                    continue
+                x = line.strip().split("\t")
+                chrom, pos, _, ref, alt = x[0:5]
+                var_id = "-".join([chrom, pos, ref, alt])
+                add_vars.add(var_id)
 
     n_variants = 0
     with open(candidates_vcf) as i_f:
@@ -272,30 +284,46 @@ def extend_features(candidates_vcf,
     split_len = (n_variants + num_threads - 1) // num_threads
     pool = multiprocessing.Pool(num_threads)
     map_args = []
+    batch = []
     with open(candidates_vcf) as i_f:
-        i = 0
-        batch = []
         for line in skip_empty(i_f):
-            i += 1
             chrom, pos, _, ref, alt = line.strip().split("\t")[0:5]
             var_id = "-".join([chrom, pos, ref, alt])
             if exclude_variants:
                 if var_id in exclude_vars:
                     continue
+            if add_variants:
+                if var_id in add_vars:
+                    add_vars = add_vars - set([var_id])
             num_cosmic_cases = float('nan')
             if_cosmic = 0
             if cosmic and var_id in cosmic_vars:
                 if_cosmic = 1
                 num_cosmic_cases = cosmic_vars[var_id]
             batch.append([chrom, pos, ref, alt, if_cosmic, num_cosmic_cases])
-            if len(batch) >= split_len or i == n_variants:
+            if len(batch) >= split_len:
                 map_args.append((reference, tumor_bam, normal_bam,
                                  min_mapq, min_bq, dbsnp, seq_complexity, batch))
                 batch = []
-        if batch:
-            map_args.append((reference, tumor_bam, normal_bam,
-                             min_mapq, min_bq, dbsnp, seq_complexity, batch))
-
+    if add_variants and len(add_vars)>0:
+        for var_id in add_vars-set(exclude_vars):
+            v = var_id.split("-")
+            pos, ref, alt = v[-3:]
+            chrom = "-".join(v[:-3])
+            num_cosmic_cases = float('nan')
+            if_cosmic = 0
+            if cosmic and var_id in cosmic_vars:
+                if_cosmic = 1
+                num_cosmic_cases = cosmic_vars[var_id]
+            batch.append([chrom, pos, ref, alt, if_cosmic, num_cosmic_cases])
+            if len(batch) >= split_len:
+                map_args.append((reference, tumor_bam, normal_bam,
+                                 min_mapq, min_bq, dbsnp, seq_complexity, batch))
+                batch = []
+    if batch:
+        map_args.append((reference, tumor_bam, normal_bam,
+                         min_mapq, min_bq, dbsnp, seq_complexity, batch))
+    
     logger.info("Number of batches: {}".format(len(map_args)))
     header = ["CHROM", "POS", "ID", "REF", "ALT", "if_dbsnp", "COMMON", "if_COSMIC", "COSMIC_CNT",
               "Consistent_Mates", "Inconsistent_Mates"]
@@ -350,6 +378,8 @@ if __name__ == '__main__':
                         required=True)
     parser.add_argument('--exclude_variants', type=str, help='variants to exclude',
                         default=None)
+    parser.add_argument('--add_variants', type=str, help='variants to add if not exist in vcf. (Lower priority than --exclude_variants)',
+                        default=None)
     parser.add_argument('--output_tsv', type=str, help='output features tsv',
                         required=True)
     parser.add_argument('--reference', type=str, help='reference fasta filename',
@@ -377,6 +407,7 @@ if __name__ == '__main__':
     try:
         output = extend_features(args.candidates_vcf,
                                  args.exclude_variants,
+                                 args.add_variants,
                                  args.output_tsv,
                                  args.reference, args.tumor_bam, args.normal_bam,
                                  args.min_mapq, args.min_bq,

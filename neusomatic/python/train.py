@@ -251,17 +251,17 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         tag = "neusomatic_{}".format(time_now)
     logger.info("tag: {}".format(tag))
 
-    num_expected_ensemble = NUM_ENS_FEATURES
+    expected_ens_fields = NUM_ENS_FEATURES
     if seq_complexity:
-        num_expected_ensemble += 2
+        expected_ens_fields += 2
 
     ensemble = False
     with open(candidates_tsv[0]) as i_f:
         x = i_f.readline().strip().split()
-        if len(x) == num_expected_ensemble + 4:
+        if len(x) == expected_ens_fields + 4:
             ensemble = True
 
-    num_channels = num_expected_ensemble + \
+    num_channels = expected_ens_fields + \
         NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
 
     logger.info("Number of channels: {}".format(num_channels))

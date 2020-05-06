@@ -1326,7 +1326,7 @@ def find_records(input_record):
         return None
 
 
-def extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, is_extend):
+def extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, enforce_header, is_extend):
     logger = logging.getLogger(extract_ensemble.__name__)
     ensemble_data = []
     ensemble_pos = []
@@ -1376,6 +1376,9 @@ def extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, is_extend):
                 header_en = list(filter(
                     lambda x: x[1] in expected_features, enumerate(header_)))
                 header = list(map(lambda x: x[1], header_en))
+                if not enforce_header:
+                    expected_features = header
+
                 if set(expected_features) - set(header):
                     logger.error("The following features are missing from ensemble file {}: {}".format(
                         ensemble_tsv,
@@ -1500,7 +1503,7 @@ def extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, is_extend):
 
 def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
-                     ensemble_bed, seq_complexity, tsv_batch_size):
+                     ensemble_bed, seq_complexity, enforce_header, tsv_batch_size):
     logger = logging.getLogger(generate_dataset.__name__)
 
     logger.info("---------------------Generate Dataset----------------------")
@@ -1527,7 +1530,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     split_batch_size = 10000
     if ensemble_tsv and not ensemble_bed:
         ensemble_bed = os.path.join(work, "ensemble.bed")
-        extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, False)
+        extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, enforce_header, False)
 
     tmp_ = bedtools_intersect(
         tumor_pred_vcf_file, region_bed_file, args=" -u", run_logger=logger)
@@ -1742,6 +1745,9 @@ if __name__ == '__main__':
     parser.add_argument('--seq_complexity',
                         help='Compute linguistic sequence complexity features',
                         action="store_true")
+    parser.add_argument('--enforce_header',
+                        help='Enforce header match for ensemble_tsv',
+                        action="store_true")
     args = parser.parse_args()
     logger.info(args)
 
@@ -1766,7 +1772,7 @@ if __name__ == '__main__':
     try:
         generate_dataset(work, truth_vcf_file, mode, tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                          matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
-                         ensemble_bed, seq_complexity, tsv_batch_size)
+                         ensemble_bed, seq_complexity, enforce_header, tsv_batch_size)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")
