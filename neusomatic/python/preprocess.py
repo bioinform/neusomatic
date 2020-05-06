@@ -195,7 +195,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                ins_merge_min_af, merge_r, truth_vcf, tsv_batch_size,
                matrix_width, matrix_base_pad, min_ev_frac_per_col,
                ensemble_tsv, long_read, restart, first_do_without_qual,
-               filter_duplicate,
+               keep_duplicate,
                add_extra_features,
                seq_complexity,
                no_feature_recomp_for_ensemble,
@@ -206,6 +206,8 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     logger.info("----------------------Preprocessing------------------------")
     if restart or not os.path.exists(work):
         os.mkdir(work)
+
+    filter_duplicate = not keep_duplicate
 
     original_tempdir = tempfile.tempdir
     bed_tempdir = os.path.join(work, "bed_tempdir_preprocess")
@@ -537,8 +539,8 @@ if __name__ == '__main__':
     parser.add_argument('--first_do_without_qual',
                         help='Perform initial scan without calculating the quality stats',
                         action="store_true")
-    parser.add_argument('--filter_duplicate',
-                        help='filter duplicate reads when preparing pileup information',
+    parser.add_argument('--keep_duplicate',
+                        help='Don not filter duplicate reads when preparing pileup information',
                         action="store_true")
     parser.add_argument('--add_extra_features',
                         help='add extra input features',
@@ -565,7 +567,7 @@ if __name__ == '__main__':
                    args.ins_merge_min_af, args.merge_r,
                    args.truth_vcf, args.tsv_batch_size, args.matrix_width, args.matrix_base_pad, args.min_ev_frac_per_col,
                    args.ensemble_tsv, args.long_read, args.restart, args.first_do_without_qual,
-                   args.filter_duplicate,
+                   args.keep_duplicate,
                    args.add_extra_features,
                    args.seq_complexity,
                    args.no_feature_recomp_for_ensemble,

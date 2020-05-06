@@ -168,7 +168,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
                 lr_pad, lr_chunk_size, lr_chunk_scale,
                 lr_snp_min_af, lr_ins_min_af, lr_del_min_af, lr_match_score, lr_mismatch_penalty,
                 lr_gap_open_penalty, lr_gap_ext_penalty, lr_max_realign_dp, lr_do_split,
-                filter_duplicate,
+                keep_duplicate,
                 pass_threshold, lowqual_threshold,
                 msa_binary, num_threads):
     logger = logging.getLogger(postprocess.__name__)
@@ -177,6 +177,8 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     if not os.path.exists(work):
         os.mkdir(work)
 
+    filter_duplicate = not keep_duplicate
+    
     original_tempdir = tempfile.tempdir
     bed_tempdir = os.path.join(work, "bed_tempdir_postprocess")
     if not os.path.exists(bed_tempdir):
@@ -310,8 +312,8 @@ if __name__ == '__main__':
     parser.add_argument('--lowqual_threshold', type=float,
                         help='SCORE for LowQual (PASS for lowqual_threshold <= score < pass_threshold)',
                         default=0.4)
-    parser.add_argument('--filter_duplicate',
-                        help='filter duplicate reads in analysis',
+    parser.add_argument('--keep_duplicate',
+                        help='Dont filter duplicate reads in analysis',
                         action="store_true")
     parser.add_argument('--msa_binary', type=str,
                         help='MSA binary', default="../bin/msa")
@@ -333,7 +335,7 @@ if __name__ == '__main__':
                                  args.lr_gap_open_penalty,
                                  args.lr_gap_ext_penalty, args.lr_max_realign_dp,
                                  args.lr_do_split,
-                                 args.filter_duplicate,
+                                 args.keep_duplicate,
                                  args.pass_threshold, args.lowqual_threshold,
                                  args.msa_binary, args.num_threads)
 
