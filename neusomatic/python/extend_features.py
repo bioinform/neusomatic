@@ -55,9 +55,9 @@ def extract_features(candidate_record):
                     0, my_coordinate[1] - 81), my_coordinate[1])
                 seq_right_80bp = ref_fa.fetch(my_coordinate[0], my_coordinate[
                                               1], my_coordinate[1] + 81)
-                LC_spanning = sequencing_features.LC(seq_span_80bp)
-                LC_adjacent = min(sequencing_features.LC(
-                    seq_left_80bp), sequencing_features.LC(seq_right_80bp))
+                LC_spanning = sequencing_features.subLC(seq_span_80bp, 20)
+                LC_adjacent = min(sequencing_features.subLC(
+                    seq_left_80bp, 20), sequencing_features.subLC(seq_right_80bp, 20))
                 LC_spanning_phred = genome.p2phred(1 - LC_spanning, 40)
                 LC_adjacent_phred = genome.p2phred(1 - LC_adjacent, 40)
 
@@ -305,8 +305,8 @@ def extend_features(candidates_vcf,
                 map_args.append((reference, tumor_bam, normal_bam,
                                  min_mapq, min_bq, dbsnp, seq_complexity, batch))
                 batch = []
-    if add_variants and len(add_vars)>0:
-        for var_id in add_vars-set(exclude_vars):
+    if add_variants and len(add_vars) > 0:
+        for var_id in add_vars - set(exclude_vars):
             v = var_id.split("-")
             pos, ref, alt = v[-3:]
             chrom = "-".join(v[:-3])
@@ -323,7 +323,7 @@ def extend_features(candidates_vcf,
     if batch:
         map_args.append((reference, tumor_bam, normal_bam,
                          min_mapq, min_bq, dbsnp, seq_complexity, batch))
-    
+
     logger.info("Number of batches: {}".format(len(map_args)))
     header = ["CHROM", "POS", "ID", "REF", "ALT", "if_dbsnp", "COMMON", "if_COSMIC", "COSMIC_CNT",
               "Consistent_Mates", "Inconsistent_Mates"]
@@ -345,11 +345,11 @@ def extend_features(candidates_vcf,
                    "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp", "InDel_Length"])
 
     try:
-        # ext_features=[]
-        # for w in map_args:
-        #     ext_features.append(extract_features(w))
+        ext_features=[]
+        for w in map_args:
+            ext_features.append(extract_features(w))
 
-        ext_features = pool.map_async(extract_features, map_args).get()
+        # ext_features = pool.map_async(extract_features, map_args).get()
         pool.close()
         with open(output_tsv, "w") as o_f:
             o_f.write("\t".join(header) + "\n")
