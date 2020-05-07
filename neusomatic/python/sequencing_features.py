@@ -8,8 +8,12 @@ import scipy.stats as stats
 import genomic_file_handlers as genome
 from read_info_extractor import *
 from collections import defaultdict
+import fisher
 
 nan = float('nan')
+
+def fisher_exact_test(mat):
+    return fisher.pvalue(mat[0][0],mat[0][1],mat[1][0],mat[1][1]).two_tail
 
 
 class AlignmentFeatures:
@@ -17,8 +21,8 @@ class AlignmentFeatures:
         '''
         bam is the opened file handle of bam file
         my_coordiate is a list or tuple of 0-based (contig, position)
-        '''
-
+        '''  
+              
         indel_length = len(first_alt) - len(ref_base)
         reads = bam.fetch(my_coordinate[0], my_coordinate[1] - 1, my_coordinate[1])
 
@@ -115,9 +119,9 @@ class AlignmentFeatures:
         self.z_ranksums_NM = stats.ranksums(alt_edit_distance, ref_edit_distance)[0]
         self.NM_Diff = self.alt_NM - self.ref_NM - abs(indel_length)
 
-        self.concordance_fet = stats.fisher_exact(concordance_counts)[1]
-        self.strandbias_fet = stats.fisher_exact(orientation_counts)[1]
-        self.clipping_fet = stats.fisher_exact(soft_clip_counts)[1]
+        self.concordance_fet = fisher_exact_test(concordance_counts)
+        self.strandbias_fet = fisher_exact_test(orientation_counts)
+        self.clipping_fet = fisher_exact_test(soft_clip_counts)
 
         self.z_ranksums_endpos = stats.ranksums(alt_pos_from_end, ref_pos_from_end)[0]
 
