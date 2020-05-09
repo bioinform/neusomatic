@@ -20,7 +20,7 @@ from utils import skip_empty
 
 
 def extract_features(candidate_record):
-    reference, tumor_bam, normal_bam, min_mapq, min_bq, dbsnp, seq_complexity, batch = candidate_record
+    reference, tumor_bam, normal_bam, min_mapq, min_bq, dbsnp, no_seq_complexity, batch = candidate_record
     thread_logger = logging.getLogger(
         "{} ({})".format(extract_features.__name__, multiprocessing.current_process().name))
     try:
@@ -48,7 +48,7 @@ def extract_features(candidate_record):
 
             indel_length = len(alt) - len(ref)
 
-            if seq_complexity:
+            if not no_seq_complexity:
                 seq_span_80bp = ref_fa.fetch(my_coordinate[0], max(
                     0, my_coordinate[1] - 41), my_coordinate[1] + 40)
                 seq_left_80bp = ref_fa.fetch(my_coordinate[0], max(
@@ -88,7 +88,7 @@ def extract_features(candidate_record):
             COSMIC_CNT = num_cosmic_cases
             Consistent_Mates = tBamFeatures.consistent_mates
             Inconsistent_Mates = tBamFeatures.inconsistent_mates
-            if seq_complexity:
+            if not no_seq_complexity:
                 Seq_Complexity_Span = LC_spanning_phred
                 Seq_Complexity_Adj = LC_adjacent_phred
 
@@ -171,7 +171,7 @@ def extract_features(candidate_record):
 
             features = [CHROM, POS, ".", REF, ALT, if_dbsnp, COMMON, if_COSMIC, COSMIC_CNT,
                         Consistent_Mates, Inconsistent_Mates]
-            if seq_complexity:
+            if not no_seq_complexity:
                 features.extend([Seq_Complexity_Span, Seq_Complexity_Adj])
             features.extend([N_DP, nBAM_REF_MQ, nBAM_ALT_MQ, nBAM_Z_Ranksums_MQ,
                              nBAM_REF_BQ, nBAM_ALT_BQ, nBAM_Z_Ranksums_BQ, nBAM_REF_NM, nBAM_ALT_NM, nBAM_NM_Diff,
@@ -204,7 +204,7 @@ def extend_features(candidates_vcf,
                     reference, tumor_bam, normal_bam,
                     min_mapq, min_bq,
                     dbsnp, cosmic,
-                    seq_complexity,
+                    no_seq_complexity,
                     num_threads):
 
     logger = logging.getLogger(extend_features.__name__)
@@ -303,7 +303,7 @@ def extend_features(candidates_vcf,
             batch.append([chrom, pos, ref, alt, if_cosmic, num_cosmic_cases])
             if len(batch) >= split_len:
                 map_args.append((reference, tumor_bam, normal_bam,
-                                 min_mapq, min_bq, dbsnp, seq_complexity, batch))
+                                 min_mapq, min_bq, dbsnp, no_seq_complexity, batch))
                 batch = []
     if add_variants and len(add_vars) > 0:
         for var_id in add_vars - set(exclude_vars):
@@ -318,16 +318,16 @@ def extend_features(candidates_vcf,
             batch.append([chrom, pos, ref, alt, if_cosmic, num_cosmic_cases])
             if len(batch) >= split_len:
                 map_args.append((reference, tumor_bam, normal_bam,
-                                 min_mapq, min_bq, dbsnp, seq_complexity, batch))
+                                 min_mapq, min_bq, dbsnp, no_seq_complexity, batch))
                 batch = []
     if batch:
         map_args.append((reference, tumor_bam, normal_bam,
-                         min_mapq, min_bq, dbsnp, seq_complexity, batch))
+                         min_mapq, min_bq, dbsnp, no_seq_complexity, batch))
 
     logger.info("Number of batches: {}".format(len(map_args)))
     header = ["CHROM", "POS", "ID", "REF", "ALT", "if_dbsnp", "COMMON", "if_COSMIC", "COSMIC_CNT",
               "Consistent_Mates", "Inconsistent_Mates"]
-    if seq_complexity:
+    if not no_seq_complexity:
         header.extend(["Seq_Complexity_Span", "Seq_Complexity_Adj"])
     header.extend(["N_DP", "nBAM_REF_MQ", "nBAM_ALT_MQ", "nBAM_Z_Ranksums_MQ",
                    "nBAM_REF_BQ", "nBAM_ALT_BQ", "nBAM_Z_Ranksums_BQ", "nBAM_REF_NM", "nBAM_ALT_NM", "nBAM_NM_Diff",
@@ -392,8 +392,8 @@ if __name__ == '__main__':
                         help='dbSNP vcf (to annotate candidate variants)', default=None)
     parser.add_argument('--cosmic', type=str,
                         help='COSMIC vcf (to annotate candidate variants)', default=None)
-    parser.add_argument('--seq_complexity',
-                        help='Compute linguistic sequence complexity features',
+    parser.add_argument('--no_seq_complexity',
+                        help='Dont compute linguistic sequence complexity features',
                         action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
@@ -408,7 +408,7 @@ if __name__ == '__main__':
                                  args.reference, args.tumor_bam, args.normal_bam,
                                  args.min_mapq, args.min_bq,
                                  args.dbsnp, args.cosmic,
-                                 args.seq_complexity,
+                                 args.no_seq_complexity,
                                  args.num_threads,
                                  )
         if output is None:

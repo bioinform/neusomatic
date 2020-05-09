@@ -43,7 +43,7 @@ class AlignmentFeatures:
         qname_collector = defaultdict(list)
 
         for read_i in reads:
-            if read_i.is_unmapped or not dedup_test(read_i):
+            if read_i.is_unmapped or not dedup_test(read_i) or read_i.seq is None:
                 continue
 
             dp += 1

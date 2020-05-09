@@ -423,24 +423,29 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         normalize_channels = pretrained_dict["normalize_channels"]
     else:
         normalize_channels = False
-    if "seq_complexity" in pretrained_dict:
-        seq_complexity = pretrained_dict["seq_complexity"]
+    if "no_seq_complexity" in pretrained_dict:
+        no_seq_complexity = pretrained_dict["no_seq_complexity"]
     else:
-        seq_complexity = False
+        no_seq_complexity = True
 
     logger.info("coverage_thr: {}".format(coverage_thr))
     logger.info("normalize_channels: {}".format(normalize_channels))
-    logger.info("seq_complexity: {}".format(seq_complexity))
+    logger.info("no_seq_complexity: {}".format(no_seq_complexity))
 
     
     expected_ens_fields = NUM_ENS_FEATURES
-    if seq_complexity:
+    if not no_seq_complexity:
         expected_ens_fields += 2
+    
+    logger.info("expected_ens_fields: {}".format(expected_ens_fields))
+
     ensemble = False
-    with open(candidates_tsv[0]) as i_f:
-        x = i_f.readline().strip().split()
-        if len(x) == expected_ens_fields + 4:
-            ensemble = True
+    for tsv in candidates_tsv:
+        with open(tsv) as i_f:
+            x = i_f.readline().strip().split()
+            if len(x) == expected_ens_fields + 4:
+                ensemble = True
+                break
     num_channels = expected_ens_fields + \
         NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
 

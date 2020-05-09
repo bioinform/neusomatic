@@ -79,12 +79,12 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
 
 
 def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
-                            matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_bed, seq_complexity, 
+                            matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_bed, no_seq_complexity,
                             no_feature_recomp_for_ensemble, tsv_batch_size):
     logger = logging.getLogger(generate_dataset_region.__name__)
     generate_dataset(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, None, ensemble_bed,
-                     seq_complexity,
+                     no_seq_complexity,
                      no_feature_recomp_for_ensemble,
                      tsv_batch_size)
 
@@ -197,7 +197,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                ensemble_tsv, long_read, restart, first_do_without_qual,
                keep_duplicate,
                add_extra_features,
-               seq_complexity,
+               no_seq_complexity,
                no_feature_recomp_for_ensemble,
                num_threads,
                scan_alignments_binary,):
@@ -245,7 +245,8 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         ensemble_bed = os.path.join(work, "ensemble.bed")
         logger.info("Extract ensemble info.")
         if restart or not os.path.exists(ensemble_bed):
-            extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, no_feature_recomp_for_ensemble, False)
+            extract_ensemble([ensemble_tsv], ensemble_bed,
+                             no_seq_complexity, no_feature_recomp_for_ensemble, False)
 
     merge_d_for_short_read = 100
     candidates_split_regions = []
@@ -338,23 +339,38 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                 work_tumor_i = os.path.dirname(filtered_vcf)
                 extra_features_tsv = os.path.join(
                     work_tumor_i, "extra_features.tsv")
+                ex_tsvs = [extra_features_tsv]
                 if not os.path.exists(extra_features_tsv) or restart:
                     extend_features(filtered_vcf,
                                     ensemble_beds[
                                         i] if (ensemble_tsv and no_feature_recomp_for_ensemble) else None,
-                                    ensemble_beds[
-                                        i] if (ensemble_tsv and not no_feature_recomp_for_ensemble) else None,
+                                    None,
                                     extra_features_tsv,
                                     reference, tumor_bam, normal_bam,
                                     min_mapq, snp_min_bq,
                                     dbsnp, None,
-                                    seq_complexity,
+                                    no_seq_complexity,
                                     num_threads)
+                if ensemble_tsv and not no_feature_recomp_for_ensemble:
+                    extra_features_others_tsv = os.path.join(
+                        work_tumor_i, "extra_features_others.tsv")
+                    ex_tsvs.append(extra_features_others_tsv)
+                    if not os.path.exists(extra_features_others_tsv) or restart:
+                        extend_features(ensemble_beds[i],
+                                        extra_features_tsv,
+                                        None,
+                                        extra_features_others_tsv,
+                                        reference, tumor_bam, normal_bam,
+                                        min_mapq, snp_min_bq,
+                                        dbsnp, None,
+                                        no_seq_complexity,
+                                        num_threads)
+
                 extra_features_bed = os.path.join(
                     work_dataset_split, "extra_features.bed")
                 if not os.path.exists(extra_features_bed) or restart:
-                    extract_ensemble(extra_features_tsv,
-                                     extra_features_bed, seq_complexity, True, True)
+                    extract_ensemble(ex_tsvs,
+                                     extra_features_bed, no_seq_complexity, True, True)
                 if ensemble_tsv:
                     merged_features_bed = os.path.join(
                         work_dataset_split, "merged_features.bed")
@@ -436,9 +452,11 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                             order_header = []
                                             for f in header_caller_:
                                                 if f not in header_2:
-                                                    logger.info("Missing header field {}".format(f))
+                                                    logger.info(
+                                                        "Missing header field {}".format(f))
                                                     raise Exception
-                                                order_header.append(header_2.index(f))
+                                                order_header.append(
+                                                    header_2.index(f))
                                             o_f.write(line)
                                         header_2_found = True
 
@@ -460,7 +478,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
             generate_dataset_region(work_dataset_split, truth_vcf, mode, filtered_vcf,
                                     candidates_split_region, tumor_count, normal_count, reference,
                                     matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, num_threads,
-                                    ensemble_bed_i, seq_complexity, no_feature_recomp_for_ensemble, tsv_batch_size)
+                                    ensemble_bed_i, no_seq_complexity, no_feature_recomp_for_ensemble, tsv_batch_size)
 
     shutil.rmtree(bed_tempdir)
     tempfile.tempdir = original_tempdir
@@ -545,8 +563,8 @@ if __name__ == '__main__':
     parser.add_argument('--add_extra_features',
                         help='add extra input features',
                         action="store_true")
-    parser.add_argument('--seq_complexity',
-                        help='Compute linguistic sequence complexity features',
+    parser.add_argument('--no_seq_complexity',
+                        help='Dont compute linguistic sequence complexity features',
                         action="store_true")
     parser.add_argument('--no_feature_recomp_for_ensemble',
                         help='Do not recompute features for ensemble_tsv',
@@ -569,7 +587,7 @@ if __name__ == '__main__':
                    args.ensemble_tsv, args.long_read, args.restart, args.first_do_without_qual,
                    args.keep_duplicate,
                    args.add_extra_features,
-                   args.seq_complexity,
+                   args.no_seq_complexity,
                    args.no_feature_recomp_for_ensemble,
                    args.num_threads,
                    args.scan_alignments_binary)

@@ -826,7 +826,7 @@ def find_len(ref, alt):
 
 
 def find_records(input_record):
-    work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, seq_complexity, work_index = input_record
+    work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, no_seq_complexity, work_index = input_record
     thread_logger = logging.getLogger(
         "{} ({})".format(find_records.__name__, multiprocessing.current_process().name))
     try:
@@ -849,7 +849,7 @@ def find_records(input_record):
             work, "in_ensemble_{}.bed".format(work_index))
 
         num_ens_features = NUM_ENS_FEATURES
-        if seq_complexity:
+        if not no_seq_complexity:
             num_ens_features += 2
         bedtools_intersect(
             truth_vcf_file, split_bed, args=" -u", output_fn=split_truth_vcf_file, run_logger=thread_logger)
@@ -1326,7 +1326,7 @@ def find_records(input_record):
         return None
 
 
-def extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, enforce_header, is_extend):
+def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_header, is_extend):
     logger = logging.getLogger(extract_ensemble.__name__)
     ensemble_data = []
     ensemble_pos = []
@@ -1339,7 +1339,7 @@ def extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, enforce_header,
                          "if_TNscope", "Strelka_Score", "Strelka_QSS", "Strelka_TQSS", "VarScan2_Score", "SNVMix2_Score",
                          "Sniper_Score", "VarDict_Score", "if_dbsnp", "COMMON", "if_COSMIC", "COSMIC_CNT",
                          "Consistent_Mates", "Inconsistent_Mates"]
-    if seq_complexity:
+    if not no_seq_complexity:
         expected_features += ["Seq_Complexity_Span", "Seq_Complexity_Adj"]
 
     expected_features += ["N_DP", "nBAM_REF_MQ", "nBAM_ALT_MQ",
@@ -1366,37 +1366,42 @@ def extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, enforce_header,
                         "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "MSI", "MSILEN", "SHIFT3"]
 
     n_vars = 0
-    with open(ensemble_tsv) as s_f:
-        for line in skip_empty(s_f):
-            if line.startswith("CHROM"):
-                header_pos = line.strip().split()[0:5]
-                header_ = line.strip().split()[5:]
-                if is_extend:
-                    header_ += callers_features
-                header_en = list(filter(
-                    lambda x: x[1] in expected_features, enumerate(header_)))
-                header = list(map(lambda x: x[1], header_en))
-                if not enforce_header:
-                    expected_features = header
+    all_headers = set([])
+    for ensemble_tsv in ensemble_tsvs:
+        with open(ensemble_tsv) as s_f:
+            for line in skip_empty(s_f):
+                if line.startswith("CHROM"):
+                    all_headers.add(line)
+                    header_pos = line.strip().split()[0:5]
+                    header_ = line.strip().split()[5:]
+                    if is_extend:
+                        header_ += callers_features
+                    header_en = list(filter(
+                        lambda x: x[1] in expected_features, enumerate(header_)))
+                    header = list(map(lambda x: x[1], header_en))
+                    if not enforce_header:
+                        expected_features = header
 
-                if set(expected_features) - set(header):
-                    logger.error("The following features are missing from ensemble file {}: {}".format(
-                        ensemble_tsv,
-                        list(set(expected_features) - set(header))))
-                    raise Exception
-                order_header = []
-                for f in expected_features:
-                    order_header.append(header_en[header.index(f)][0])
-                continue
-            fields = line.strip().split()
-            fields[2] = str(int(fields[1]) + len(fields[3]))
-            ensemble_pos.append(fields[0:5])
-            features = fields[5:]
-            if is_extend:
-                features += ["0"] * len(callers_features)
-            ensemble_data.append(list(map(lambda x: float(
-                x.replace("False", "0").replace("True", "1")), features)))
-            n_vars += 1
+                    if set(expected_features) - set(header):
+                        logger.error("The following features are missing from ensemble file {}: {}".format(
+                            ensemble_tsv,
+                            list(set(expected_features) - set(header))))
+                        raise Exception
+                    order_header = []
+                    for f in expected_features:
+                        order_header.append(header_en[header.index(f)][0])
+                    continue
+                fields = line.strip().split()
+                fields[2] = str(int(fields[1]) + len(fields[3]))
+                ensemble_pos.append(fields[0:5])
+                features = fields[5:]
+                if is_extend:
+                    features += ["0"] * len(callers_features)
+                ensemble_data.append(list(map(lambda x: float(
+                    x.replace("False", "0").replace("True", "1")), features)))
+                n_vars += 1
+    if len(set(all_headers)) != 1:
+        raise(RuntimeError("inconsistent headers in {}".format(ensemble_tsvs)))
     if n_vars > 0:
         ensemble_data = np.array(ensemble_data)[:, order_header]
     header = np.array(header_)[order_header].tolist()
@@ -1479,7 +1484,7 @@ def extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, enforce_header,
                         [SiteHomopolymer_Length, 0, 50],
                         [InDel_Length, -30, 30],
                         ]
-    if seq_complexity:
+    if not no_seq_complexity:
         min_max_features.append([Seq_Complexity_, 0, 40])
 
     selected_features = sorted([i for f in min_max_features for i in f[0]])
@@ -1503,7 +1508,7 @@ def extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, enforce_header,
 
 def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
-                     ensemble_bed, seq_complexity, enforce_header, tsv_batch_size):
+                     ensemble_bed, no_seq_complexity, enforce_header, tsv_batch_size):
     logger = logging.getLogger(generate_dataset.__name__)
 
     logger.info("---------------------Generate Dataset----------------------")
@@ -1530,7 +1535,8 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     split_batch_size = 10000
     if ensemble_tsv and not ensemble_bed:
         ensemble_bed = os.path.join(work, "ensemble.bed")
-        extract_ensemble(ensemble_tsv, ensemble_bed, seq_complexity, enforce_header, False)
+        extract_ensemble([ensemble_tsv], ensemble_bed,
+                         no_seq_complexity, enforce_header, False)
 
     tmp_ = bedtools_intersect(
         tumor_pred_vcf_file, region_bed_file, args=" -u", run_logger=logger)
@@ -1557,7 +1563,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     map_args = []
     for i, split_region_file in enumerate(split_region_files):
         map_args.append((work, split_region_file, truth_vcf_file,
-                         tumor_pred_vcf_file, ref_file, ensemble_bed, seq_complexity, i))
+                         tumor_pred_vcf_file, ref_file, ensemble_bed, no_seq_complexity, i))
     try:
         records_data = pool.map_async(find_records, map_args).get()
         pool.close()
@@ -1742,8 +1748,8 @@ if __name__ == '__main__':
                         help='Ensemble annotation tsv file (only for short read)', default=None)
     parser.add_argument('--ensemble_bed', type=str,
                         help='Ensemble annotation bed file (only for short read)', default=None)
-    parser.add_argument('--seq_complexity',
-                        help='Compute linguistic sequence complexity features',
+    parser.add_argument('--no_seq_complexity',
+                        help='Dont compute linguistic sequence complexity features',
                         action="store_true")
     parser.add_argument('--enforce_header',
                         help='Enforce header match for ensemble_tsv',
@@ -1766,13 +1772,13 @@ if __name__ == '__main__':
     num_threads = args.num_threads
     ensemble_tsv = args.ensemble_tsv
     ensemble_bed = args.ensemble_bed
-    seq_complexity = args.seq_complexity
+    no_seq_complexity = args.no_seq_complexity
     tsv_batch_size = args.tsv_batch_size
 
     try:
         generate_dataset(work, truth_vcf_file, mode, tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                          matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
-                         ensemble_bed, seq_complexity, enforce_header, tsv_batch_size)
+                         ensemble_bed, no_seq_complexity, enforce_header, tsv_batch_size)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")

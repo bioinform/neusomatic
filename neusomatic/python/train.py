@@ -203,7 +203,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                      merged_candidates_per_tsv, merged_max_num_tsvs, overwrite_merged_tsvs,
                      train_split_len,
                      normalize_channels,
-                     seq_complexity,
+                     no_seq_complexity,
                      use_cuda):
     logger = logging.getLogger(train_neusomatic.__name__)
 
@@ -238,12 +238,12 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
             normalize_channels = False
         logger.info(
             "Override normalize_channels from pretrained checkpoint: {}".format(normalize_channels))
-        if "seq_complexity" in pretrained_dict:
-            seq_complexity = pretrained_dict["seq_complexity"]
+        if "no_seq_complexity" in pretrained_dict:
+            no_seq_complexity = pretrained_dict["no_seq_complexity"]
         else:
-            seq_complexity = False
+            no_seq_complexity = True
         logger.info(
-            "Override seq_complexity from pretrained checkpoint: {}".format(seq_complexity))
+            "Override no_seq_complexity from pretrained checkpoint: {}".format(no_seq_complexity))
         prev_epochs = sofar_epochs + 1
     else:
         prev_epochs = 0
@@ -252,14 +252,18 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
     logger.info("tag: {}".format(tag))
 
     expected_ens_fields = NUM_ENS_FEATURES
-    if seq_complexity:
+    if not no_seq_complexity:
         expected_ens_fields += 2
 
+    logger.info("expected_ens_fields: {}".format(expected_ens_fields))
+
     ensemble = False
-    with open(candidates_tsv[0]) as i_f:
-        x = i_f.readline().strip().split()
-        if len(x) == expected_ens_fields + 4:
-            ensemble = True
+    for tsv in candidates_tsv:
+        with open(tsv) as i_f:
+            x = i_f.readline().strip().split()
+            if len(x) == expected_ens_fields + 4:
+                ensemble = True
+                break
 
     num_channels = expected_ens_fields + \
         NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
@@ -418,7 +422,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "epoch": curr_epoch,
                 "coverage_thr": coverage_thr,
                 "normalize_channels": normalize_channels,
-                "seq_complexity": seq_complexity
+                "no_seq_complexity": no_seq_complexity
                 }, '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
 
     if len(train_sets) == 1:
@@ -484,7 +488,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                         "epoch": curr_epoch,
                         "coverage_thr": coverage_thr,
                         "normalize_channels": normalize_channels,
-                        "seq_complexity": seq_complexity,
+                        "no_seq_complexity": no_seq_complexity,
                         }, '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
             if validation_candidates_tsv:
                 test(net, curr_epoch, validation_loader, use_cuda)
@@ -503,7 +507,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "epoch": curr_epoch,
                 "coverage_thr": coverage_thr,
                 "normalize_channels": normalize_channels,
-                "seq_complexity": seq_complexity,
+                "no_seq_complexity": no_seq_complexity,
                 }, '{}/models/checkpoint_{}_epoch{}.pth'.format(
         out_dir, tag, curr_epoch))
     if validation_candidates_tsv:
@@ -578,8 +582,8 @@ if __name__ == '__main__':
                         help='normalize BQ, MQ, and other bam-info channels by frequency of observed alleles. \
                               Will be overridden if pretrained model is provided',
                         action="store_true")
-    parser.add_argument('--seq_complexity',
-                        help='Compute linguistic sequence complexity features',
+    parser.add_argument('--no_seq_complexity',
+                        help='Dont compute linguistic sequence complexity features',
                         action="store_true")
     args = parser.parse_args()
 
@@ -598,7 +602,7 @@ if __name__ == '__main__':
                                       args.merged_candidates_per_tsv, args.merged_max_num_tsvs,
                                       args.overwrite_merged_tsvs, args.train_split_len,
                                       args.normalize_channels,
-                                      args.seq_complexity,
+                                      args.no_seq_complexity,
                                       use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())
