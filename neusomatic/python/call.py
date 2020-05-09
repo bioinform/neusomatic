@@ -439,13 +439,23 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     
     logger.info("expected_ens_fields: {}".format(expected_ens_fields))
 
+    expected_st_fields = 4
+
+    logger.info("expected_st_fields: {}".format(expected_st_fields))
+
     ensemble = False
     for tsv in candidates_tsv:
         with open(tsv) as i_f:
             x = i_f.readline().strip().split()
-            if len(x) == expected_ens_fields + 4:
-                ensemble = True
-                break
+            if x:
+                if len(x) == expected_ens_fields + 4:
+                    ensemble = True
+                    break
+                elif len(x) == 4:
+                    break
+                else:
+                    raise Exception("Wrong number of fields in {}: {}".format(tsv, len(x)))
+
     num_channels = expected_ens_fields + \
         NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
 
