@@ -131,6 +131,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                  num_threads=1, disable_ensemble=False, data_augmentation=False,
                  nclasses_t=4, nclasses_l=4, coverage_thr=100,
                  normalize_channels=False,
+                 zero_ann_cols=[],
                  max_opended_tsv=-1):
 
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -141,6 +142,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             max_opended_tsv = min(max_opended_tsv, soft)
         self.max_opended_tsv = max_opended_tsv
         self.normalize_channels = normalize_channels
+        self.zero_ann_cols = zero_ann_cols
         self.da_shift_p = 0.3
         self.da_base_p = 0.05
         self.da_rev_p = 0.1
@@ -263,6 +265,11 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
 
         if self.disable_ensemble:
             anns = []
+
+        if self.zero_ann_cols and len(anns)>0:
+            anns=np.array(anns)
+            anns[self.zero_ann_cols] = 0
+            anns = anns.tolist()
 
         tag = path.split("/")[-1]
         _, _, _, _, vartype, center, length, tumor_cov, normal_cov = tag.split(

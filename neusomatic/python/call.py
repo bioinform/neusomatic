@@ -396,6 +396,7 @@ def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_thr
 
 def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     batch_size, max_load_candidates, pass_threshold, lowqual_threshold,
+                    force_zero_ann_cols,
                     use_cuda):
     logger = logging.getLogger(call_neusomatic.__name__)
 
@@ -427,10 +428,20 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         no_seq_complexity = pretrained_dict["no_seq_complexity"]
     else:
         no_seq_complexity = True
+    if "zero_ann_cols" in pretrained_dict:
+        zero_ann_cols = pretrained_dict["zero_ann_cols"]
+    else:
+        zero_ann_cols = []
+
+    if force_zero_ann_cols:
+        logger.info(
+            "Override zero_ann_cols from force_zero_ann_cols: {}".format(force_zero_ann_cols))
+        zero_ann_cols = force_zero_ann_cols
 
     logger.info("coverage_thr: {}".format(coverage_thr))
     logger.info("normalize_channels: {}".format(normalize_channels))
     logger.info("no_seq_complexity: {}".format(no_seq_complexity))
+    logger.info("zero_ann_cols: {}".format(zero_ann_cols))
 
     
     expected_ens_fields = NUM_ENS_FEATURES
@@ -554,7 +565,8 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                                          transform=data_transform, is_test=True,
                                          num_threads=num_threads,
                                          coverage_thr=coverage_thr,
-                                         normalize_channels=normalize_channels)
+                                         normalize_channels=normalize_channels,
+                                         zero_ann_cols=zero_ann_cols)
             call_loader = torch.utils.data.DataLoader(call_set,
                                                       batch_size=batch_size,
                                                       shuffle=True, pin_memory=True,
@@ -634,6 +646,11 @@ if __name__ == '__main__':
     parser.add_argument('--lowqual_threshold', type=float,
                         help='SCORE for LowQual (PASS for lowqual_threshold <= score < pass_threshold)',
                         default=0.4)
+    parser.add_argument('--force_zero_ann_cols', nargs="*", type=int,
+                        help='force columns to be set to zero in the annotations. Higher priority than \
+                              --zero_ann_cols and pretrained setting.\
+                              idx starts from 5th column in candidate.tsv file',
+                        default=[])
     args = parser.parse_args()
 
     use_cuda = torch.cuda.is_available()
@@ -644,6 +661,7 @@ if __name__ == '__main__':
                                      args.checkpoint,
                                      args.num_threads, args.batch_size, args.max_load_candidates,
                                      args.pass_threshold, args.lowqual_threshold,
+                                     args.force_zero_ann_cols,
                                      use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())

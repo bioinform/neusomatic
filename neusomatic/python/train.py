@@ -204,6 +204,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                      train_split_len,
                      normalize_channels,
                      no_seq_complexity,
+                     zero_ann_cols,
+                     force_zero_ann_cols,
                      use_cuda):
     logger = logging.getLogger(train_neusomatic.__name__)
 
@@ -244,12 +246,25 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
             no_seq_complexity = True
         logger.info(
             "Override no_seq_complexity from pretrained checkpoint: {}".format(no_seq_complexity))
+        if "zero_ann_cols" in pretrained_dict:
+            zero_ann_cols = pretrained_dict["zero_ann_cols"]
+        else:
+            zero_ann_cols = []
+        if not force_zero_ann_cols:
+            logger.info(
+                "Override zero_ann_cols from pretrained checkpoint: {}".format(zero_ann_cols))
         prev_epochs = sofar_epochs + 1
     else:
         prev_epochs = 0
         time_now = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
         tag = "neusomatic_{}".format(time_now)
     logger.info("tag: {}".format(tag))
+
+    if force_zero_ann_cols:
+        zero_ann_cols = force_zero_ann_cols
+        logger.info(
+            "Override zero_ann_cols from force_zero_ann_cols: {}".format(force_zero_ann_cols))
+
 
     expected_ens_fields = NUM_ENS_FEATURES
     if not no_seq_complexity:
@@ -354,7 +369,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                                           max_load_candidates * len(tsvs) / float(len(candidates_tsv))),
                                       transform=data_transform, is_test=False,
                                       num_threads=num_threads, coverage_thr=coverage_thr,
-                                      normalize_channels=normalize_channels)
+                                      normalize_channels=normalize_channels,
+                                      zero_ann_cols=zero_ann_cols)
         train_sets.append(train_set)
         none_indices = train_set.get_none_indices()
         var_indices = train_set.get_var_indices()
@@ -387,7 +403,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                                            max_load_candidates=max_load_candidates,
                                            transform=data_transform, is_test=True,
                                            num_threads=num_threads, coverage_thr=coverage_thr,
-                                           normalize_channels=normalize_channels)
+                                           normalize_channels=normalize_channels,
+                                           zero_ann_cols=zero_ann_cols)
         validation_loader = torch.utils.data.DataLoader(validation_set,
                                                         batch_size=batch_size, shuffle=True,
                                                         num_workers=num_threads, pin_memory=True)
@@ -431,7 +448,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "epoch": curr_epoch,
                 "coverage_thr": coverage_thr,
                 "normalize_channels": normalize_channels,
-                "no_seq_complexity": no_seq_complexity
+                "no_seq_complexity": no_seq_complexity,
+                "zero_ann_cols": zero_ann_cols,
                 }, '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
 
     if len(train_sets) == 1:
@@ -498,6 +516,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                         "coverage_thr": coverage_thr,
                         "normalize_channels": normalize_channels,
                         "no_seq_complexity": no_seq_complexity,
+                        "zero_ann_cols": zero_ann_cols,
                         }, '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
             if validation_candidates_tsv:
                 test(net, curr_epoch, validation_loader, use_cuda)
@@ -517,6 +536,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "coverage_thr": coverage_thr,
                 "normalize_channels": normalize_channels,
                 "no_seq_complexity": no_seq_complexity,
+                "zero_ann_cols": zero_ann_cols,
                 }, '{}/models/checkpoint_{}_epoch{}.pth'.format(
         out_dir, tag, curr_epoch))
     if validation_candidates_tsv:
@@ -594,6 +614,15 @@ if __name__ == '__main__':
     parser.add_argument('--no_seq_complexity',
                         help='Dont compute linguistic sequence complexity features',
                         action="store_true")
+    parser.add_argument('--zero_ann_cols', nargs="*", type=int,
+                        help='columns to be set to zero in the annotations \
+                              idx starts from 5th column in candidate.tsv file',
+                        default=[])
+    parser.add_argument('--force_zero_ann_cols', nargs="*", type=int,
+                        help='force columns to be set to zero in the annotations. Higher priority than \
+                              --zero_ann_cols and pretrained setting \
+                              idx starts from 5th column in candidate.tsv file',
+                        default=[])
     args = parser.parse_args()
 
     logger.info(args)
@@ -612,6 +641,8 @@ if __name__ == '__main__':
                                       args.overwrite_merged_tsvs, args.train_split_len,
                                       args.normalize_channels,
                                       args.no_seq_complexity,
+                                      args.zero_ann_cols,
+                                      args.force_zero_ann_cols,
                                       use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())
