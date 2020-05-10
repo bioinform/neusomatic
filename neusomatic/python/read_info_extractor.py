@@ -20,28 +20,28 @@ inf = float('inf')
 ### PYSAM ###
 
 
-def position_of_aligned_read(read_i, target_position):
+def position_of_aligned_read(read_i, target_position, win_size=3):
     '''
-    Return the base call of the target position, or if it's a start of insertion/deletion.
+    Return the base call of the target position, and if it's a start of insertion/deletion.
     This target position follows pysam convension, i.e., 0-based.
     In VCF files, deletions/insertions occur AFTER the position.
 
     Return (Code, seq_i, base_at_target, indel_length, nearest insertion/deletion)
 
-    The first number in result is a code:
-    1) Match to reference, which is either a reference read or a SNV/SNP
-    2) Deletion after the target position
-    3) Insertion after the target position
-    0) The target position does not match to reference, and may be discarded for "reference/alternate" read count purposes, but can be kept for "inconsistent read" metrics.
+    The first number in result is a codeMatch to reference on CIGAR, which is either a reference read or a SNV (substitution counts as M in CIGAR) to reference, which is either a reference read or a SNV/SNP
+        2: Deletion after the target position
+        3: Insertion after the target position
+        0: The target position does not match to reference, and may be discarded for "reference/alternate" read count purposes, but can be kept for "inconsistent read" metrics.
     '''
 
     flanking_deletion, flanking_insertion = nan, nan
-    aligned_pairs=read_i.get_aligned_pairs()
+    aligned_pairs = read_i.get_aligned_pairs()
     for i, align_i in enumerate(aligned_pairs):
 
         # If find a match:
         if align_i[1] == target_position:
             seq_i = align_i[0]
+            idx_aligned_pair = i
             break
 
     # If the target position is aligned:
@@ -99,27 +99,33 @@ def position_of_aligned_read(read_i, target_position):
             code = 0
             base_at_target, indel_length, flanking_indel = None, None, None
 
-        # See if there is insertion/deletion within 5 bp of "i":
+        # See if there is insertion/deletion within 5 bp of "seq_i" on the query.
+        # seq_i is the i_th aligned base
         if isinstance(indel_length, int):
-            flanking_indel = inf
-            left_side_start = seq_i
-            right_side_start = seq_i + abs(indel_length) + 1
-            switch = 1
-            for j in (3, 2, 1):
-                for indel_seeker_i in left_side_start, right_side_start:
+            right_indel_flanks = inf
+            left_indel_flanks = inf
+            left_side_start = idx_aligned_pair - 1
+            right_side_start = idx_aligned_pair + abs(indel_length) + 1
 
-                    switch = switch * -1
-                    displacement = j * switch
-                    seq_j = indel_seeker_i + displacement
+            #(i, None) = Insertion (or Soft-clips), i.e., means the i_th base in the query is not aligned to a reference
+            #(None, coordinate) = Deletion, i.e., there is no base in it that aligns to this coordinate.
+            # If those two scenarios occur right after an aligned base, that
+            # base position is counted as an indel.
+            for step_right_i in range(min(win_size, len(aligned_pairs) - right_side_start - 1)):
+                j = right_side_start + step_right_i
 
-                    if 0 <= seq_j < len(aligned_pairs):
+                if (aligned_pairs[j + 1][1] == None or aligned_pairs[j + 1][0] == None):
+                    right_indel_flanks = step_right_i + 1
+                    break
 
-                        # If the reference position has no base aligned to it, it's a deletion.
-                        # On the other hand, if the base has no reference base
-                        # aligned to it, it's an insertion.
-                        if aligned_pairs[seq_j][1] == None or aligned_pairs[seq_j][0] == None:
-                            flanking_indel = j
-                            break
+            for step_left_i in range(min(win_size, left_side_start)):
+                j = left_side_start - step_left_i
+
+                if (aligned_pairs[j][1] == None or aligned_pairs[j][0] == None):
+                    left_indel_flanks = step_left_i + 1
+                    break
+            flanking_indel = min(left_indel_flanks, right_indel_flanks)
+
         else:
             flanking_indel = None
 
