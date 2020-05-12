@@ -39,10 +39,10 @@ class ClusterReads:
         for i, read in enumerate(self.reads):
             for j in range(done_i + 1, n):
                 pos = variants[j][1]
-                if read.reference_start > pos:
+                if read.reference_start >= pos:
                     done_i += 1
                     continue
-                if pos < read.reference_end:
+                if pos <= read.reference_end:
                     self.var_reads[j].append(i)
     def get_var_reads(self, var_index):
         return [self.reads[i] for i in self.var_reads[var_index]]
