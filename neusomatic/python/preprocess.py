@@ -199,6 +199,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                add_extra_features,
                no_seq_complexity,
                no_feature_recomp_for_ensemble,
+               window_extend,
                num_threads,
                scan_alignments_binary,):
     logger = logging.getLogger(preprocess.__name__)
@@ -350,6 +351,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                     min_mapq, snp_min_bq,
                                     dbsnp, None,
                                     no_seq_complexity,
+                                    window_extend,
                                     num_threads)
                 if ensemble_tsv and not no_feature_recomp_for_ensemble:
                     extra_features_others_tsv = os.path.join(
@@ -364,6 +366,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                         min_mapq, snp_min_bq,
                                         dbsnp, None,
                                         no_seq_complexity,
+                                        window_extend,
                                         num_threads)
 
                 extra_features_bed = os.path.join(
@@ -569,6 +572,9 @@ if __name__ == '__main__':
     parser.add_argument('--no_feature_recomp_for_ensemble',
                         help='Do not recompute features for ensemble_tsv',
                         action="store_true")
+    parser.add_argument('--window_extend', type=int,
+                        help='window size for extending input features (should be in the order of readlength)',
+                         default=1000)
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     parser.add_argument('--scan_alignments_binary', type=str,
@@ -589,6 +595,7 @@ if __name__ == '__main__':
                    args.add_extra_features,
                    args.no_seq_complexity,
                    args.no_feature_recomp_for_ensemble,
+                   args.window_extend,
                    args.num_threads,
                    args.scan_alignments_binary)
     except Exception as e:

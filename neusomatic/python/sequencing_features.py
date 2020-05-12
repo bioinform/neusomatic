@@ -9,22 +9,54 @@ import genomic_file_handlers as genome
 from read_info_extractor import *
 from collections import defaultdict
 import fisher
+import logging
+
+FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+logging.basicConfig(level=logging.INFO, format=FORMAT)
+logger = logging.getLogger(__name__)
 
 nan = float('nan')
 
+
 def fisher_exact_test(mat):
-    return fisher.pvalue(mat[0][0],mat[0][1],mat[1][0],mat[1][1]).two_tail
+    return fisher.pvalue(mat[0][0], mat[0][1], mat[1][0], mat[1][1]).two_tail
+
+
+class ClusterReads:
+    def __init__(self, bam, variants):
+        self.chrom = variants[0][0]
+        self.min_pos = variants[0][1]
+        self.max_pos = variants[-1][1]
+        self.reads = []
+        for read_i in bam.fetch(self.chrom, self.min_pos - 1, self.max_pos):
+            if read_i.is_unmapped or not dedup_test(read_i) or read_i.seq is None:
+                continue
+            self.reads.append(read_i)
+
+        done_i = -1
+        n = len(variants)
+        self.var_reads = [[] for i in range(len(variants))]
+        for i, read in enumerate(self.reads):
+            for j in range(done_i + 1, n):
+                pos = variants[j][1]
+                if read.reference_start > pos:
+                    done_i += 1
+                    continue
+                if pos < read.reference_end:
+                    self.var_reads[j].append(i)
+    def get_var_reads(self, var_index):
+        return [self.reads[i] for i in self.var_reads[var_index]]
 
 
 class AlignmentFeatures:
-    def __init__(self, bam, my_coordinate, ref_base, first_alt, min_mq=1, min_bq=10):
+
+    def __init__(self, reads, my_coordinate, ref_base, first_alt, min_mq=1, min_bq=10):
         '''
         bam is the opened file handle of bam file
         my_coordiate is a list or tuple of 0-based (contig, position)
-        '''  
-              
+        '''
+
         indel_length = len(first_alt) - len(ref_base)
-        reads = bam.fetch(my_coordinate[0], my_coordinate[1] - 1, my_coordinate[1])
 
         # index 0 for ref, 1 for alt
         read_mq = [[], []]
@@ -59,8 +91,8 @@ class AlignmentFeatures:
 
             is_ref_call = code_i == 1 and base_call_i == ref_base[0]
             is_alt_call = (indel_length == 0 and code_i == 1 and base_call_i == first_alt) or (
-                        indel_length < 0 and code_i == 2 and indel_length == indel_length_i) or (
-                                      indel_length > 0 and code_i == 3)
+                indel_length < 0 and code_i == 2 and indel_length == indel_length_i) or (
+                indel_length > 0 and code_i == 3)
 
             # inconsistent read or second alternate calls
             if not (is_ref_call or is_alt_call):
@@ -81,22 +113,27 @@ class AlignmentFeatures:
                 pass
 
             if read_i.mapping_quality >= min_mq and read_i.query_qualities[ith_base] >= min_bq:
-                concordance_counts[0 if read_i.is_proper_pair else 1][index] += 1
+                concordance_counts[
+                    0 if read_i.is_proper_pair else 1][index] += 1
                 orientation_counts[1 if read_i.is_reverse else 0][index] += 1
 
-            is_soft_clipped = read_i.cigar[0][0] == cigar_soft_clip or read_i.cigar[-1][0] == cigar_soft_clip
+            is_soft_clipped = read_i.cigar[0][
+                0] == cigar_soft_clip or read_i.cigar[-1][0] == cigar_soft_clip
             soft_clip_counts[1 if is_soft_clipped else 0][index] += 1
 
             # Distance from the end of the read:
             if ith_base is not None:
-                pos_from_end[index].append(min(ith_base, read_i.query_length - ith_base))
+                pos_from_end[index].append(
+                    min(ith_base, read_i.query_length - ith_base))
 
             flanking_indel[index].append(flanking_indel_i)
 
         # unpack to get the ref and alt values
         ref_pos_from_end, alt_pos_from_end = pos_from_end
-        self.ref_concordant_reads, self.alt_concordant_reads = concordance_counts[0]
-        self.ref_discordant_reads, self.alt_discordant_reads = concordance_counts[1]
+        self.ref_concordant_reads, self.alt_concordant_reads = concordance_counts[
+            0]
+        self.ref_discordant_reads, self.alt_discordant_reads = concordance_counts[
+            1]
         self.ref_for, self.alt_for = orientation_counts[0]
         self.ref_rev, self.alt_rev = orientation_counts[1]
         self.ref_notSC_reads, self.alt_notSC_reads = soft_clip_counts[0]
@@ -116,14 +153,16 @@ class AlignmentFeatures:
         ref_edit_distance, alt_edit_distance = edit_distance
         self.ref_NM = mean(ref_edit_distance)
         self.alt_NM = mean(alt_edit_distance)
-        self.z_ranksums_NM = stats.ranksums(alt_edit_distance, ref_edit_distance)[0]
+        self.z_ranksums_NM = stats.ranksums(
+            alt_edit_distance, ref_edit_distance)[0]
         self.NM_Diff = self.alt_NM - self.ref_NM - abs(indel_length)
 
         self.concordance_fet = fisher_exact_test(concordance_counts)
         self.strandbias_fet = fisher_exact_test(orientation_counts)
         self.clipping_fet = fisher_exact_test(soft_clip_counts)
 
-        self.z_ranksums_endpos = stats.ranksums(alt_pos_from_end, ref_pos_from_end)[0]
+        self.z_ranksums_endpos = stats.ranksums(
+            alt_pos_from_end, ref_pos_from_end)[0]
 
         ref_flanking_indel, alt_flanking_indel = flanking_indel
         self.ref_indel_1bp = ref_flanking_indel.count(1)
@@ -224,24 +263,27 @@ def somaticOddRatio(n_ref, n_alt, t_ref, t_alt, max_value=100):
 
     return sor
 
+
 def max_sub_vocabularies(seq_length, max_subseq_length):
     # According to:
     # https://doi.org/10.1093/bioinformatics/18.5.679
     # capping the length of sub_string as an input parameter
     assert max_subseq_length <= seq_length
-    
+
     counts = 0
     k = 1
     while k <= max_subseq_length:
-        
+
         if 4**k < (seq_length - k + 1):
             counts = counts + 4**k
         else:
-            counts = counts + (2*seq_length - k - max_subseq_length + 2) * (max_subseq_length - k + 1)/2
+            counts = counts + \
+                (2 * seq_length - k - max_subseq_length + 2) * \
+                (max_subseq_length - k + 1) / 2
             break
-        
+
         k += 1
-                
+
     return counts
 
 
@@ -250,20 +292,22 @@ def subLC(sequence, max_substring_length=20):
     # https://doi.org/10.1093/bioinformatics/18.5.679
     # Cut off substring at a fixed length
     sequence = sequence.upper()
-    
+
     if not 'N' in sequence:
-        
-        number_of_subseqs     = 0
-        seq_length            = len(sequence)
-        max_number_of_subseqs = max_sub_vocabularies(seq_length, max_substring_length)
-        
+
+        number_of_subseqs = 0
+        seq_length = len(sequence)
+        max_number_of_subseqs = max_sub_vocabularies(
+            seq_length, max_substring_length)
+
         set_of_seq_n = set()
-        for i in range(1, min(max_substring_length+1, seq_length+1) ):
-            set_of_seq_n.update((sequence[n: n+i] for n in range(len(sequence) - i + 1)))
-        
-        number_of_subseqs  = len(set_of_seq_n)
-        lc = number_of_subseqs/max_number_of_subseqs
-    
+        for i in range(1, min(max_substring_length + 1, seq_length + 1)):
+            set_of_seq_n.update((sequence[n: n + i]
+                                 for n in range(len(sequence) - i + 1)))
+
+        number_of_subseqs = len(set_of_seq_n)
+        lc = number_of_subseqs / max_number_of_subseqs
+
     else:
         lc = float('nan')
 
