@@ -51,7 +51,7 @@ class ClusterReads:
         self.aligned_pairs = []
         for i, read in enumerate(self.reads):
             if i not in unused_reads:
-                self.aligned_pairs.append(np.array(read.get_aligned_pairs()))
+                self.aligned_pairs.append(read.get_aligned_pairs())
             else:
                 self.aligned_pairs.append(None)
 

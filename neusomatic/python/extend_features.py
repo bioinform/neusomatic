@@ -363,10 +363,7 @@ def extend_features(candidates_vcf,
                    "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp", "InDel_Length"])
 
     try:
-        ext_features = []
-        for w in map_args:
-            ext_features.append(extract_features(w))
-        # ext_features = pool.map_async(extract_features, map_args).get()
+        ext_features = pool.map_async(extract_features, map_args).get()
         pool.close()
         with open(output_tsv, "w") as o_f:
             o_f.write("\t".join(header) + "\n")
