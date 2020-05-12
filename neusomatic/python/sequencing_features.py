@@ -24,6 +24,7 @@ def fisher_exact_test(mat):
 
 class ClusterReads:
     def __init__(self, bam, variants):
+        self.variants = variants
         self.chrom = variants[0][0]
         self.min_pos = variants[0][1]
         self.max_pos = variants[-1][1]
@@ -44,17 +45,33 @@ class ClusterReads:
                     continue
                 if pos <= read.reference_end:
                     self.var_reads[j].append(i)
-    def get_var_reads(self, var_index):
-        return [self.reads[i] for i in self.var_reads[var_index]]
+        unused_reads = set(range(len(self.reads)))-set([i for j in self.var_reads for i in j])
+        for i in unused_reads:
+            self.reads[i] = None
+        self.aligned_pairs = []
+        for i, read in enumerate(self.reads):
+            if i not in unused_reads:
+                self.aligned_pairs.append(np.array(read.get_aligned_pairs()))
+            else:
+                self.aligned_pairs.append(None)
 
 
-class AlignmentFeatures:
-
-    def __init__(self, reads, my_coordinate, ref_base, first_alt, min_mq=1, min_bq=10):
+    def get_alignment_features(self, var_index, ref_base, first_alt, min_mq=1, min_bq=10):
         '''
         bam is the opened file handle of bam file
         my_coordiate is a list or tuple of 0-based (contig, position)
         '''
+        my_coordinate = self.variants[var_index][0:2]
+        reads = [self.reads[i] for i in self.var_reads[var_index]]
+        aligned_pairs = [self.aligned_pairs[i] for i in self.var_reads[var_index]]
+        bamfeatures = AlignmentFeatures(reads, aligned_pairs, my_coordinate, ref_base, first_alt, min_mq, min_bq)
+
+        return bamfeatures
+
+
+class AlignmentFeatures:
+
+    def __init__(self, reads, aligned_pairs, my_coordinate, ref_base, first_alt, min_mq=1, min_bq=10):
 
         indel_length = len(first_alt) - len(ref_base)
 
@@ -74,14 +91,13 @@ class AlignmentFeatures:
 
         qname_collector = defaultdict(list)
 
-        for read_i in reads:
+        for read_i,aligned_pair in zip(reads,aligned_pairs):
             if read_i.is_unmapped or not dedup_test(read_i) or read_i.seq is None:
                 continue
-
             dp += 1
 
             code_i, ith_base, base_call_i, indel_length_i, flanking_indel_i = position_of_aligned_read(
-                read_i, my_coordinate[1] - 1)
+                read_i, aligned_pair, my_coordinate[1] - 1)
 
             if read_i.mapping_quality < min_mq and mean(read_i.query_qualities) < min_bq:
                 poor_read_count += 1

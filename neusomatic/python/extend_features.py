@@ -32,16 +32,14 @@ def extract_features(candidate_record):
 
         ext_features = []
         for nei_cluster in batch:
-            t_cluster_reads = sequencing_features.ClusterReads(tbam, nei_cluster)
             n_cluster_reads = sequencing_features.ClusterReads(nbam, nei_cluster)
+            t_cluster_reads = sequencing_features.ClusterReads(tbam, nei_cluster)
             for var_i, [chrom, pos, ref, alt, if_cosmic, num_cosmic_cases] in enumerate(nei_cluster):
                 var_id = "-".join([chrom, str(pos), ref, alt])
                 pos = int(pos)
                 my_coordinate = [chrom, pos]
-                nBamFeatures = sequencing_features.AlignmentFeatures(
-                    n_cluster_reads.get_var_reads(var_i), my_coordinate, ref, alt, min_mapq, min_bq)
-                tBamFeatures = sequencing_features.AlignmentFeatures(
-                    t_cluster_reads.get_var_reads(var_i), my_coordinate, ref, alt, min_mapq, min_bq)
+                nBamFeatures = n_cluster_reads.get_alignment_features(var_i, ref, alt, min_mapq, min_bq)
+                tBamFeatures = t_cluster_reads.get_alignment_features(var_i, ref, alt, min_mapq, min_bq)
 
                 sor = sequencing_features.somaticOddRatio(nBamFeatures.nref, nBamFeatures.nalt, tBamFeatures.nref,
                                                           tBamFeatures.nalt)

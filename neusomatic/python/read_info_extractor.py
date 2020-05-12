@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 
 import re
+import logging
+import numpy as np
+
+FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+logging.basicConfig(level=logging.INFO, format=FORMAT)
+logger = logging.getLogger(__name__)
 
 cigar_aln_match = 0
 cigar_insertion = 1
@@ -19,8 +25,7 @@ inf = float('inf')
 
 ### PYSAM ###
 
-
-def position_of_aligned_read(read_i, target_position, win_size=3):
+def position_of_aligned_read(read_i, aligned_pairs, target_position, win_size=3):
     '''
     Return the base call of the target position, and if it's a start of insertion/deletion.
     This target position follows pysam convension, i.e., 0-based.
@@ -33,9 +38,18 @@ def position_of_aligned_read(read_i, target_position, win_size=3):
         3: Insertion after the target position
         0: The target position does not match to reference, and may be discarded for "reference/alternate" read count purposes, but can be kept for "inconsistent read" metrics.
     '''
-
     flanking_deletion, flanking_insertion = nan, nan
-    aligned_pairs = read_i.get_aligned_pairs()
+    # i_match = np.where(aligned_pairs[:,1]==target_position)[0]
+    # if len(i_match)>0:
+    #     # If find a match:
+    #     seq_i=aligned_pairs[i_match[0],0]
+    #     idx_aligned_pair = i_match[0]
+    #     i = i_match[0]
+    # else:
+    #     seq_i = None
+    #     idx_aligned_pair = None
+    #     i = aligned_pairs.shape[0]-1
+
     for i, align_i in enumerate(aligned_pairs):
 
         # If find a match:
@@ -44,6 +58,11 @@ def position_of_aligned_read(read_i, target_position, win_size=3):
             idx_aligned_pair = i
             break
 
+    # logger.info([aligned_pairs.shape,i_match,seq_i,idx_aligned_pair,seq_i_,idx_aligned_pair_])
+    # assert(i==i_)
+    # assert(seq_i==seq_i_)
+    # assert(idx_aligned_pair==idx_aligned_pair_)
+    # aaa
     # If the target position is aligned:
     try:
         if seq_i is not None:
