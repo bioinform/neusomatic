@@ -21,6 +21,45 @@ nan = float('nan')
 def fisher_exact_test(mat):
     return fisher.pvalue(mat[0][0], mat[0][1], mat[1][0], mat[1][1]).two_tail
 
+def get_read_pos_for_ref_pos(read, ref_pos_s):
+    cigartuples = read.cigartuples
+    pos_r = read.reference_start
+    current_i = 0
+    output = {}
+    while current_i < len(ref_pos_s):
+        if pos_r > ref_pos_s[current_i] or not cigartuples:
+            output[ref_pos_s[current_i]]=[None, None]
+            current_i +=1
+        else:
+            break
+    if current_i >= len(ref_pos_s):
+        return output
+    cigar_aligned = [cigar_aln_match, cigar_seq_match, cigar_seq_mismatch]
+    cigar_s = 1 if cigartuples[0][0] == cigar_soft_clip else 0
+    cigar_e = (len(cigartuples) - 1) if cigartuples[-1][0] == cigar_soft_clip else len(cigartuples)
+    count = pos_q = cigartuples[0][1] if cigar_s == 1 else 0
+    cigar_index = cigar_s
+    for op, length in cigartuples[cigar_s: cigar_e]:
+        is_aligned = op == 0 or op >= 7
+        delta_r = length if (is_aligned or op == cigar_deletion) else 0
+        delta_q = length if (is_aligned or op == cigar_insertion) else 0
+        while current_i < len(ref_pos_s):
+            diff = ref_pos_s[current_i] - pos_r
+            if diff < delta_r:
+                output[ref_pos_s[current_i]]=[count + diff, (pos_q + diff) if delta_q else None]
+                current_i +=1
+            else:
+                break
+        if current_i >= len(ref_pos_s):
+            return output
+        count += max(delta_r, delta_q)
+        pos_r += delta_r
+        pos_q += delta_q
+        cigar_index += 1
+    while current_i < len(ref_pos_s):
+        output[ref_pos_s[current_i]]=[None, None]
+        current_i +=1
+    return output
 
 class ClusterReads:
     def __init__(self, bam, variants):
@@ -37,6 +76,7 @@ class ClusterReads:
         done_i = -1
         n = len(variants)
         self.var_reads = [[] for i in range(len(variants))]
+        self.read_vars = [[] for i in range(len(self.reads))]
         for i, read in enumerate(self.reads):
             for j in range(done_i + 1, n):
                 pos = variants[j][1]
@@ -45,6 +85,7 @@ class ClusterReads:
                     continue
                 if pos <= read.reference_end:
                     self.var_reads[j].append(i)
+                    self.read_vars[i].append(j)
         unused_reads = set(range(len(self.reads)))-set([i for j in self.var_reads for i in j])
         for i in unused_reads:
             self.reads[i] = None
@@ -54,6 +95,13 @@ class ClusterReads:
                 self.aligned_pairs.append(read.get_aligned_pairs())
             else:
                 self.aligned_pairs.append(None)
+        self.read_pos_for_ref_pos = []
+        for i, read in enumerate(self.reads):
+            if i not in unused_reads:
+                self.read_pos_for_ref_pos.append(get_read_pos_for_ref_pos(read, 
+                    [self.variants[j][1]-1 for j in self.read_vars[i]]))
+            else:
+                self.read_pos_for_ref_pos.append(None)
 
 
     def get_alignment_features(self, var_index, ref_base, first_alt, min_mq=1, min_bq=10):
@@ -64,14 +112,15 @@ class ClusterReads:
         my_coordinate = self.variants[var_index][0:2]
         reads = [self.reads[i] for i in self.var_reads[var_index]]
         aligned_pairs = [self.aligned_pairs[i] for i in self.var_reads[var_index]]
-        bamfeatures = AlignmentFeatures(reads, aligned_pairs, my_coordinate, ref_base, first_alt, min_mq, min_bq)
+        read_pos_for_ref_pos_s = [self.read_pos_for_ref_pos[i][my_coordinate[1]-1] for i in self.var_reads[var_index]]
+        bamfeatures = AlignmentFeatures(reads, aligned_pairs, read_pos_for_ref_pos_s, my_coordinate, ref_base, first_alt, min_mq, min_bq)
 
         return bamfeatures
 
 
 class AlignmentFeatures:
 
-    def __init__(self, reads, aligned_pairs, my_coordinate, ref_base, first_alt, min_mq=1, min_bq=10):
+    def __init__(self, reads, aligned_pairs, read_pos_for_ref_pos_s, my_coordinate, ref_base, first_alt, min_mq=1, min_bq=10):
 
         indel_length = len(first_alt) - len(ref_base)
 
@@ -91,13 +140,13 @@ class AlignmentFeatures:
 
         qname_collector = defaultdict(list)
 
-        for read_i,aligned_pair in zip(reads,aligned_pairs):
+        for read_i, aligned_pair, read_pos_for_ref_pos in zip(reads,aligned_pairs,read_pos_for_ref_pos_s):
             if read_i.is_unmapped or not dedup_test(read_i) or read_i.seq is None:
                 continue
             dp += 1
 
             code_i, ith_base, base_call_i, indel_length_i, flanking_indel_i = position_of_aligned_read(
-                read_i, aligned_pair, my_coordinate[1] - 1)
+                read_i, aligned_pair, read_pos_for_ref_pos, my_coordinate[1] - 1)
 
             if read_i.mapping_quality < min_mq and mean(read_i.query_qualities) < min_bq:
                 poor_read_count += 1

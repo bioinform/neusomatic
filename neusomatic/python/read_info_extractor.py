@@ -25,7 +25,7 @@ inf = float('inf')
 
 ### PYSAM ###
 
-def position_of_aligned_read(read_i, aligned_pairs, target_position, win_size=3):
+def position_of_aligned_read(read_i, aligned_pairs, read_pos_for_ref_pos, target_position, win_size=3):
     '''
     Return the base call of the target position, and if it's a start of insertion/deletion.
     This target position follows pysam convension, i.e., 0-based.
@@ -39,14 +39,8 @@ def position_of_aligned_read(read_i, aligned_pairs, target_position, win_size=3)
         0: The target position does not match to reference, and may be discarded for "reference/alternate" read count purposes, but can be kept for "inconsistent read" metrics.
     '''
     flanking_deletion, flanking_insertion = nan, nan
-    for i, align_i in enumerate(aligned_pairs):
 
-        # If find a match:
-        if align_i[1] == target_position:
-            seq_i = align_i[0]
-            idx_aligned_pair = i
-            break
-
+    idx_aligned_pair, seq_i = read_pos_for_ref_pos #get_read_pos_for_ref_pos(read_i, target_position)
     # If the target position is aligned:
     try:
         if seq_i is not None:
@@ -55,22 +49,22 @@ def position_of_aligned_read(read_i, aligned_pairs, target_position, win_size=3)
             # Whether if it's a Deletion/Insertion depends on what happens after this position:
             # If the match (i.e., i, seq_i) is the final alignment, then you cannot know if it's an indel
             # if "i" is NOT the final alignment:
-            if i != len(aligned_pairs) - 1:
+            if idx_aligned_pair != len(aligned_pairs) - 1:
 
                 indel_length = 0
                 # If the next alignment is the next sequenced base, then the
                 # target is either a reference read of a SNP/SNV:
-                if aligned_pairs[i + 1][0] == seq_i + 1 and aligned_pairs[i + 1][1] == target_position + 1:
+                if aligned_pairs[idx_aligned_pair + 1][0] == seq_i + 1 and aligned_pairs[idx_aligned_pair + 1][1] == target_position + 1:
 
                     code = 1  # Reference read for mismatch
 
                 # If the next reference position has no read position to it, it
                 # is DELETED in this read:
-                elif aligned_pairs[i + 1][0] == None and aligned_pairs[i + 1][1] == target_position + 1:
+                elif aligned_pairs[idx_aligned_pair + 1][0] == None and aligned_pairs[idx_aligned_pair + 1][1] == target_position + 1:
 
                     code = 2  # Deletion
 
-                    for align_j in aligned_pairs[i + 1::]:
+                    for align_j in aligned_pairs[idx_aligned_pair + 1::]:
                         if align_j[0] == None:
                             indel_length -= 1
                         else:
@@ -81,11 +75,11 @@ def position_of_aligned_read(read_i, aligned_pairs, target_position, win_size=3)
                 # the inserted sequence is "too long" to align on a single
                 # read. In this case, the inserted length derived here is but a
                 # lower limit of the real inserted length.
-                elif aligned_pairs[i + 1][0] == seq_i + 1 and aligned_pairs[i + 1][1] == None:
+                elif aligned_pairs[idx_aligned_pair + 1][0] == seq_i + 1 and aligned_pairs[idx_aligned_pair + 1][1] == None:
 
                     code = 3  # Insertion or soft-clipping
 
-                    for align_j in aligned_pairs[i + 1::]:
+                    for align_j in aligned_pairs[idx_aligned_pair + 1::]:
                         if align_j[1] == None:
                             indel_length += 1
                         else:

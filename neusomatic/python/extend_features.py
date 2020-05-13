@@ -323,14 +323,14 @@ def extend_features(candidates_vcf,
         if curr_pos is None:
             curr_pos = [chrom, pos]
             nei_cluster = [[chrom, pos, ref, alt, if_cosmic, num_cosmic_cases]]
-            continue
-        if chrom == curr_pos[0] and abs(curr_pos[1]-pos)<window_extend:
-            nei_cluster.append([chrom, pos, ref, alt, if_cosmic, num_cosmic_cases])
         else:
-            batch.append(nei_cluster)
-            n_batch += len(nei_cluster)
-            curr_pos = [chrom, pos]
-            nei_cluster = [[chrom, pos, ref, alt, if_cosmic, num_cosmic_cases]]
+            if chrom == curr_pos[0] and abs(curr_pos[1]-pos)<window_extend:
+                nei_cluster.append([chrom, pos, ref, alt, if_cosmic, num_cosmic_cases])
+            else:
+                batch.append(nei_cluster)
+                n_batch += len(nei_cluster)
+                curr_pos = [chrom, pos]
+                nei_cluster = [[chrom, pos, ref, alt, if_cosmic, num_cosmic_cases]]
         if n_batch >= split_len or i == n_variants-1:
             if i == n_variants-1:
                 batch.append(nei_cluster)
