@@ -75,7 +75,12 @@ class AugmentedAlignedRead:
         self.qname = read.qname
         self.vars_pos = vars_pos
         self.read_pos_for_ref_pos = get_read_pos_for_ref_pos(read, vars_pos)
-        self.aligned_pairs = read.get_aligned_pairs()
+        self.pos_of_aligned_read = {}
+        for pos in vars_pos:
+            code_i, ith_base, base_call_i, indel_length_i, flanking_indel_i = position_of_aligned_read(
+                read.get_aligned_pairs(), self.read_pos_for_ref_pos[pos], pos)
+            self.pos_of_aligned_read[pos] = [
+                code_i, ith_base, base_call_i, indel_length_i, flanking_indel_i]
         self.mapping_quality = read.mapping_quality
         self.mean_query_qualities = mean(read.query_qualities)
         self.is_proper_pair = read.is_proper_pair
@@ -96,8 +101,6 @@ class ClusterReads:
         self.reads = []
         n = len(variants)
         self.var_reads = [[] for i in range(len(variants))]
-        self.read_pos_for_ref_pos = []
-        self.aligned_pairs = []
         done_j = -1
         i = 0
         for read_i in bam.fetch(self.chrom, self.min_pos - 1, self.max_pos):
@@ -156,8 +159,8 @@ class AlignmentFeatures:
             dp += 1
             read_pos_for_ref_pos = read_i.read_pos_for_ref_pos[
                 my_coordinate[1] - 1]
-            code_i, ith_base, base_call_i, indel_length_i, flanking_indel_i = position_of_aligned_read(
-                read_i.aligned_pairs, read_pos_for_ref_pos, my_coordinate[1] - 1)
+            code_i, ith_base, base_call_i, indel_length_i, flanking_indel_i = read_i.pos_of_aligned_read[
+                my_coordinate[1] - 1]
             read_i_qual_ith_base = read_pos_for_ref_pos[3]
 
             if read_i.mapping_quality < min_mq and read_i.mean_query_qualities < min_bq:
