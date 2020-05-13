@@ -200,6 +200,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                no_seq_complexity,
                no_feature_recomp_for_ensemble,
                window_extend,
+               max_cluster_size,
                num_splits,
                num_threads,
                scan_alignments_binary,):
@@ -353,6 +354,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                     dbsnp, None,
                                     no_seq_complexity,
                                     window_extend,
+                                    max_cluster_size,
                                     num_threads)
                 if ensemble_tsv and not no_feature_recomp_for_ensemble:
                     extra_features_others_tsv = os.path.join(
@@ -368,6 +370,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                         dbsnp, None,
                                         no_seq_complexity,
                                         window_extend,
+                                        max_cluster_size,
                                         num_threads)
 
                 extra_features_bed = os.path.join(
@@ -576,6 +579,9 @@ if __name__ == '__main__':
     parser.add_argument('--window_extend', type=int,
                         help='window size for extending input features (should be in the order of readlength)',
                          default=1000)
+    parser.add_argument('--max_cluster_size', type=int,
+                        help='max cluster size for extending input features (should be in the order of readlength)',
+                         default=300)
     parser.add_argument('--num_splits', type=int,
                         help='number of region splits', default=None)
     parser.add_argument('--num_threads', type=int,
@@ -599,6 +605,7 @@ if __name__ == '__main__':
                    args.no_seq_complexity,
                    args.no_feature_recomp_for_ensemble,
                    args.window_extend,
+                   args.max_cluster_size,
                    args.num_splits,
                    args.num_threads,
                    args.scan_alignments_binary)

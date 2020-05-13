@@ -32,14 +32,18 @@ def extract_features(candidate_record):
 
         ext_features = []
         for nei_cluster in batch:
-            n_cluster_reads = sequencing_features.ClusterReads(nbam, nei_cluster)
-            t_cluster_reads = sequencing_features.ClusterReads(tbam, nei_cluster)
+            n_cluster_reads = sequencing_features.ClusterReads(
+                nbam, nei_cluster)
+            t_cluster_reads = sequencing_features.ClusterReads(
+                tbam, nei_cluster)
             for var_i, [chrom, pos, ref, alt, if_cosmic, num_cosmic_cases] in enumerate(nei_cluster):
                 var_id = "-".join([chrom, str(pos), ref, alt])
                 pos = int(pos)
                 my_coordinate = [chrom, pos]
-                nBamFeatures = n_cluster_reads.get_alignment_features(var_i, ref, alt, min_mapq, min_bq)
-                tBamFeatures = t_cluster_reads.get_alignment_features(var_i, ref, alt, min_mapq, min_bq)
+                nBamFeatures = n_cluster_reads.get_alignment_features(
+                    var_i, ref, alt, min_mapq, min_bq)
+                tBamFeatures = t_cluster_reads.get_alignment_features(
+                    var_i, ref, alt, min_mapq, min_bq)
 
                 sor = sequencing_features.somaticOddRatio(nBamFeatures.nref, nBamFeatures.nalt, tBamFeatures.nref,
                                                           tBamFeatures.nalt)
@@ -207,6 +211,7 @@ def extend_features(candidates_vcf,
                     dbsnp, cosmic,
                     no_seq_complexity,
                     window_extend,
+                    max_cluster_size,
                     num_threads):
 
     logger = logging.getLogger(extend_features.__name__)
@@ -279,7 +284,7 @@ def extend_features(candidates_vcf,
                 var_id = "-".join([chrom, pos, ref, alt])
                 add_vars.add(var_id)
 
-    all_variants=[]
+    all_variants = []
     with open(candidates_vcf) as i_f:
         for line in skip_empty(i_f):
             chrom, pos, _, ref, alt = line.strip().split("\t")[0:5]
@@ -295,7 +300,8 @@ def extend_features(candidates_vcf,
             if cosmic and var_id in cosmic_vars:
                 if_cosmic = 1
                 num_cosmic_cases = cosmic_vars[var_id]
-            all_variants.append([chrom, int(pos), ref, alt, if_cosmic, num_cosmic_cases])
+            all_variants.append(
+                [chrom, int(pos), ref, alt, if_cosmic, num_cosmic_cases])
 
     if add_variants and len(add_vars) > 0:
         for var_id in add_vars - set(exclude_vars):
@@ -307,9 +313,11 @@ def extend_features(candidates_vcf,
             if cosmic and var_id in cosmic_vars:
                 if_cosmic = 1
                 num_cosmic_cases = cosmic_vars[var_id]
-            all_variants.append([chrom, int(pos), ref, alt, if_cosmic, num_cosmic_cases])
+            all_variants.append(
+                [chrom, int(pos), ref, alt, if_cosmic, num_cosmic_cases])
 
-    all_variants = sorted(all_variants,key=lambda x:[chrom_order[x[0]],x[1]])
+    all_variants = sorted(all_variants, key=lambda x: [
+                          chrom_order[x[0]], x[1]])
     n_variants = len(all_variants)
     logger.info("Number of variants: {}".format(n_variants))
     split_len = (n_variants + num_threads - 1) // num_threads
@@ -324,15 +332,17 @@ def extend_features(candidates_vcf,
             curr_pos = [chrom, pos]
             nei_cluster = [[chrom, pos, ref, alt, if_cosmic, num_cosmic_cases]]
         else:
-            if chrom == curr_pos[0] and abs(curr_pos[1]-pos)<window_extend:
-                nei_cluster.append([chrom, pos, ref, alt, if_cosmic, num_cosmic_cases])
+            if chrom == curr_pos[0] and abs(curr_pos[1] - pos) < window_extend and len(nei_cluster) < max_cluster_size:
+                nei_cluster.append(
+                    [chrom, pos, ref, alt, if_cosmic, num_cosmic_cases])
             else:
                 batch.append(nei_cluster)
                 n_batch += len(nei_cluster)
                 curr_pos = [chrom, pos]
-                nei_cluster = [[chrom, pos, ref, alt, if_cosmic, num_cosmic_cases]]
-        if n_batch >= split_len or i == n_variants-1:
-            if i == n_variants-1:
+                nei_cluster = [
+                    [chrom, pos, ref, alt, if_cosmic, num_cosmic_cases]]
+        if n_batch >= split_len or i == n_variants - 1:
+            if i == n_variants - 1:
                 batch.append(nei_cluster)
                 curr_pos = None
                 nei_cluster = []
@@ -415,7 +425,10 @@ if __name__ == '__main__':
                         action="store_true")
     parser.add_argument('--window_extend', type=int,
                         help='window size for extending input features (should be in the order of readlength)',
-                         default=1000)
+                        default=1000)
+    parser.add_argument('--max_cluster_size', type=int,
+                        help='max cluster size for extending input features (should be in the order of readlength)',
+                        default=300)
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     args = parser.parse_args()
@@ -431,6 +444,7 @@ if __name__ == '__main__':
                                  args.dbsnp, args.cosmic,
                                  args.no_seq_complexity,
                                  args.window_extend,
+                                 args.max_cluster_size,
                                  args.num_threads,
                                  )
         if output is None:
