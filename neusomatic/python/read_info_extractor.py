@@ -25,7 +25,8 @@ inf = float('inf')
 
 ### PYSAM ###
 
-def position_of_aligned_read(read_i, aligned_pairs, read_pos_for_ref_pos, target_position, win_size=3):
+
+def position_of_aligned_read(aligned_pairs, read_pos_for_ref_pos, target_position, win_size=3):
     '''
     Return the base call of the target position, and if it's a start of insertion/deletion.
     This target position follows pysam convension, i.e., 0-based.
@@ -40,11 +41,11 @@ def position_of_aligned_read(read_i, aligned_pairs, read_pos_for_ref_pos, target
     '''
     flanking_deletion, flanking_insertion = nan, nan
 
-    idx_aligned_pair, seq_i = read_pos_for_ref_pos #get_read_pos_for_ref_pos(read_i, target_position)
+    # get_read_pos_for_ref_pos(read_i, target_position)
+    idx_aligned_pair, seq_i, base_at_target, qual_at_target = read_pos_for_ref_pos
     # If the target position is aligned:
     try:
         if seq_i is not None:
-            base_at_target = read_i.seq[seq_i]
 
             # Whether if it's a Deletion/Insertion depends on what happens after this position:
             # If the match (i.e., i, seq_i) is the final alignment, then you cannot know if it's an indel

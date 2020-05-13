@@ -21,6 +21,7 @@ nan = float('nan')
 def fisher_exact_test(mat):
     return fisher.pvalue(mat[0][0], mat[0][1], mat[1][0], mat[1][1]).two_tail
 
+
 def get_read_pos_for_ref_pos(read, ref_pos_s):
     cigartuples = read.cigartuples
     pos_r = read.reference_start
@@ -28,15 +29,16 @@ def get_read_pos_for_ref_pos(read, ref_pos_s):
     output = {}
     while current_i < len(ref_pos_s):
         if pos_r > ref_pos_s[current_i] or not cigartuples:
-            output[ref_pos_s[current_i]]=[None, None]
-            current_i +=1
+            output[ref_pos_s[current_i]] = [None, None, None, None]
+            current_i += 1
         else:
             break
     if current_i >= len(ref_pos_s):
         return output
     cigar_aligned = [cigar_aln_match, cigar_seq_match, cigar_seq_mismatch]
     cigar_s = 1 if cigartuples[0][0] == cigar_soft_clip else 0
-    cigar_e = (len(cigartuples) - 1) if cigartuples[-1][0] == cigar_soft_clip else len(cigartuples)
+    cigar_e = (len(cigartuples) -
+               1) if cigartuples[-1][0] == cigar_soft_clip else len(cigartuples)
     count = pos_q = cigartuples[0][1] if cigar_s == 1 else 0
     cigar_index = cigar_s
     for op, length in cigartuples[cigar_s: cigar_e]:
@@ -46,8 +48,13 @@ def get_read_pos_for_ref_pos(read, ref_pos_s):
         while current_i < len(ref_pos_s):
             diff = ref_pos_s[current_i] - pos_r
             if diff < delta_r:
-                output[ref_pos_s[current_i]]=[count + diff, (pos_q + diff) if delta_q else None]
-                current_i +=1
+                output[ref_pos_s[current_i]] = [count + diff, (pos_q + diff) if delta_q else None,
+                                                read.seq[
+                                                    (pos_q + diff)] if delta_q else None,
+                                                read.query_qualities[
+                                                    (pos_q + diff)] if delta_q else None,
+                                                ]
+                current_i += 1
             else:
                 break
         if current_i >= len(ref_pos_s):
@@ -57,70 +64,75 @@ def get_read_pos_for_ref_pos(read, ref_pos_s):
         pos_q += delta_q
         cigar_index += 1
     while current_i < len(ref_pos_s):
-        output[ref_pos_s[current_i]]=[None, None]
-        current_i +=1
+        output[ref_pos_s[current_i]] = [None, None, None, None]
+        current_i += 1
     return output
 
+
+class AugmentedAlignedRead:
+
+    def __init__(self, read, vars_pos):
+        self.qname = read.qname
+        self.vars_pos = vars_pos
+        self.read_pos_for_ref_pos = get_read_pos_for_ref_pos(read, vars_pos)
+        self.aligned_pairs = read.get_aligned_pairs()
+        self.mapping_quality = read.mapping_quality
+        self.mean_query_qualities = mean(read.query_qualities)
+        self.is_proper_pair = read.is_proper_pair
+        self.is_reverse = read.is_reverse
+        self.NM = read.get_tag('NM')
+        self.query_length = read.query_length
+        self.is_soft_clipped = read.cigar[0][
+            0] == cigar_soft_clip or read.cigar[-1][0] == cigar_soft_clip
+
+
 class ClusterReads:
+
     def __init__(self, bam, variants):
         self.variants = variants
         self.chrom = variants[0][0]
         self.min_pos = variants[0][1]
         self.max_pos = variants[-1][1]
         self.reads = []
+        n = len(variants)
+        self.var_reads = [[] for i in range(len(variants))]
+        self.read_pos_for_ref_pos = []
+        self.aligned_pairs = []
+        done_j = -1
+        i = 0
         for read_i in bam.fetch(self.chrom, self.min_pos - 1, self.max_pos):
             if read_i.is_unmapped or not dedup_test(read_i) or read_i.seq is None:
                 continue
-            self.reads.append(read_i)
-
-        done_i = -1
-        n = len(variants)
-        self.var_reads = [[] for i in range(len(variants))]
-        self.read_vars = [[] for i in range(len(self.reads))]
-        for i, read in enumerate(self.reads):
-            for j in range(done_i + 1, n):
+            read_vars = []
+            for j in range(done_j + 1, n):
                 pos = variants[j][1]
-                if read.reference_start >= pos:
-                    done_i += 1
+                if read_i.reference_start >= pos:
+                    done_j += 1
                     continue
-                if pos <= read.reference_end:
+                if pos <= read_i.reference_end:
                     self.var_reads[j].append(i)
-                    self.read_vars[i].append(j)
-        unused_reads = set(range(len(self.reads)))-set([i for j in self.var_reads for i in j])
-        for i in unused_reads:
-            self.reads[i] = None
-        self.aligned_pairs = []
-        for i, read in enumerate(self.reads):
-            if i not in unused_reads:
-                self.aligned_pairs.append(read.get_aligned_pairs())
-            else:
-                self.aligned_pairs.append(None)
-        self.read_pos_for_ref_pos = []
-        for i, read in enumerate(self.reads):
-            if i not in unused_reads:
-                self.read_pos_for_ref_pos.append(get_read_pos_for_ref_pos(read, 
-                    [self.variants[j][1]-1 for j in self.read_vars[i]]))
-            else:
-                self.read_pos_for_ref_pos.append(None)
-
+                    read_vars.append(j)
+            if len(read_vars) > 0:
+                vars_pos = [self.variants[j][1] - 1 for j in read_vars]
+                self.reads.append(AugmentedAlignedRead(read_i, vars_pos))
+                i += 1
 
     def get_alignment_features(self, var_index, ref_base, first_alt, min_mq=1, min_bq=10):
         '''
         bam is the opened file handle of bam file
-        my_coordiate is a list or tuple of 0-based (contig, position)
+        my_coordinate is a list or tuple of 0-based (contig, position)
         '''
         my_coordinate = self.variants[var_index][0:2]
         reads = [self.reads[i] for i in self.var_reads[var_index]]
-        aligned_pairs = [self.aligned_pairs[i] for i in self.var_reads[var_index]]
-        read_pos_for_ref_pos_s = [self.read_pos_for_ref_pos[i][my_coordinate[1]-1] for i in self.var_reads[var_index]]
-        bamfeatures = AlignmentFeatures(reads, aligned_pairs, read_pos_for_ref_pos_s, my_coordinate, ref_base, first_alt, min_mq, min_bq)
+        bamfeatures = AlignmentFeatures(
+            reads, my_coordinate, ref_base, first_alt, min_mq, min_bq)
 
         return bamfeatures
 
 
 class AlignmentFeatures:
 
-    def __init__(self, reads, aligned_pairs, read_pos_for_ref_pos_s, my_coordinate, ref_base, first_alt, min_mq=1, min_bq=10):
+    def __init__(self, reads, my_coordinate, ref_base, first_alt, min_mq=1, min_bq=10):
 
         indel_length = len(first_alt) - len(ref_base)
 
@@ -140,15 +152,15 @@ class AlignmentFeatures:
 
         qname_collector = defaultdict(list)
 
-        for read_i, aligned_pair, read_pos_for_ref_pos in zip(reads,aligned_pairs,read_pos_for_ref_pos_s):
-            if read_i.is_unmapped or not dedup_test(read_i) or read_i.seq is None:
-                continue
+        for read_i in reads:
             dp += 1
-
+            read_pos_for_ref_pos = read_i.read_pos_for_ref_pos[
+                my_coordinate[1] - 1]
             code_i, ith_base, base_call_i, indel_length_i, flanking_indel_i = position_of_aligned_read(
-                read_i, aligned_pair, read_pos_for_ref_pos, my_coordinate[1] - 1)
+                read_i.aligned_pairs, read_pos_for_ref_pos, my_coordinate[1] - 1)
+            read_i_qual_ith_base = read_pos_for_ref_pos[3]
 
-            if read_i.mapping_quality < min_mq and mean(read_i.query_qualities) < min_bq:
+            if read_i.mapping_quality < min_mq and read_i.mean_query_qualities < min_bq:
                 poor_read_count += 1
 
             if read_i.mapping_quality == 0:
@@ -170,21 +182,19 @@ class AlignmentFeatures:
             qname_collector[read_i.qname].append(index)
 
             read_mq[index].append(read_i.mapping_quality)
-            read_bq[index].append(read_i.query_qualities[ith_base])
+            read_bq[index].append(read_i_qual_ith_base)
 
             try:
-                edit_distance[index].append(read_i.get_tag('NM'))
+                edit_distance[index].append(read_i.NM)
             except KeyError:
                 pass
 
-            if read_i.mapping_quality >= min_mq and read_i.query_qualities[ith_base] >= min_bq:
+            if read_i.mapping_quality >= min_mq and read_i_qual_ith_base >= min_bq:
                 concordance_counts[
                     0 if read_i.is_proper_pair else 1][index] += 1
                 orientation_counts[1 if read_i.is_reverse else 0][index] += 1
 
-            is_soft_clipped = read_i.cigar[0][
-                0] == cigar_soft_clip or read_i.cigar[-1][0] == cigar_soft_clip
-            soft_clip_counts[1 if is_soft_clipped else 0][index] += 1
+            soft_clip_counts[1 if read_i.is_soft_clipped else 0][index] += 1
 
             # Distance from the end of the read:
             if ith_base is not None:
@@ -258,7 +268,7 @@ class AlignmentFeatures:
 def from_genome_reference(ref_fa, my_coordinate, ref_base, first_alt):
     '''
     ref_fa is the opened reference fasta file handle
-    my_coordiate is a list or tuple of 0-based (contig, position)
+    my_coordinate is a list or tuple of 0-based (contig, position)
     '''
 
     # Homopolymer eval (Make sure to modify for INDEL):
