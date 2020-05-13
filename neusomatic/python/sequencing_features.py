@@ -76,9 +76,10 @@ class AugmentedAlignedRead:
         self.vars_pos = vars_pos
         self.read_pos_for_ref_pos = get_read_pos_for_ref_pos(read, vars_pos)
         self.pos_of_aligned_read = {}
+        aligned_pairs = read.get_aligned_pairs()
         for pos in vars_pos:
             code_i, ith_base, base_call_i, indel_length_i, flanking_indel_i = position_of_aligned_read(
-                read.get_aligned_pairs(), self.read_pos_for_ref_pos[pos], pos)
+                aligned_pairs, self.read_pos_for_ref_pos[pos], pos)
             self.pos_of_aligned_read[pos] = [
                 code_i, ith_base, base_call_i, indel_length_i, flanking_indel_i]
         self.mapping_quality = read.mapping_quality
