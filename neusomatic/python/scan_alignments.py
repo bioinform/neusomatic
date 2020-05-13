@@ -70,7 +70,7 @@ def run_scan_alignments(record):
 
 
 def scan_alignments(work, scan_alignments_binary, input_bam,
-                    regions_bed_file, reference,
+                    regions_bed_file, reference, num_splits,
                     num_threads, window_size, maf, min_mapq, max_dp, filter_duplicate, restart=True,
                     split_region_files=[], calc_qual=True):
 
@@ -115,8 +115,11 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
             regions_bed_file = os.path.join(work, "all_regions.bed")
             shutil.move(regions_bed, regions_bed_file)
 
-            num_split = max(int(np.ceil((total_len // 10000000) //
-                                        num_threads) * num_threads), num_threads)
+            if num_splits is not None:
+                num_split = num_splits
+            else:
+                num_split = max(int(np.ceil((total_len // 10000000) //
+                                            num_threads) * num_threads), num_threads)
             split_region_files = split_region(work, regions_bed_file, num_split,
                                               min_region=window_size, max_region=1e20)
     else:
@@ -189,6 +192,8 @@ if __name__ == '__main__':
     parser.add_argument('--filter_duplicate',
                         help='filter duplicate reads when preparing pileup information',
                         action="store_true")
+    parser.add_argument('--num_splits', type=int,
+                        help='number of region splits', default=None)
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     args = parser.parse_args()
@@ -196,7 +201,7 @@ if __name__ == '__main__':
 
     try:
         outputs = scan_alignments(args.work, args.scan_alignments_binary, args.input_bam,
-                                  args.regions_bed_file, args.reference,
+                                  args.regions_bed_file, args.reference, args.num_splits,
                                   args.num_threads, args.window_size, args.maf,
                                   args.min_mapq, args.max_dp, args.filter_duplicate)
     except Exception as e:
