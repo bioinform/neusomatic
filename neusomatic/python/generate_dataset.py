@@ -827,7 +827,7 @@ def find_len(ref, alt):
 
 def keep_in_region(input_file, region_bed,
                    output_fn):
-    logger = logging.getLogger(find_len.__name__)
+    logger = logging.getLogger(keep_in_region.__name__)
     i = 0
     tmp_ = get_tmp_file()
     with open(input_file) as i_f, open(tmp_, "w") as o_f:
@@ -846,7 +846,7 @@ def keep_in_region(input_file, region_bed,
             fields = line.strip().split()
             chrom, start, end, i_, chrom_, start_, end_ = fields[0:7]
             assert(chrom == chrom_)
-            if start_ <= start <= end_:
+            if int(start_) <= int(start) <= int(end_):
                 good_i.add(int(i_))
     i = 0
     with open(input_file) as i_f, open(output_fn, "w") as o_f:
