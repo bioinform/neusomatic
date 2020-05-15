@@ -825,6 +825,41 @@ def find_len(ref, alt):
     return max(len(ref_), len(alt_))
 
 
+def keep_in_region(input_file, region_bed,
+                   output_fn):
+    logger = logging.getLogger(find_len.__name__)
+    i = 0
+    tmp_ = get_tmp_file()
+    with open(input_file) as i_f, open(tmp_, "w") as o_f:
+        for line in skip_empty(i_f):
+            fields = line.strip().split()
+            chrom, start, end = fields[0:3]
+            o_f.write(
+                "\t".join([chrom, start, str(int(start) + 1), str(i)]) + "\n")
+            i += 1
+
+    good_i = set([])
+    tmp_ = bedtools_intersect(
+        tmp_, region_bed, args=" -wa -wb", run_logger=logger)
+    with open(tmp_) as i_f:
+        for line in skip_empty(i_f):
+            fields = line.strip().split()
+            chrom, start, end, i_, chrom_, start_, end_ = fields[0:7]
+            assert(chrom == chrom_)
+            if start_ <= start <= end_:
+                good_i.add(int(i_))
+    i = 0
+    with open(input_file) as i_f, open(output_fn, "w") as o_f:
+        for line in skip_empty(i_f, skip_header=False):
+            if line.startswith("#"):
+                o_f.write(line)
+                continue
+            fields = line.strip().split()
+            if i in good_i:
+                o_f.write(line)
+            i += 1
+
+
 def find_records(input_record):
     work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, no_seq_complexity, work_index = input_record
     thread_logger = logging.getLogger(
@@ -853,11 +888,17 @@ def find_records(input_record):
             num_ens_features += 2
         bedtools_intersect(
             truth_vcf_file, split_bed, args=" -u", output_fn=split_truth_vcf_file, run_logger=thread_logger)
+        tmp_ = get_tmp_file()
         bedtools_intersect(
-            pred_vcf_file, split_bed, args=" -u", output_fn=split_pred_vcf_file, run_logger=thread_logger)
+            pred_vcf_file, split_bed, args=" -u", output_fn=tmp_, run_logger=thread_logger)
+        keep_in_region(input_file=tmp_, region_bed=split_region_file,
+                       output_fn=split_pred_vcf_file)
         if ensemble_bed:
+            tmp_ = get_tmp_file()
             bedtools_intersect(
-                ensemble_bed, split_bed, args=" -u", output_fn=split_ensemble_bed_file, run_logger=thread_logger)
+                ensemble_bed, split_bed, args=" -u", output_fn=tmp_, run_logger=thread_logger)
+            keep_in_region(input_file=tmp_, region_bed=split_region_file,
+                           output_fn=split_ensemble_bed_file)
             tmp_ = bedtools_window(
                 split_ensemble_bed_file, split_pred_vcf_file, args=" -w 5 -v", run_logger=thread_logger)
 
