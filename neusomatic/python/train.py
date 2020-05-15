@@ -253,7 +253,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         if not force_zero_ann_cols:
             logger.info(
                 "Override zero_ann_cols from pretrained checkpoint: {}".format(zero_ann_cols))
-        prev_epochs = sofar_epochs + 1
+        prev_epochs = sofar_epochs
     else:
         prev_epochs = 0
         time_now = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
@@ -450,7 +450,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "normalize_channels": normalize_channels,
                 "no_seq_complexity": no_seq_complexity,
                 "zero_ann_cols": zero_ann_cols,
-                }, '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
+                }, '{}/models/checkpoint_{}_epoch{}_.pth'.format(out_dir, tag, curr_epoch))
 
     if len(train_sets) == 1:
         train_sets[0].open_candidate_tsvs()
