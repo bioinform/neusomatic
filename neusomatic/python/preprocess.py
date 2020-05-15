@@ -79,11 +79,14 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
 
 
 def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
-                            matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_bed, no_seq_complexity,
+                            matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_bed, 
+                            ensemble_custom_header,
+                            no_seq_complexity,
                             no_feature_recomp_for_ensemble, tsv_batch_size):
     logger = logging.getLogger(generate_dataset_region.__name__)
     generate_dataset(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, None, ensemble_bed,
+                     ensemble_custom_header,
                      no_seq_complexity,
                      no_feature_recomp_for_ensemble,
                      tsv_batch_size)
@@ -491,7 +494,9 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
             generate_dataset_region(work_dataset_split, truth_vcf, mode, filtered_vcf,
                                     candidates_split_region, tumor_count, normal_count, reference,
                                     matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, num_threads,
-                                    ensemble_bed_i, no_seq_complexity, no_feature_recomp_for_ensemble, tsv_batch_size)
+                                    ensemble_bed_i, 
+                                    ensemble_custom_header,
+                                    no_seq_complexity, no_feature_recomp_for_ensemble, tsv_batch_size)
 
     shutil.rmtree(bed_tempdir)
     tempfile.tempdir = original_tempdir

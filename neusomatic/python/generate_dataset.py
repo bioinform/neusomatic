@@ -1367,7 +1367,9 @@ def find_records(input_record):
         return None
 
 
-def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_header, is_extend):
+def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_header,
+                     ensemble_custom_header,
+                     is_extend):
     logger = logging.getLogger(extract_ensemble.__name__)
     ensemble_data = []
     ensemble_pos = []
@@ -1549,7 +1551,9 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
 
 def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
-                     ensemble_bed, no_seq_complexity, enforce_header, tsv_batch_size):
+                     ensemble_bed,
+                     ensemble_custom_header,
+                     no_seq_complexity, enforce_header, tsv_batch_size):
     logger = logging.getLogger(generate_dataset.__name__)
 
     logger.info("---------------------Generate Dataset----------------------")
@@ -1580,7 +1584,6 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                          no_seq_complexity=no_seq_complexity, enforce_header=enforce_header,
                          custom_header=ensemble_custom_header,
                          is_extend=False)
-
 
     tmp_ = bedtools_intersect(
         tumor_pred_vcf_file, region_bed_file, args=" -u", run_logger=logger)
@@ -1792,6 +1795,9 @@ if __name__ == '__main__':
                         help='Ensemble annotation tsv file (only for short read)', default=None)
     parser.add_argument('--ensemble_bed', type=str,
                         help='Ensemble annotation bed file (only for short read)', default=None)
+    parser.add_argument('--ensemble_custom_header',
+                        help='Allow ensemble tsv to have custom header fields',
+                        action="store_true")
     parser.add_argument('--no_seq_complexity',
                         help='Dont compute linguistic sequence complexity features',
                         action="store_true")
@@ -1822,7 +1828,9 @@ if __name__ == '__main__':
     try:
         generate_dataset(work, truth_vcf_file, mode, tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                          matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
-                         ensemble_bed, no_seq_complexity, enforce_header, tsv_batch_size)
+                         ensemble_bed,
+                         ensemble_custom_header,
+                         no_seq_complexity, enforce_header, tsv_batch_size)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")
