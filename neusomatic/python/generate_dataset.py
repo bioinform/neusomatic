@@ -839,8 +839,8 @@ def keep_in_region(input_file, region_bed,
             i += 1
 
     good_i = set([])
-    tmp_ = bedtools_intersect(
-        tmp_, region_bed, args=" -wa -wb", run_logger=logger)
+    tmp_ = bedtools_window(
+        tmp_, region_bed, args=" -w 1", run_logger=logger)
     with open(tmp_) as i_f:
         for line in skip_empty(i_f):
             fields = line.strip().split()
