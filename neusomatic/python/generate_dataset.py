@@ -984,7 +984,7 @@ def find_records(input_record):
                         else:
                             r_ = [[chrom, pos, ref, alt]]
 
-                        ann = [0] * NUM_ENS_FEATURES
+                        ann = [0] * num_ens_features
                         if pos == ens_pos:
                             if ref == ens_ref and alt == ens_alt:
                                 ann = record_[15:]
