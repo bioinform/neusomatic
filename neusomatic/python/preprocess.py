@@ -194,7 +194,8 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                ins_min_af, del_min_af, del_merge_min_af,
                ins_merge_min_af, merge_r, truth_vcf, tsv_batch_size,
                matrix_width, matrix_base_pad, min_ev_frac_per_col,
-               ensemble_tsv, long_read, restart, first_do_without_qual,
+               ensemble_tsv, ensemble_custom_header,
+               long_read, restart, first_do_without_qual,
                keep_duplicate,
                add_extra_features,
                no_seq_complexity,
@@ -248,9 +249,10 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         ensemble_bed = os.path.join(work, "ensemble.bed")
         logger.info("Extract ensemble info.")
         if restart or not os.path.exists(ensemble_bed):
-            extract_ensemble([ensemble_tsv], ensemble_bed,
-                             no_seq_complexity, no_feature_recomp_for_ensemble, False)
-
+            extract_ensemble(ensemble_tsvs=[ensemble_tsv], ensemble_bed=ensemble_bed,
+                             no_seq_complexity=no_seq_complexity, enforce_header=no_feature_recomp_for_ensemble,
+                             custom_header=ensemble_custom_header,
+                             is_extend=False)
     merge_d_for_short_read = 100
     candidates_split_regions = []
     ensemble_beds = []
@@ -376,8 +378,12 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                 extra_features_bed = os.path.join(
                     work_dataset_split, "extra_features.bed")
                 if not os.path.exists(extra_features_bed) or restart:
-                    extract_ensemble(ex_tsvs,
-                                     extra_features_bed, no_seq_complexity, True, True)
+                    extract_ensemble(ensemble_tsvs=ex_tsvs,
+                                     ensemble_bed=extra_features_bed, 
+                                     no_seq_complexity=no_seq_complexity, 
+                                     enforce_header=True, 
+                                     custom_header=False,
+                                     is_extend=True)
                 if ensemble_tsv:
                     merged_features_bed = os.path.join(
                         work_dataset_split, "merged_features.bed")
@@ -555,6 +561,9 @@ if __name__ == '__main__':
                         help='minimum frac cov per column to keep columm', default=0.06)
     parser.add_argument('--ensemble_tsv', type=str,
                         help='Ensemble annotation tsv file (only for short read)', default=None)
+    parser.add_argument('--ensemble_custom_header',
+                        help='Allow ensemble tsv to have custom header fields',
+                        action="store_true")
     parser.add_argument('--long_read',
                         help='Enable long_read (high error-rate sequence) indel realignment',
                         action="store_true")
@@ -578,10 +587,10 @@ if __name__ == '__main__':
                         action="store_true")
     parser.add_argument('--window_extend', type=int,
                         help='window size for extending input features (should be in the order of readlength)',
-                         default=1000)
+                        default=1000)
     parser.add_argument('--max_cluster_size', type=int,
                         help='max cluster size for extending input features (should be in the order of readlength)',
-                         default=300)
+                        default=300)
     parser.add_argument('--num_splits', type=int,
                         help='number of region splits', default=None)
     parser.add_argument('--num_threads', type=int,
@@ -599,7 +608,8 @@ if __name__ == '__main__':
                    args.ins_min_af, args.del_min_af, args.del_merge_min_af,
                    args.ins_merge_min_af, args.merge_r,
                    args.truth_vcf, args.tsv_batch_size, args.matrix_width, args.matrix_base_pad, args.min_ev_frac_per_col,
-                   args.ensemble_tsv, args.long_read, args.restart, args.first_do_without_qual,
+                   args.ensemble_tsv, args.ensemble_custom_header,
+                   args.long_read, args.restart, args.first_do_without_qual,
                    args.keep_duplicate,
                    args.add_extra_features,
                    args.no_seq_complexity,

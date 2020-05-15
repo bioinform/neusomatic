@@ -1535,8 +1535,11 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     split_batch_size = 10000
     if ensemble_tsv and not ensemble_bed:
         ensemble_bed = os.path.join(work, "ensemble.bed")
-        extract_ensemble([ensemble_tsv], ensemble_bed,
-                         no_seq_complexity, enforce_header, False)
+        extract_ensemble(ensemble_tsvs=[ensemble_tsv], ensemble_bed=ensemble_bed,
+                         no_seq_complexity=no_seq_complexity, enforce_header=enforce_header,
+                         custom_header=ensemble_custom_header,
+                         is_extend=False)
+
 
     tmp_ = bedtools_intersect(
         tumor_pred_vcf_file, region_bed_file, args=" -u", run_logger=logger)
