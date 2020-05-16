@@ -206,6 +206,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                      no_seq_complexity,
                      zero_ann_cols,
                      force_zero_ann_cols,
+                     ensemble_custom_header,
                      use_cuda):
     logger = logging.getLogger(train_neusomatic.__name__)
 
@@ -253,6 +254,10 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         if not force_zero_ann_cols:
             logger.info(
                 "Override zero_ann_cols from pretrained checkpoint: {}".format(zero_ann_cols))
+        if "ensemble_custom_header" in pretrained_dict:
+            ensemble_custom_header = pretrained_dict["ensemble_custom_header"]
+        else:
+            ensemble_custom_header = False
         prev_epochs = sofar_epochs
     else:
         prev_epochs = 0
@@ -265,33 +270,40 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         logger.info(
             "Override zero_ann_cols from force_zero_ann_cols: {}".format(force_zero_ann_cols))
 
+    if not ensemble_custom_header:
+        expected_ens_fields = NUM_ENS_FEATURES
+        if not no_seq_complexity:
+            expected_ens_fields += 2
 
-    expected_ens_fields = NUM_ENS_FEATURES
-    if not no_seq_complexity:
-        expected_ens_fields += 2
+        logger.info("expected_ens_fields: {}".format(expected_ens_fields))
 
-    logger.info("expected_ens_fields: {}".format(expected_ens_fields))
+        expected_st_fields = 4
 
-    expected_st_fields = 4
+        logger.info("expected_st_fields: {}".format(expected_st_fields))
 
-    logger.info("expected_st_fields: {}".format(expected_st_fields))
+        ensemble = False
+        for tsv in candidates_tsv:
+            with open(tsv) as i_f:
+                x = i_f.readline().strip().split()
+                if x:
+                    if len(x) == expected_ens_fields + 4:
+                        ensemble = True
+                        break
+                    elif len(x) == 4:
+                        break
+                    else:
+                        raise Exception("Wrong number of fields in {}: {}".format(tsv, len(x)))
 
-    ensemble = False
-    for tsv in candidates_tsv:
-        with open(tsv) as i_f:
-            x = i_f.readline().strip().split()
-            if x:
-                if len(x) == expected_ens_fields + 4:
-                    ensemble = True
+        num_channels = expected_ens_fields + \
+            NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
+    else:
+        num_channels = 0
+        for tsv in candidates_tsv:
+            with open(tsv) as i_f:
+                x = i_f.readline().strip().split()
+                if x:
+                    num_channels = len(x) - 4 + NUM_ST_FEATURES
                     break
-                elif len(x) == 4:
-                    break
-                else:
-                    raise Exception("Wrong number of fields in {}: {}".format(tsv, len(x)))
-
-    num_channels = expected_ens_fields + \
-        NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
-
     logger.info("Number of channels: {}".format(num_channels))
     net = NeuSomaticNet(num_channels)
     if use_cuda:
@@ -450,6 +462,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "normalize_channels": normalize_channels,
                 "no_seq_complexity": no_seq_complexity,
                 "zero_ann_cols": zero_ann_cols,
+                "ensemble_custom_header": ensemble_custom_header,
                 }, '{}/models/checkpoint_{}_epoch{}_.pth'.format(out_dir, tag, curr_epoch))
 
     if len(train_sets) == 1:
@@ -517,6 +530,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                         "normalize_channels": normalize_channels,
                         "no_seq_complexity": no_seq_complexity,
                         "zero_ann_cols": zero_ann_cols,
+                        "ensemble_custom_header": ensemble_custom_header,
                         }, '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
             if validation_candidates_tsv:
                 test(net, curr_epoch, validation_loader, use_cuda)
@@ -537,6 +551,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "normalize_channels": normalize_channels,
                 "no_seq_complexity": no_seq_complexity,
                 "zero_ann_cols": zero_ann_cols,
+                "ensemble_custom_header": ensemble_custom_header,
                 }, '{}/models/checkpoint_{}_epoch{}.pth'.format(
         out_dir, tag, curr_epoch))
     if validation_candidates_tsv:
@@ -623,6 +638,10 @@ if __name__ == '__main__':
                               --zero_ann_cols and pretrained setting \
                               idx starts from 5th column in candidate.tsv file',
                         default=[])
+    parser.add_argument('--ensemble_custom_header',
+                        help='Allow ensemble tsv to have custom header fields. (Features should be\
+                            normalized between [0,1]',
+                        action="store_true")
     args = parser.parse_args()
 
     logger.info(args)
@@ -643,6 +662,7 @@ if __name__ == '__main__':
                                       args.no_seq_complexity,
                                       args.zero_ann_cols,
                                       args.force_zero_ann_cols,
+                                      args.ensemble_custom_header,
                                       use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())

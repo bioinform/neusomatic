@@ -33,6 +33,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
     logger = logging.getLogger(add_vcf_info.__name__)
 
     ensemble_candids_vcf = None
+    use_ensemble_candids = False
     if ensemble_tsv:
         ensemble_candids_vcf = os.path.join(work, "ensemble_candids.vcf")
         with open(ensemble_tsv) as e_f, open(ensemble_candids_vcf, "w") as c_f:
@@ -40,39 +41,48 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
             c_f.write(
                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
             for line in e_f:
-                if "T_REF_FOR" in line:
+                if "POS" in line:
                     header = line.strip().split()
                     chrom_id = header.index("CHROM")
                     pos_id = header.index("POS")
                     ref_id = header.index("REF")
                     alt_id = header.index("ALT")
-                    dp_id = header.index("T_DP")
-                    ref_fw_id = header.index("T_REF_FOR")
-                    ref_rv_id = header.index("T_REF_REV")
-                    alt_fw_id = header.index("T_ALT_FOR")
-                    alt_rv_id = header.index("T_ALT_REV")
+                    if "T_DP" in line:
+                        dp_id = header.index("T_DP")
+                        ref_fw_id = header.index("T_REF_FOR")
+                        ref_rv_id = header.index("T_REF_REV")
+                        alt_fw_id = header.index("T_ALT_FOR")
+                        alt_rv_id = header.index("T_ALT_REV")
+                        use_ensemble_candids = True
+                    else:
+                        dp_id, ref_fw_id, ref_rv_id, alt_fw_id, alt_rv_id = None, None, None, None, None
                     continue
                 fields = line.strip().split()
                 chrom = fields[chrom_id]
                 pos = fields[pos_id]
                 ref = fields[ref_id]
                 alt = fields[alt_id]
-                dp = int(fields[dp_id])
-                ro_fw = int(fields[ref_fw_id])
-                ro_rv = int(fields[ref_rv_id])
-                ao_fw = int(fields[alt_fw_id])
-                ao_rv = int(fields[alt_rv_id])
-                ro = ro_fw + ro_rv
-                ao = ao_fw + ao_rv
-                af = np.round(ao / float(ao + ro + 0.0001), 4)
-                c_f.write(
-                    "\t".join(map(str, [chrom, pos, ".", ref, alt, ".", ".", ".", "GT:DP:RO:AO:AF", ":".join(map(str, ["0/1", dp, ro, ao, af]))])) + "\n")
+                if dp_id is not None:
+                    dp = int(fields[dp_id])
+                    ro_fw = int(fields[ref_fw_id])
+                    ro_rv = int(fields[ref_rv_id])
+                    ao_fw = int(fields[alt_fw_id])
+                    ao_rv = int(fields[alt_rv_id])
+                    ro = ro_fw + ro_rv
+                    ao = ao_fw + ao_rv
+                    af = np.round(ao / float(ao + ro + 0.0001), 4)
+                    c_f.write(
+                        "\t".join(map(str, [chrom, pos, ".", ref, alt, ".", ".", ".", "GT:DP:RO:AO:AF", ":".join(map(str, ["0/1", dp, ro, ao, af]))])) + "\n")
+                else:
+                    c_f.write(
+                        "\t".join(map(str, [chrom, pos, ".", ref, alt, ".", ".", ".", ".", "."])) + "\n")
+
 
     in_candidates = bedtools_window(
         merged_vcf, candidates_vcf, args=" -w 5", run_logger=logger)
     notin_candidates = bedtools_window(
         merged_vcf, candidates_vcf, args=" -w 5 -v", run_logger=logger)
-    if ensemble_tsv:
+    if ensemble_tsv and use_ensemble_candids:
         in_ensemble = bedtools_window(
             merged_vcf, ensemble_candids_vcf, args=" -w 5", run_logger=logger)
         notin_any = bedtools_window(

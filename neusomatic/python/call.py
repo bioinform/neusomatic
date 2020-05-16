@@ -432,6 +432,10 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         zero_ann_cols = pretrained_dict["zero_ann_cols"]
     else:
         zero_ann_cols = []
+    if "ensemble_custom_header" in pretrained_dict:
+        ensemble_custom_header = pretrained_dict["ensemble_custom_header"]
+    else:
+        ensemble_custom_header = False
 
     if force_zero_ann_cols:
         logger.info(
@@ -442,33 +446,43 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     logger.info("normalize_channels: {}".format(normalize_channels))
     logger.info("no_seq_complexity: {}".format(no_seq_complexity))
     logger.info("zero_ann_cols: {}".format(zero_ann_cols))
-
+    logger.info("ensemble_custom_header: {}".format(ensemble_custom_header))
     
-    expected_ens_fields = NUM_ENS_FEATURES
-    if not no_seq_complexity:
-        expected_ens_fields += 2
     
-    logger.info("expected_ens_fields: {}".format(expected_ens_fields))
+    if ensemble_custom_header:    
+        expected_ens_fields = NUM_ENS_FEATURES
+        if not no_seq_complexity:
+            expected_ens_fields += 2
+        
+        logger.info("expected_ens_fields: {}".format(expected_ens_fields))
 
-    expected_st_fields = 4
+        expected_st_fields = 4
 
-    logger.info("expected_st_fields: {}".format(expected_st_fields))
+        logger.info("expected_st_fields: {}".format(expected_st_fields))
 
-    ensemble = False
-    for tsv in candidates_tsv:
-        with open(tsv) as i_f:
-            x = i_f.readline().strip().split()
-            if x:
-                if len(x) == expected_ens_fields + 4:
-                    ensemble = True
+        ensemble = False
+        for tsv in candidates_tsv:
+            with open(tsv) as i_f:
+                x = i_f.readline().strip().split()
+                if x:
+                    if len(x) == expected_ens_fields + 4:
+                        ensemble = True
+                        break
+                    elif len(x) == 4:
+                        break
+                    else:
+                        raise Exception("Wrong number of fields in {}: {}".format(tsv, len(x)))
+
+        num_channels = expected_ens_fields + \
+            NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
+    else:
+        num_channels = 0
+        for tsv in candidates_tsv:
+            with open(tsv) as i_f:
+                x = i_f.readline().strip().split()
+                if x:
+                    num_channels = len(x) - 4 + NUM_ST_FEATURES
                     break
-                elif len(x) == 4:
-                    break
-                else:
-                    raise Exception("Wrong number of fields in {}: {}".format(tsv, len(x)))
-
-    num_channels = expected_ens_fields + \
-        NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
 
     logger.info("Number of channels: {}".format(num_channels))
     net = NeuSomaticNet(num_channels)

@@ -567,7 +567,8 @@ if __name__ == '__main__':
     parser.add_argument('--ensemble_tsv', type=str,
                         help='Ensemble annotation tsv file (only for short read)', default=None)
     parser.add_argument('--ensemble_custom_header',
-                        help='Allow ensemble tsv to have custom header fields',
+                        help='Allow ensemble tsv to have custom header fields. (Features should be\
+                            normalized between [0,1]',
                         action="store_true")
     parser.add_argument('--long_read',
                         help='Enable long_read (high error-rate sequence) indel realignment',

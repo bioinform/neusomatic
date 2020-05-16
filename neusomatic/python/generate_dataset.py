@@ -861,7 +861,7 @@ def keep_in_region(input_file, region_bed,
 
 
 def find_records(input_record):
-    work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, no_seq_complexity, work_index = input_record
+    work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, num_ens_features, work_index = input_record
     thread_logger = logging.getLogger(
         "{} ({})".format(find_records.__name__, multiprocessing.current_process().name))
     try:
@@ -883,9 +883,6 @@ def find_records(input_record):
         split_in_ensemble_bed = os.path.join(
             work, "in_ensemble_{}.bed".format(work_index))
 
-        num_ens_features = NUM_ENS_FEATURES
-        if not no_seq_complexity:
-            num_ens_features += 2
         bedtools_intersect(
             truth_vcf_file, split_bed, args=" -u", output_fn=split_truth_vcf_file, run_logger=thread_logger)
         tmp_ = get_tmp_file()
@@ -1368,7 +1365,7 @@ def find_records(input_record):
 
 
 def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_header,
-                     ensemble_custom_header,
+                     custom_header,
                      is_extend):
     logger = logging.getLogger(extract_ensemble.__name__)
     ensemble_data = []
@@ -1417,31 +1414,39 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
                     all_headers.add(line)
                     header_pos = line.strip().split()[0:5]
                     header_ = line.strip().split()[5:]
-                    if is_extend:
-                        header_ += callers_features
-                    header_en = list(filter(
-                        lambda x: x[1] in expected_features, enumerate(header_)))
-                    header = list(map(lambda x: x[1], header_en))
-                    if not enforce_header:
-                        expected_features = header
+                    if not custom_header:
+                        if is_extend:
+                            header_ += callers_features
+                        header_en = list(filter(
+                            lambda x: x[1] in expected_features, enumerate(header_)))
+                        header = list(map(lambda x: x[1], header_en))
+                        if not enforce_header:
+                            expected_features = header
 
-                    if set(expected_features) - set(header):
-                        logger.error("The following features are missing from ensemble file {}: {}".format(
-                            ensemble_tsv,
-                            list(set(expected_features) - set(header))))
-                        raise Exception
-                    order_header = []
-                    for f in expected_features:
-                        order_header.append(header_en[header.index(f)][0])
+                        if set(expected_features) - set(header):
+                            logger.error("The following features are missing from ensemble file {}: {}".format(
+                                ensemble_tsv,
+                                list(set(expected_features) - set(header))))
+                            raise Exception
+                        order_header = []
+                        for f in expected_features:
+                            order_header.append(header_en[header.index(f)][0])
+                    else:
+                        order_header=range(len(header_))
                     continue
                 fields = line.strip().split()
                 fields[2] = str(int(fields[1]) + len(fields[3]))
                 ensemble_pos.append(fields[0:5])
                 features = fields[5:]
-                if is_extend:
+                if is_extend and not custom_header:
                     features += ["0"] * len(callers_features)
-                ensemble_data.append(list(map(lambda x: float(
-                    x.replace("False", "0").replace("True", "1")), features)))
+                features = list(map(lambda x: float(
+                    x.replace("False", "0").replace("True", "1")), features))
+                if custom_header:
+                    if min(features)<0 or max(features)>1:
+                        logger.info("In --ensemble_custom_header mode, feature values in ensemble.tsv should be normalized in [0,1]" )
+                        raise Exception
+                ensemble_data.append(features)
                 n_vars += 1
     if len(set(all_headers)) != 1:
         raise(RuntimeError("inconsistent headers in {}".format(ensemble_tsvs)))
@@ -1449,98 +1454,102 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
         ensemble_data = np.array(ensemble_data)[:, order_header]
     header = np.array(header_)[order_header].tolist()
 
-    cov_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
-        "Consistent_Mates", "Inconsistent_Mates", "N_DP",
-        "nBAM_REF_NM", "nBAM_ALT_NM", "nBAM_REF_Concordant", "nBAM_REF_Discordant", "nBAM_ALT_Concordant", "nBAM_ALT_Discordant",
-        "N_REF_FOR", "N_REF_REV", "N_ALT_FOR", "N_ALT_REV", "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads",  "nBAM_MQ0", "nBAM_Other_Reads", "nBAM_Poor_Reads",
-        "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp", "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp",
-        "nBAM_ALT_InDel_1bp",
-        "T_DP", "tBAM_REF_NM", "tBAM_ALT_NM", "tBAM_REF_Concordant", "tBAM_REF_Discordant", "tBAM_ALT_Concordant", "tBAM_ALT_Discordant",
-        "T_REF_FOR", "T_REF_REV", "T_ALT_FOR", "T_ALT_REV",
-        "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads",
-        "tBAM_MQ0", "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
-        "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
-    ], enumerate(header))))
-    mq_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
-        "nBAM_REF_MQ", "nBAM_ALT_MQ", "tBAM_REF_MQ", "tBAM_ALT_MQ"], enumerate(header))))
-    bq_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
-        "nBAM_REF_BQ", "nBAM_ALT_BQ", "tBAM_REF_BQ", "tBAM_ALT_BQ"], enumerate(header))))
-    nm_diff_features = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["nBAM_NM_Diff", "tBAM_NM_Diff"], enumerate(header))))
-    ranksum_features = list(map(lambda x: x[0], filter(lambda x: x[1] in ["nBAM_Z_Ranksums_MQ", "nBAM_Z_Ranksums_BQ",
-                                                                          "nBAM_Z_Ranksums_EndPos", "tBAM_Z_Ranksums_BQ",  "tBAM_Z_Ranksums_MQ", "tBAM_Z_Ranksums_EndPos", ], enumerate(header))))
-    zero_to_one_features = list(map(lambda x: x[0], filter(lambda x: x[1] in ["if_MuTect", "if_VarScan2", "if_SomaticSniper", "if_VarDict",
-                                                                              "MuSE_Tier", "if_Strelka"] + ["nBAM_Concordance_FET", "nBAM_StrandBias_FET", "nBAM_Clipping_FET",
-                                                                                                            "tBAM_Concordance_FET", "tBAM_StrandBias_FET", "tBAM_Clipping_FET"] + ["if_dbsnp", "COMMON"] + ["M2_STR"], enumerate(header))))
-    stralka_scor = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Strelka_Score"], enumerate(header))))
-    stralka_qss = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Strelka_QSS"], enumerate(header))))
-    stralka_tqss = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Strelka_TQSS"], enumerate(header))))
-    varscan2_score = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["VarScan2_Score"], enumerate(header))))
-    vardict_score = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["VarDict_Score"], enumerate(header))))
-    m2_lod = list(map(lambda x: x[0], filter(lambda x: x[1] in [
-        "M2_NLOD", "M2_TLOD"], enumerate(header))))
-    sniper_score = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Sniper_Score"], enumerate(header))))
-    m2_ecent = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["M2_ECNT"], enumerate(header))))
-    sor = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["SOR"], enumerate(header))))
-    msi = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["MSI"], enumerate(header))))
-    msilen = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["MSILEN"], enumerate(header))))
-    shift3 = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["SHIFT3"], enumerate(header))))
-    MaxHomopolymer_Length = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["MaxHomopolymer_Length"], enumerate(header))))
-    SiteHomopolymer_Length = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["SiteHomopolymer_Length"], enumerate(header))))
-    InDel_Length = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["InDel_Length"], enumerate(header))))
-    Seq_Complexity_ = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Seq_Complexity_Span", "Seq_Complexity_Adj"], enumerate(header))))
+    if not custom_header:
+        cov_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
+            "Consistent_Mates", "Inconsistent_Mates", "N_DP",
+            "nBAM_REF_NM", "nBAM_ALT_NM", "nBAM_REF_Concordant", "nBAM_REF_Discordant", "nBAM_ALT_Concordant", "nBAM_ALT_Discordant",
+            "N_REF_FOR", "N_REF_REV", "N_ALT_FOR", "N_ALT_REV", "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads",  "nBAM_MQ0", "nBAM_Other_Reads", "nBAM_Poor_Reads",
+            "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp", "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp",
+            "nBAM_ALT_InDel_1bp",
+            "T_DP", "tBAM_REF_NM", "tBAM_ALT_NM", "tBAM_REF_Concordant", "tBAM_REF_Discordant", "tBAM_ALT_Concordant", "tBAM_ALT_Discordant",
+            "T_REF_FOR", "T_REF_REV", "T_ALT_FOR", "T_ALT_REV",
+            "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads",
+            "tBAM_MQ0", "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
+            "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
+        ], enumerate(header))))
+        mq_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
+            "nBAM_REF_MQ", "nBAM_ALT_MQ", "tBAM_REF_MQ", "tBAM_ALT_MQ"], enumerate(header))))
+        bq_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
+            "nBAM_REF_BQ", "nBAM_ALT_BQ", "tBAM_REF_BQ", "tBAM_ALT_BQ"], enumerate(header))))
+        nm_diff_features = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["nBAM_NM_Diff", "tBAM_NM_Diff"], enumerate(header))))
+        ranksum_features = list(map(lambda x: x[0], filter(lambda x: x[1] in ["nBAM_Z_Ranksums_MQ", "nBAM_Z_Ranksums_BQ",
+                                                                              "nBAM_Z_Ranksums_EndPos", "tBAM_Z_Ranksums_BQ",  "tBAM_Z_Ranksums_MQ", "tBAM_Z_Ranksums_EndPos", ], enumerate(header))))
+        zero_to_one_features = list(map(lambda x: x[0], filter(lambda x: x[1] in ["if_MuTect", "if_VarScan2", "if_SomaticSniper", "if_VarDict",
+                                                                                  "MuSE_Tier", "if_Strelka"] + ["nBAM_Concordance_FET", "nBAM_StrandBias_FET", "nBAM_Clipping_FET",
+                                                                                                                "tBAM_Concordance_FET", "tBAM_StrandBias_FET", "tBAM_Clipping_FET"] + ["if_dbsnp", "COMMON"] + ["M2_STR"], enumerate(header))))
+        stralka_scor = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["Strelka_Score"], enumerate(header))))
+        stralka_qss = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["Strelka_QSS"], enumerate(header))))
+        stralka_tqss = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["Strelka_TQSS"], enumerate(header))))
+        varscan2_score = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["VarScan2_Score"], enumerate(header))))
+        vardict_score = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["VarDict_Score"], enumerate(header))))
+        m2_lod = list(map(lambda x: x[0], filter(lambda x: x[1] in [
+            "M2_NLOD", "M2_TLOD"], enumerate(header))))
+        sniper_score = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["Sniper_Score"], enumerate(header))))
+        m2_ecent = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["M2_ECNT"], enumerate(header))))
+        sor = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["SOR"], enumerate(header))))
+        msi = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["MSI"], enumerate(header))))
+        msilen = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["MSILEN"], enumerate(header))))
+        shift3 = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["SHIFT3"], enumerate(header))))
+        MaxHomopolymer_Length = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["MaxHomopolymer_Length"], enumerate(header))))
+        SiteHomopolymer_Length = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["SiteHomopolymer_Length"], enumerate(header))))
+        InDel_Length = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["InDel_Length"], enumerate(header))))
+        Seq_Complexity_ = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["Seq_Complexity_Span", "Seq_Complexity_Adj"], enumerate(header))))
 
-    min_max_features = [[cov_features, 0, 2 * COV],
-                        [mq_features, 0, 70],
-                        [bq_features, 0, 41],
-                        [nm_diff_features, -2 * COV, 2 * COV],
-                        [zero_to_one_features, 0, 1],
-                        [ranksum_features, -30, 30],
-                        [stralka_scor, 0, 40],
-                        [stralka_qss, 0, 200],
-                        [stralka_tqss, 0, 4],
-                        [varscan2_score, 0, 60],
-                        [vardict_score, 0, 120],
-                        [m2_lod, 0, 100],
-                        [sniper_score, 0, 120],
-                        [m2_ecent, 0, 40],
-                        [sor, 0, 100],
-                        [msi, 0, 100],
-                        [msilen, 0, 10],
-                        [shift3, 0, 100],
-                        [MaxHomopolymer_Length, 0, 50],
-                        [SiteHomopolymer_Length, 0, 50],
-                        [InDel_Length, -30, 30],
-                        ]
-    if not no_seq_complexity:
-        min_max_features.append([Seq_Complexity_, 0, 40])
+        min_max_features = [[cov_features, 0, 2 * COV],
+                            [mq_features, 0, 70],
+                            [bq_features, 0, 41],
+                            [nm_diff_features, -2 * COV, 2 * COV],
+                            [zero_to_one_features, 0, 1],
+                            [ranksum_features, -30, 30],
+                            [stralka_scor, 0, 40],
+                            [stralka_qss, 0, 200],
+                            [stralka_tqss, 0, 4],
+                            [varscan2_score, 0, 60],
+                            [vardict_score, 0, 120],
+                            [m2_lod, 0, 100],
+                            [sniper_score, 0, 120],
+                            [m2_ecent, 0, 40],
+                            [sor, 0, 100],
+                            [msi, 0, 100],
+                            [msilen, 0, 10],
+                            [shift3, 0, 100],
+                            [MaxHomopolymer_Length, 0, 50],
+                            [SiteHomopolymer_Length, 0, 50],
+                            [InDel_Length, -30, 30],
+                            ]
+        if not no_seq_complexity:
+            min_max_features.append([Seq_Complexity_, 0, 40])
 
-    selected_features = sorted([i for f in min_max_features for i in f[0]])
-    selected_features_tags = list(map(lambda x: header[x], selected_features))
-    if n_vars > 0:
-        for i_s, mn, mx in min_max_features:
-            if i_s:
-                s = ensemble_data[:, np.array(i_s)]
-                s = np.maximum(np.minimum(s, mx), mn)
-                s = (s - mn) / (mx - mn)
-                ensemble_data[:, np.array(i_s)] = s
-        ensemble_data = ensemble_data[:, selected_features]
-        ensemble_data = ensemble_data.tolist()
+        selected_features = sorted([i for f in min_max_features for i in f[0]])
+        selected_features_tags = list(map(lambda x: header[x], selected_features))
+        if n_vars > 0:
+            for i_s, mn, mx in min_max_features:
+                if i_s:
+                    s = ensemble_data[:, np.array(i_s)]
+                    s = np.maximum(np.minimum(s, mx), mn)
+                    s = (s - mn) / (mx - mn)
+                    ensemble_data[:, np.array(i_s)] = s
+            ensemble_data = ensemble_data[:, selected_features]
+            ensemble_data = ensemble_data.tolist()
+    else:
+        ensemble_data = ensemble_data.tolist()        
+        selected_features_tags = header_
     with open(ensemble_bed, "w")as f_:
         f_.write(
             "#" + "\t".join(map(str, header_pos + selected_features_tags)) + "\n")
@@ -1606,11 +1615,22 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     fasta_file = pysam.Fastafile(ref_file)
     chrom_lengths = dict(zip(fasta_file.references, fasta_file.lengths))
 
+    if not ensemble_custom_header:
+        num_ens_features = NUM_ENS_FEATURES
+        if not no_seq_complexity:
+            num_ens_features += 2
+    else:
+        num_ens_features = 0
+        with open(ensemble_bed) as i_f:
+            x = i_f.readline().strip().split()
+            if x:
+                num_ens_features = len(x) - 5 
+
     pool = multiprocessing.Pool(num_threads)
     map_args = []
     for i, split_region_file in enumerate(split_region_files):
         map_args.append((work, split_region_file, truth_vcf_file,
-                         tumor_pred_vcf_file, ref_file, ensemble_bed, no_seq_complexity, i))
+                         tumor_pred_vcf_file, ref_file, ensemble_bed, num_ens_features, i))
     try:
         records_data = pool.map_async(find_records, map_args).get()
         pool.close()
