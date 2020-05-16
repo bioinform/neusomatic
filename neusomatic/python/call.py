@@ -449,7 +449,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     logger.info("ensemble_custom_header: {}".format(ensemble_custom_header))
     
     
-    if ensemble_custom_header:    
+    if not ensemble_custom_header:    
         expected_ens_fields = NUM_ENS_FEATURES
         if not no_seq_complexity:
             expected_ens_fields += 2
