@@ -1405,6 +1405,9 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
                         "Strelka_TQSS", "VarScan2_Score", "SNVMix2_Score", "Sniper_Score", "VarDict_Score",
                         "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "MSI", "MSILEN", "SHIFT3"]
 
+    if is_extend and custom_header:
+        expected_features = list(
+            filter(lambda x: x not in callers_features, expected_features))
     n_vars = 0
     all_headers = set([])
     for ensemble_tsv in ensemble_tsvs:
@@ -1414,8 +1417,10 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
                     all_headers.add(line)
                     header_pos = line.strip().split()[0:5]
                     header_ = line.strip().split()[5:]
-                    if not custom_header:
-                        if is_extend:
+                    if custom_header and not is_extend:
+                        order_header = range(len(header_))
+                    else:
+                        if is_extend and not custom_header:
                             header_ += callers_features
                         header_en = list(filter(
                             lambda x: x[1] in expected_features, enumerate(header_)))
@@ -1431,8 +1436,6 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
                         order_header = []
                         for f in expected_features:
                             order_header.append(header_en[header.index(f)][0])
-                    else:
-                        order_header=range(len(header_))
                     continue
                 fields = line.strip().split()
                 fields[2] = str(int(fields[1]) + len(fields[3]))
@@ -1442,9 +1445,10 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
                     features += ["0"] * len(callers_features)
                 features = list(map(lambda x: float(
                     x.replace("False", "0").replace("True", "1")), features))
-                if custom_header:
-                    if min(features)<0 or max(features)>1:
-                        logger.info("In --ensemble_custom_header mode, feature values in ensemble.tsv should be normalized in [0,1]" )
+                if custom_header and not is_extend:
+                    if min(features) < 0 or max(features) > 1:
+                        logger.info(
+                            "In --ensemble_custom_header mode, feature values in ensemble.tsv should be normalized in [0,1]")
                         raise Exception
                 ensemble_data.append(features)
                 n_vars += 1
@@ -1454,7 +1458,7 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
         ensemble_data = np.array(ensemble_data)[:, order_header]
     header = np.array(header_)[order_header].tolist()
 
-    if not custom_header:
+    if not custom_header or is_extend:
         cov_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
             "Consistent_Mates", "Inconsistent_Mates", "N_DP",
             "nBAM_REF_NM", "nBAM_ALT_NM", "nBAM_REF_Concordant", "nBAM_REF_Discordant", "nBAM_ALT_Concordant", "nBAM_ALT_Discordant",
@@ -1537,7 +1541,8 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
             min_max_features.append([Seq_Complexity_, 0, 40])
 
         selected_features = sorted([i for f in min_max_features for i in f[0]])
-        selected_features_tags = list(map(lambda x: header[x], selected_features))
+        selected_features_tags = list(
+            map(lambda x: header[x], selected_features))
         if n_vars > 0:
             for i_s, mn, mx in min_max_features:
                 if i_s:
@@ -1548,7 +1553,7 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
             ensemble_data = ensemble_data[:, selected_features]
             ensemble_data = ensemble_data.tolist()
     else:
-        ensemble_data = ensemble_data.tolist()        
+        ensemble_data = ensemble_data.tolist()
         selected_features_tags = header_
     with open(ensemble_bed, "w")as f_:
         f_.write(
@@ -1624,7 +1629,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
         with open(ensemble_bed) as i_f:
             x = i_f.readline().strip().split()
             if x:
-                num_ens_features = len(x) - 5 
+                num_ens_features = len(x) - 5
 
     pool = multiprocessing.Pool(num_threads)
     map_args = []
