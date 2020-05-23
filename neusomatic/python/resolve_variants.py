@@ -61,7 +61,7 @@ def extract_ins(record):
             continue
         if C == CIGAR_INS:
             inss.append([record.reference_name, pos, pos + 1,
-                         record.query[seq_pos:seq_pos + L]])
+                         record.seq[seq_pos:seq_pos + L]])
             seq_pos += L
         else:
             if C != CIGAR_DEL:

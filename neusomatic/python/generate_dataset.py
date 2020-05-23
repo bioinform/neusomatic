@@ -1849,6 +1849,8 @@ if __name__ == '__main__':
     ensemble_bed = args.ensemble_bed
     no_seq_complexity = args.no_seq_complexity
     tsv_batch_size = args.tsv_batch_size
+    ensemble_custom_header = args.ensemble_custom_header
+    enforce_header = args.enforce_header
 
     try:
         generate_dataset(work, truth_vcf_file, mode, tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
