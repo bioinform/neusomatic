@@ -37,7 +37,7 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
         shuffle(intervals)
     total_len = sum(map(lambda x: int(x[2]) - int(x[1]) + 1, intervals))
     logger.info("Total length: {}".format(total_len))
-    split_len = total_len // num_splits
+    split_len = max(total_len // num_splits, min_region)
     split_regions = []
     current_regions = []
     sofar_len = 0
