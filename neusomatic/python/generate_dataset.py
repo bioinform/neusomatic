@@ -975,9 +975,11 @@ def find_records(input_record):
                                     r_ = [[chrom, pos, ref, alt]]
 
                                 ann = [0] * num_ens_features
+                                var_match = False
                                 if pos == ens_pos:
                                     if ref == ens_ref and alt == ens_alt:
                                         ann = record_[15:]
+                                        var_match = True
                                     elif (len(ref) > len(alt) and len(ens_ref) > len(ens_alt) and
                                             (alt) == (ens_alt)):
                                         if ((len(ref) > len(ens_ref) and ref[0:len(ens_ref)] == ens_ref) or (
@@ -990,14 +992,18 @@ def find_records(input_record):
                                             ann = record_[15:]
                                 if ann:
                                     ann = list(map(float, ann))
-                                rrs.append([r_, ann])
+                                rrs.append([r_, ann, var_match])
+                            has_var_match = sum(map(lambda x: x[2], rrs))
+                            if has_var_match:
+                                rrs = list(
+                                    filter(lambda x: x[2], rrs))[0:1]
                             max_ann = max(map(lambda x: sum(x[1]), rrs))
                             if max_ann > 0:
                                 rrs = list(
                                     filter(lambda x: sum(x[1]) > 0, rrs))
                             elif max_ann == 0:
                                 rrs = rrs[0:1]
-                            for r_, ann in rrs:
+                            for r_, ann, _ in rrs:
                                 for rr in r_:
                                     records.append(rr + [str(i)])
                                     anns[i] = ann
@@ -1023,9 +1029,11 @@ def find_records(input_record):
                             r_ = [[chrom, pos, ref, alt]]
 
                         ann = [0] * num_ens_features
+                        var_match = False
                         if pos == ens_pos:
                             if ref == ens_ref and alt == ens_alt:
                                 ann = record_[15:]
+                                var_match = True
                             elif (len(ref) > len(alt) and len(ens_ref) > len(ens_alt) and
                                     (alt) == (ens_alt)):
                                 if ((len(ref) > len(ens_ref) and ref[0:len(ens_ref)] == ens_ref) or (
@@ -1038,13 +1046,17 @@ def find_records(input_record):
                                     ann = record_[15:]
                         if ann:
                             ann = list(map(float, ann))
-                        rrs.append([r_, ann])
+                        rrs.append([r_, ann, var_match])
+                    has_var_match = sum(map(lambda x: x[2], rrs))
+                    if has_var_match:
+                        rrs = list(
+                            filter(lambda x: x[2], rrs))[0:1]
                     max_ann = max(map(lambda x: sum(x[1]), rrs))
                     if max_ann > 0:
                         rrs = list(filter(lambda x: sum(x[1]) > 0, rrs))
                     elif max_ann == 0:
                         rrs = rrs[0:1]
-                    for r_, ann in rrs:
+                    for r_, ann, _ in rrs:
                         for rr in r_:
                             records.append(rr + [str(i)])
                             anns[i] = ann
