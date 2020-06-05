@@ -1069,7 +1069,6 @@ def run_realignment(input_record):
                             num_add_before = min(40, pos - 1)
                             before = ref_fasta.fetch(
                                 region.chrom, pos - num_add_before, pos - 1).upper()
-                            print(before)
                             pos -= num_add_before - 1
                             ref = before + ref
                             alt = before + alt

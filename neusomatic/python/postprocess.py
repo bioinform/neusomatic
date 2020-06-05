@@ -21,7 +21,7 @@ import numpy as np
 from extract_postprocess_targets import extract_postprocess_targets
 from merge_post_vcfs import merge_post_vcfs
 from resolve_variants import resolve_variants
-from utils import concatenate_files, get_chromosomes_order, bedtools_window, run_bedtools_cmd, skip_empty
+from utils import concatenate_files, get_chromosomes_order, bedtools_window, bedtools_intersect, skip_empty
 from long_read_indelrealign import long_read_indelrealign
 from resolve_scores import resolve_scores
 from _version import __version__
@@ -196,7 +196,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     tempfile.tempdir = bed_tempdir
 
     candidates_preds = os.path.join(work, "candidates_preds.vcf")
-    ensembled_preds = os.path.join(work, "ensembled_preds.vcf")
+    ensembled_preds = os.path.join(work, "ensemble_preds.vcf")
 
     bedtools_window(
         pred_vcf_file, candidates_vcf, args=" -w 5 -v", output_fn=ensembled_preds, run_logger=logger)
@@ -242,9 +242,8 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
 
         not_resolved_vcf = os.path.join(
             work, "candidates_preds.not_ra_resolved.vcf")
-        cmd = "bedtools intersect -a {} -b {} -u".format(
-            target_vcf, not_resolved_bed)
-        run_bedtools_cmd(cmd, output_fn=not_resolved_vcf, run_logger=logger)
+        bedtools_intersect(target_vcf, not_resolved_bed, args=" -u ",
+                           output_fn=not_resolved_vcf, run_logger=logger)
 
         all_no_resolve = concatenate_files(
             [no_resolve, ensembled_preds, not_resolved_vcf], os.path.join(work, "no_resolve.vcf"))
