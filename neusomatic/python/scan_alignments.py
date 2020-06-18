@@ -24,7 +24,7 @@ from split_bed import split_region
 
 
 def run_scan_alignments(record):
-    work, reference, scan_alignments_binary, split_region_file, \
+    work, reference, merge_d_for_scan, scan_alignments_binary, split_region_file, \
         input_bam, window_size, maf, min_mapq, max_dp, filter_duplicate, calc_qual = record
 
     if filter_duplicate:
@@ -39,10 +39,19 @@ def run_scan_alignments(record):
             raise IOError("File not found: {}".format(scan_alignments_binary))
         if not os.path.exists(work):
             os.mkdir(work)
-        if os.path.getsize(split_region_file) > 0:
+
+        if merge_d_for_scan is not None:
+            split_region_file_=os.path.join(work,"merged_region.bed")
+            tmp_ = bedtools_sort(split_region_file, run_logger=thread_logger)
+            bedtools_merge(
+                tmp_, output_fn=split_region_file_ , args=" -d {}".format(merge_d_for_scan), run_logger=thread_logger)
+        else:
+            split_region_file_=split_region_file
+
+        if os.path.getsize(split_region_file_) > 0:
             cmd = "{} --ref {} -b {} -L {} --out_vcf_file {}/candidates.vcf --out_count_file {}/count.bed \
                         --window_size {} --min_af {} --min_mapq {} --max_depth {} {}".format(
-                scan_alignments_binary, reference, input_bam, split_region_file,
+                scan_alignments_binary, reference, input_bam, split_region_file_,
                 work, work, window_size, maf, min_mapq, max_dp * window_size / 100.0, filter_duplicate_str)
             if calc_qual:
                 cmd += " --calculate_qual_stat"
@@ -69,7 +78,7 @@ def run_scan_alignments(record):
         return None
 
 
-def scan_alignments(work, scan_alignments_binary, input_bam,
+def scan_alignments(work, merge_d_for_scan, scan_alignments_binary, input_bam,
                     regions_bed_file, reference, num_splits,
                     num_threads, window_size, maf, min_mapq, max_dp, filter_duplicate, restart=True,
                     split_region_files=[], calc_qual=True):
@@ -137,7 +146,7 @@ def scan_alignments(work, scan_alignments_binary, input_bam,
             if os.path.exists(work_):
                 shutil.rmtree(work_)
             map_args.append((os.path.join(work, "work.{}".format(i)),
-                             reference, scan_alignments_binary, split_region_file,
+                             reference, merge_d_for_scan, scan_alignments_binary, split_region_file,
                              input_bam, window_size, maf, min_mapq, max_dp, filter_duplicate, calc_qual))
             not_done.append(i)
         else:
@@ -192,6 +201,9 @@ if __name__ == '__main__':
     parser.add_argument('--filter_duplicate',
                         help='filter duplicate reads when preparing pileup information',
                         action="store_true")
+    parser.add_argument('--merge_d_for_scan', type=int,
+                        help='-d used to merge regions before scan',
+                        default=None)
     parser.add_argument('--num_splits', type=int,
                         help='number of region splits', default=None)
     parser.add_argument('--num_threads', type=int,
@@ -200,7 +212,7 @@ if __name__ == '__main__':
     logger.info(args)
 
     try:
-        outputs = scan_alignments(args.work, args.scan_alignments_binary, args.input_bam,
+        outputs = scan_alignments(args.work, args.merge_d_for_scan, args.scan_alignments_binary, args.input_bam,
                                   args.regions_bed_file, args.reference, args.num_splits,
                                   args.num_threads, args.window_size, args.maf,
                                   args.min_mapq, args.max_dp, args.filter_duplicate)

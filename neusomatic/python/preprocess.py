@@ -31,11 +31,12 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
                          good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
                          ins_min_af, del_min_af, del_merge_min_af,
                          ins_merge_min_af, merge_r,
+                         merge_d_for_scan,
                          scan_alignments_binary, restart, num_splits, num_threads, calc_qual, regions=[]):
 
     logger = logging.getLogger(process_split_region.__name__)
     logger.info("Scan bam.")
-    scan_outputs = scan_alignments(work, scan_alignments_binary, alignment_bam,
+    scan_outputs = scan_alignments(work, merge_d_for_scan, scan_alignments_binary, alignment_bam,
                                    region, reference, num_splits, num_threads, scan_window_size, scan_maf,
                                    min_mapq, max_dp, filter_duplicate, restart=restart, split_region_files=regions,
                                    calc_qual=calc_qual)
@@ -208,6 +209,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                no_feature_recomp_for_ensemble,
                window_extend,
                max_cluster_size,
+               merge_d_for_scan,
                num_splits,
                num_threads,
                scan_alignments_binary,):
@@ -288,6 +290,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                                        snp_min_af, -10000, snp_min_ao,
                                                        ins_min_af, del_min_af, del_merge_min_af,
                                                        ins_merge_min_af, merge_r,
+                                                       merge_d_for_scan,
                                                        scan_alignments_binary, restart, num_splits, num_threads,
                                                        calc_qual=False)
         tumor_counts_without_q, split_regions, filtered_candidates_vcfs_without_q = tumor_outputs_without_q
@@ -313,6 +316,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                          snp_min_af, snp_min_bq, snp_min_ao,
                                          ins_min_af, del_min_af, del_merge_min_af,
                                          ins_merge_min_af, merge_r,
+                                         merge_d_for_scan,
                                          scan_alignments_binary, restart, num_splits, num_threads,
                                          calc_qual=True,
                                          regions=candidates_split_regions)
@@ -340,6 +344,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                                good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
                                                ins_min_af, del_min_af, del_merge_min_af,
                                                ins_merge_min_af, merge_r,
+                                               merge_d_for_scan,
                                                scan_alignments_binary, restart, num_splits, num_threads,
                                                calc_qual=True,
                                                regions=candidates_split_regions)
@@ -681,6 +686,9 @@ if __name__ == '__main__':
     parser.add_argument('--max_cluster_size', type=int,
                         help='max cluster size for extending input features (should be in the order of readlength)',
                         default=300)
+    parser.add_argument('--merge_d_for_scan', type=int,
+                        help='-d used to merge regions before scan',
+                        default=None)
     parser.add_argument('--num_splits', type=int,
                         help='number of region splits', default=None)
     parser.add_argument('--num_threads', type=int,
@@ -706,6 +714,7 @@ if __name__ == '__main__':
                    args.no_feature_recomp_for_ensemble,
                    args.window_extend,
                    args.max_cluster_size,
+                   args.merge_d_for_scan,
                    args.num_splits,
                    args.num_threads,
                    args.scan_alignments_binary)
