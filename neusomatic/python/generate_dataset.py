@@ -1378,6 +1378,7 @@ def find_records(input_record):
 
 def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_header,
                      custom_header,
+                     zero_vscore,
                      is_extend):
     logger = logging.getLogger(extract_ensemble.__name__)
     ensemble_data = []
@@ -1414,7 +1415,7 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
                           "InDel_Length"]
     callers_features = ["if_MuTect", "if_VarScan2", "if_JointSNVMix2", "if_SomaticSniper", "if_VarDict", "MuSE_Tier",
                         "if_LoFreq", "if_Scalpel", "if_Strelka", "if_TNscope", "Strelka_Score", "Strelka_QSS",
-                        "Strelka_TQSS", "VarScan2_Score", "SNVMix2_Score", "Sniper_Score", "VarDict_Score",
+                        "Strelka_TQSS", "SNVMix2_Score", "Sniper_Score", "VarDict_Score",
                         "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "MSI", "MSILEN", "SHIFT3"]
 
     if is_extend and custom_header:
@@ -1527,6 +1528,7 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
         Seq_Complexity_ = list(map(lambda x: x[0], filter(
             lambda x: x[1] in ["Seq_Complexity_Span", "Seq_Complexity_Adj"], enumerate(header))))
 
+        max_varscan2_score = 0 if zero_vscore else 60
         min_max_features = [[cov_features, 0, 2 * COV],
                             [mq_features, 0, 70],
                             [bq_features, 0, 41],
@@ -1536,7 +1538,7 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
                             [stralka_scor, 0, 40],
                             [stralka_qss, 0, 200],
                             [stralka_tqss, 0, 4],
-                            [varscan2_score, 0, 60],
+                            [varscan2_score, 0, max_varscan2_score],
                             [vardict_score, 0, 120],
                             [m2_lod, 0, 100],
                             [sniper_score, 0, 120],
@@ -1579,7 +1581,9 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
                      ensemble_bed,
                      ensemble_custom_header,
-                     no_seq_complexity, enforce_header, tsv_batch_size):
+                     no_seq_complexity, enforce_header,
+                     zero_vscore,
+                     tsv_batch_size):
     logger = logging.getLogger(generate_dataset.__name__)
 
     logger.info("---------------------Generate Dataset----------------------")
@@ -1609,6 +1613,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
         extract_ensemble(ensemble_tsvs=[ensemble_tsv], ensemble_bed=ensemble_bed,
                          no_seq_complexity=no_seq_complexity, enforce_header=enforce_header,
                          custom_header=ensemble_custom_header,
+                         zero_vscore=zero_vscore,
                          is_extend=False)
 
     tmp_ = bedtools_intersect(
@@ -1841,6 +1846,9 @@ if __name__ == '__main__':
     parser.add_argument('--enforce_header',
                         help='Enforce header match for ensemble_tsv',
                         action="store_true")
+    parser.add_argument('--zero_vscore',
+                        help='set VarScan2_Score to zero',
+                        action="store_true")
     args = parser.parse_args()
     logger.info(args)
 
@@ -1863,13 +1871,15 @@ if __name__ == '__main__':
     tsv_batch_size = args.tsv_batch_size
     ensemble_custom_header = args.ensemble_custom_header
     enforce_header = args.enforce_header
-
+    zero_vscore = zero_vscore
     try:
         generate_dataset(work, truth_vcf_file, mode, tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                          matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
                          ensemble_bed,
                          ensemble_custom_header,
-                         no_seq_complexity, enforce_header, tsv_batch_size)
+                         no_seq_complexity, enforce_header,
+                         zero_vscore,
+                         tsv_batch_size)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")

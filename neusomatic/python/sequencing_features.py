@@ -18,8 +18,16 @@ logger = logging.getLogger(__name__)
 nan = float('nan')
 
 
-def fisher_exact_test(mat):
-    return fisher.pvalue(mat[0][0], mat[0][1], mat[1][0], mat[1][1]).two_tail
+def fisher_exact_test(mat, alternative="two-sided"):
+    if alternative == "two-sided":
+        return fisher.pvalue(mat[0][0], mat[0][1], mat[1][0], mat[1][1]).two_tail
+    elif alternative == "greater":
+        return fisher.pvalue(mat[0][0], mat[0][1], mat[1][0], mat[1][1]).right_tail
+    elif alternative == "less":
+        return fisher.pvalue(mat[0][0], mat[0][1], mat[1][0], mat[1][1]).left_tail
+    else:
+        logger.error("Wrong fisher_test alternative: {}".format(alternative))
+        raise Exception
 
 
 def get_read_pos_for_ref_pos(read, ref_pos_s):

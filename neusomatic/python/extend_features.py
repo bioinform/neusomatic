@@ -48,6 +48,14 @@ def extract_features(candidate_record):
                 sor = sequencing_features.somaticOddRatio(nBamFeatures.nref, nBamFeatures.nalt, tBamFeatures.nref,
                                                           tBamFeatures.nalt)
 
+                try:
+                    score_varscan2 = genome.p2phred(sequencing_features.fisher_exact_test(
+                        ((tBamFeatures.nalt, nBamFeatures.nalt),
+                         (tBamFeatures.nref, nBamFeatures.nref)),
+                        alternative='greater'))
+                except ValueError:
+                    score_varscan2 = nan
+
                 homopolymer_length, site_homopolymer_length = sequencing_features.from_genome_reference(
                     ref_fa, my_coordinate, ref, alt)
 
@@ -136,6 +144,7 @@ def extract_features(candidate_record):
                 SOR = sor
                 MaxHomopolymer_Length = homopolymer_length
                 SiteHomopolymer_Length = site_homopolymer_length
+                score_varscan2 = rescale(score_varscan2,      'phred', p_scale, 1001)
                 T_DP = tBamFeatures.dp
                 tBAM_REF_MQ = '%g' % tBamFeatures.ref_mq
                 tBAM_ALT_MQ = '%g' % tBamFeatures.alt_mq
@@ -185,7 +194,7 @@ def extract_features(candidate_record):
                                  nBAM_Z_Ranksums_EndPos, nBAM_REF_Clipped_Reads, nBAM_ALT_Clipped_Reads, nBAM_Clipping_FET,
                                  nBAM_MQ0, nBAM_Other_Reads, nBAM_Poor_Reads, nBAM_REF_InDel_3bp, nBAM_REF_InDel_2bp,
                                  nBAM_REF_InDel_1bp, nBAM_ALT_InDel_3bp, nBAM_ALT_InDel_2bp, nBAM_ALT_InDel_1bp, SOR,
-                                 MaxHomopolymer_Length, SiteHomopolymer_Length, T_DP, tBAM_REF_MQ, tBAM_ALT_MQ, tBAM_Z_Ranksums_MQ,
+                                 MaxHomopolymer_Length, SiteHomopolymer_Length, score_varscan2, T_DP, tBAM_REF_MQ, tBAM_ALT_MQ, tBAM_Z_Ranksums_MQ,
                                  tBAM_REF_BQ, tBAM_ALT_BQ, tBAM_Z_Ranksums_BQ, tBAM_REF_NM, tBAM_ALT_NM, tBAM_NM_Diff,
                                  tBAM_REF_Concordant, tBAM_REF_Discordant, tBAM_ALT_Concordant, tBAM_ALT_Discordant,
                                  tBAM_Concordance_FET, T_REF_FOR, T_REF_REV, T_ALT_FOR, T_ALT_REV, tBAM_StrandBias_FET,
@@ -364,7 +373,7 @@ def extend_features(candidates_vcf,
                    "nBAM_Z_Ranksums_EndPos", "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads", "nBAM_Clipping_FET",
                    "nBAM_MQ0", "nBAM_Other_Reads", "nBAM_Poor_Reads", "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp",
                    "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp", "nBAM_ALT_InDel_1bp", "SOR",
-                   "MaxHomopolymer_Length", "SiteHomopolymer_Length", "T_DP", "tBAM_REF_MQ", "tBAM_ALT_MQ", "tBAM_Z_Ranksums_MQ",
+                   "MaxHomopolymer_Length", "SiteHomopolymer_Length", "VarScan2_Score", "T_DP", "tBAM_REF_MQ", "tBAM_ALT_MQ", "tBAM_Z_Ranksums_MQ",
                    "tBAM_REF_BQ", "tBAM_ALT_BQ", "tBAM_Z_Ranksums_BQ", "tBAM_REF_NM", "tBAM_ALT_NM", "tBAM_NM_Diff",
                    "tBAM_REF_Concordant", "tBAM_REF_Discordant", "tBAM_ALT_Concordant", "tBAM_ALT_Discordant",
                    "tBAM_Concordance_FET", "T_REF_FOR", "T_REF_REV", "T_ALT_FOR", "T_ALT_REV", "tBAM_StrandBias_FET",

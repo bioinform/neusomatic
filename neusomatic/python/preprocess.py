@@ -82,13 +82,16 @@ def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, regi
                             matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_bed,
                             ensemble_custom_header,
                             no_seq_complexity,
-                            no_feature_recomp_for_ensemble, tsv_batch_size):
+                            no_feature_recomp_for_ensemble, 
+                            zero_vscore,
+                            tsv_batch_size):
     logger = logging.getLogger(generate_dataset_region.__name__)
     generate_dataset(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, None, ensemble_bed,
                      ensemble_custom_header,
                      no_seq_complexity,
                      no_feature_recomp_for_ensemble,
+                     zero_vscore,
                      tsv_batch_size)
 
 
@@ -251,6 +254,10 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
             raise Exception(
                 "The dbSNP file should be a tabix indexed file with .vcf.gz format. No {}.tbi file exists.".format(dbsnp))
 
+    zero_vscore = False
+    if not ensemble_tsv and add_extra_features:
+        zero_vscore = True
+
     ensemble_bed = None
     if ensemble_tsv:
         ensemble_bed = os.path.join(work, "ensemble.bed")
@@ -259,7 +266,9 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
             extract_ensemble(ensemble_tsvs=[ensemble_tsv], ensemble_bed=ensemble_bed,
                              no_seq_complexity=no_seq_complexity, enforce_header=no_feature_recomp_for_ensemble,
                              custom_header=ensemble_custom_header,
+                             zero_vscore=zero_vscore,
                              is_extend=False)
+
     merge_d_for_short_read = 100
     candidates_split_regions = []
     ensemble_beds = []
@@ -390,6 +399,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                      no_seq_complexity=no_seq_complexity,
                                      enforce_header=True,
                                      custom_header=ensemble_custom_header,
+                                     zero_vscore=zero_vscore,
                                      is_extend=True)
                 if ensemble_tsv:
                     merged_features_bed = os.path.join(
@@ -433,7 +443,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                 header_line = ""
                                 callers_features = ["if_MuTect", "if_VarScan2", "if_JointSNVMix2", "if_SomaticSniper", "if_VarDict", "MuSE_Tier",
                                                     "if_LoFreq", "if_Scalpel", "if_Strelka", "if_TNscope", "Strelka_Score", "Strelka_QSS",
-                                                    "Strelka_TQSS", "VarScan2_Score", "SNVMix2_Score", "Sniper_Score", "VarDict_Score",
+                                                    "Strelka_TQSS", "SNVMix2_Score", "Sniper_Score", "VarDict_Score",
                                                     "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "MSI", "MSILEN", "SHIFT3"]
                                 with open(merged_features_bed, "w") as o_f, open(ensemble_beds[i]) as i_f_1, open(extra_features_bed) as i_f_2:
                                     ens_variants_info = {}
@@ -568,7 +578,9 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                     matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, num_threads,
                                     ensemble_bed_i,
                                     ensemble_custom_header,
-                                    no_seq_complexity, no_feature_recomp_for_ensemble, tsv_batch_size)
+                                    no_seq_complexity, no_feature_recomp_for_ensemble, 
+                                    zero_vscore,
+                                    tsv_batch_size)
 
     shutil.rmtree(bed_tempdir)
     tempfile.tempdir = original_tempdir
