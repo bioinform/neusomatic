@@ -110,13 +110,15 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
                     dp, ro, ao = list(map(int, info[1:4]))
                     af = float(info[4])
                     is_same = x[1] == x[11] and x[3] == x[13] and x[4] == x[14]
+                    is_same = 0 if is_same else 1
                     is_same_type = np.sign(
                         len(x[3]) - len(x[13])) == np.sign(len(x[4]) - len(x[14]))
+                    is_same_type = 0 if is_same_type else 1
                     dist = abs(int(x[1]) - int(x[11]))
                     len_diff = abs(
                         (len(x[3]) - len(x[13])) - (len(x[4]) - len(x[14])))
                     tags_info[tag].append(
-                        [~is_same, ~is_same_type, dist, len_diff, s_e, dp, ro, ao, af])
+                        [is_same, is_same_type, dist, len_diff, s_e, dp, ro, ao, af])
     fina_info_tag = {}
     for tag, hits in tags_info.items():
         hits = sorted(hits, key=lambda x: x[0:5])
@@ -206,7 +208,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     logger.info("Extract targets")
     postprocess_pad = 1 if not long_read else 10
     extract_postprocess_targets(
-        candidates_preds, min_len, postprocess_max_dist, postprocess_pad)
+        reference, candidates_preds, min_len, postprocess_max_dist, postprocess_pad)
 
     no_resolve = os.path.join(work, "candidates_preds.no_resolve.vcf")
     target_vcf = os.path.join(work, "candidates_preds.resolve_target.vcf")

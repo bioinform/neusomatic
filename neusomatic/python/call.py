@@ -146,6 +146,7 @@ def pred_vcf_records_path(record):
 
         chrom, pos, ref, alt, _, center, _, _, _ = path.split(
             ".")
+        ref, alt = ref.upper(), alt.upper()        
         center = int(center)
         pos = int(pos)
 
@@ -212,61 +213,82 @@ def pred_vcf_records_path(record):
         for i in nzref_pos:
             col_2_pos[i] = cnt
             cnt += 1
+        if vartype_candidate == "INS" and anchor[1] == 0 and 0 not in col_2_pos:
+            col_2_pos[0] = -1
+            nzref_pos = np.array([0] + list(nzref_pos))
         if anchor[1] not in col_2_pos:
-            # print "NNN",path,pred
-            return vcf_record
+            if I[0, anchor[1], 0] > 0 and vartype_candidate == "INS" and type_pred == "INS":
+                ins_no_zref_pos = True
+            else:
+                # thread_logger.info(["NNN", path, pred])
+                return vcf_record
+        if not ins_no_zref_pos:
+            b = (anchor[0] - col_2_pos[anchor[1]])
+            for i in nzref_pos:
+                col_2_pos[i] += b
+            pos_2_col = {v: k for k, v in col_2_pos.items()}
 
-        b = (anchor[0] - col_2_pos[anchor[1]])
-        for i in nzref_pos:
-            col_2_pos[i] += b
-        pos_2_col = {v: k for k, v in col_2_pos.items()}
+        if type_pred == "SNP" and len(ref) - len(alt) > 1 and abs(center_pred - center) < center_dist_roundback:
+            thread_logger.info(["TBC", path, nzref_pos])
 
         if abs(center_pred - center) < too_far_center:
             if type_pred == "SNP":
-                pos_ = col_2_pos[center_]
-                ref_ = ""
-                alt_ = ""
-                for i in range(len_pred):
-                    nzp = nzref_pos[nzref_pos >= (center_ + i)]
-                    if len(nzp) > 0:
-                        center__ = nzp[np.argmin(abs(nzp - (center_ + i)))]
-                        rb = np.argmax(I[1:, center__, 0])
-                        ref_ += ACGT[rb]
-                        II = I.copy()
-                        II[rb + 1, center__, 1] = 0
-                        alt_ += ACGT[np.argmax(II[1:, center__, 1])]
-                        if sum(I[1:, center__, 1]) == 0:
-                            break
-                if not ref_:
-                    # print "SSS",path,pred
-                    return vcf_record
+                if abs(center_pred - center) < center_dist_roundback and len_pred == 1 and len(ref) == 1 and len(alt) == 1:
+                    pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
+                else:
+                    pos_ = col_2_pos[center_]
+                    ref_ = ""
+                    alt_ = ""
+                    for i in range(len_pred):
+                        nzp = nzref_pos[nzref_pos >= (center_ + i)]
+                        if len(nzp) > 0:
+                            center__ = nzp[np.argmin(abs(nzp - (center_ + i)))]
+                            rb = np.argmax(I[1:, center__, 0])
+                            ref_ += ACGT[rb]
+                            II = I.copy()
+                            II[rb + 1, center__, 1] = 0
+                            if max(II[1:, center__, 1]) == 0 and center__ == center and ref == ref_ and len(alt) == 1:
+                                alt_ = alt
+                            else:
+                                alt_ += ACGT[np.argmax(II[1:, center__, 1])]
+                            if sum(I[1:, center__, 1]) == 0:
+                                break
+                    if not ref_:
+                        # thread_logger.info(["SSS", path, pred])
+                        return vcf_record
             elif type_pred == "INS":
                 if ins_no_zref_pos:
                     pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
                 else:
-                    pos_ = -1
+                    pos_ = -2
                     i_ = center_ - 1
-                    for i_ in range(center_ - 1, 0, -1):
+                    for i_ in range(center_ - 1, -2, -1):
                         if i_ in nzref_pos:
                             pos_ = col_2_pos[i_]
                             break
-                    if pos_ == -1:
+                    if pos_ == -2:
                         # print "PPP-1",path,pred
                         return vcf_record
-                    if (sum(I[1:, i_, 1]) == 0):
-                        # path,pred,i_,nzref_pos,col_2_pos,I[1:,i_,1],true_path[path]
-                        return vcf_record
-                    ref_ = ACGT[np.argmax(I[1:, i_, 0])]
-                    alt_ = ref_
+                    len_pred_=len_pred
                     if len_pred == 3:
                         len_pred = max(len(alt) - len(ref), len_pred)
-                    for i in range(i_ + 1, Iw):
-                        if i in zref_pos:
-                            alt_ += ACGT[np.argmax(I[1:, i, 1])]
-                        else:
-                            break
-                        if (len(alt_) - len(ref_)) >= len_pred:
-                            break
+                    if (sum(I[1:, i_, 1]) == 0):
+                        # thread_logger.info(["PPP-2", path, pred])
+                        return vcf_record
+                    if len_pred == len(alt) - len(ref) and pos_ == pos:
+                        pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
+                    else:
+                        ref_ = ACGT[np.argmax(I[1:, i_, 0])]
+                        alt_ = ref_
+                        for i in range(i_ + 1, Iw):
+                            if i in zref_pos:
+                                alt_ += ACGT[np.argmax(I[1:, i, 1])]
+                            else:
+                                break
+                            if (len(alt_) - len(ref_)) >= len_pred:
+                                break
+                        if len_pred_ == 3 and (len(alt_) - len(ref_)) < len_pred and pos_ == pos:
+                            pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
             elif type_pred == "DEL":
                 pos_ = col_2_pos[center_] - 1
                 if pos_ not in pos_2_col:

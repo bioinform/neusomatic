@@ -7,15 +7,19 @@
 import argparse
 import traceback
 import logging
+import pysam
 
 from utils import skip_empty
 from defaults import VCF_HEADER
+from resolve_variants import push_left_var
 
 
-def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
+def extract_postprocess_targets(reference, input_vcf, min_len, max_dist, pad):
     logger = logging.getLogger(extract_postprocess_targets.__name__)
 
     logger.info("--------------Extract Postprocessing Targets---------------")
+
+    ref_fasta = pysam.FastaFile(reference)
 
     base_name = ".".join(input_vcf.split(".")[:-1])
     out_vcf = "{}.no_resolve.vcf".format(base_name)
@@ -37,9 +41,19 @@ def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
             if not record_set:
                 record_set.append(record)
                 continue
-            if len(list(filter(lambda x: (chrom == x[0] and (abs(min(x[1] + len(x[2]), pos + len(ref)) - max(x[1], pos)) <= max_dist)), record_set))) > 0:
+            chrom_, pos_, ref_, alt_ = push_left_var(
+                ref_fasta, chrom, pos, ref, alt)
+            if len(list(filter(lambda x: (chrom == x[0] and
+                                          (min(abs(x[1] + len(x[2]) - (pos + len(ref))),
+                                               abs(x[1] - pos),
+                                               abs(min(x[1] + len(x[2]), pos + len(ref)) - max(x[1], pos))) <= max_dist)), record_set))) > 0 or len(
+                list(filter(lambda x: (chrom_ == x[0] and
+                                       (min(abs(x[1] + len(x[2]) - (pos_ + len(ref_))),
+                                            abs(x[1] - pos_),
+                                            abs(min(x[1] + len(x[2]), pos_ + len(ref_)) - max(x[1], pos_))) <= max_dist)), record_set))) > 0:
                 record_set.append(record)
                 continue
+
 
             if record_set:
                 record_sets.append(record_set)
@@ -48,7 +62,18 @@ def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
 
         for ii, record_set in enumerate(record_sets):
             if len(record_set) > 1:
-                if list(filter(lambda x: len(x[2]) != len(x[3]), record_set)):
+                varid_pos = {}
+                for chrom, pos, ref, alt, _, _ in record_set:
+                    if pos not in varid_pos:
+                        varid_pos[pos] = set([])
+                    vid = "-".join([ref, alt])
+                    varid_pos[pos].add(vid)
+                multi_allelic = False
+                for vid in varid_pos:
+                    if len(varid_pos[vid]) > 1:
+                        multi_allelic = True
+
+                if list(filter(lambda x: len(x[2]) != len(x[3]), record_set)) or multi_allelic:
                     for x in record_set:
                         fields = x[-1].strip().split()
                         fields[2] = str(ii)
@@ -60,6 +85,7 @@ def extract_postprocess_targets(input_vcf, min_len, max_dist, pad):
                 else:
                     for x in record_set:
                         o_f.write(x[-1])
+
             elif record_set:
                 if abs(len(record_set[0][2]) - len(record_set[0][3])) >= min_len:
                     fields = record_set[0][-1].strip().split()
@@ -80,6 +106,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(
         description='infer genotype by ao and ro counts')
+    parser.add_argument('--reference', type=str,
+                        help='reference fasta filename', required=True)
     parser.add_argument('--input_vcf', type=str,
                         help='input vcf', required=True)
     parser.add_argument('--min_len', type=int,
@@ -92,7 +120,7 @@ if __name__ == '__main__':
     logger.info(args)
     try:
         extract_postprocess_targets(
-            args.input_vcf, args.min_len, args.max_dist, args.pad)
+            args.reference, args.input_vcf, args.min_len, args.max_dist, args.pad)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")
