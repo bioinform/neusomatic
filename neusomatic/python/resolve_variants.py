@@ -192,6 +192,9 @@ def resolve_group(ref_fasta, variants, vars_count):
         #     "No non-zero COUNT with non-zero SCORE: {}".format(list(str(x) for x in group_vars[pos])))
         return []
 
+
+    # logger.info(list([pos, [str(y) for y in x]] for pos,x in group_vars.items()))
+
     max_count = max(max_target)
     for pos in group_vars.keys():
         if max(map(lambda x: x.cnt, group_vars[pos])
@@ -292,7 +295,7 @@ def find_resolved_variants(input_record):
         inss = []
         snps = []
         vars_count = {}
-        with pysam.AlignmentFile(i_bam) as samfile:
+        with pysam.AlignmentFile(input_bam) as samfile:
             cov = 0
             dels_ = []
             inss_ = []

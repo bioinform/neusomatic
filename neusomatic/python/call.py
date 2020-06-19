@@ -146,7 +146,7 @@ def pred_vcf_records_path(record):
 
         chrom, pos, ref, alt, _, center, _, _, _ = path.split(
             ".")
-        ref, alt = ref.upper(), alt.upper()        
+        ref, alt = ref.upper(), alt.upper()
         center = int(center)
         pos = int(pos)
 
@@ -247,8 +247,14 @@ def pred_vcf_records_path(record):
                             ref_ += ACGT[rb]
                             II = I.copy()
                             II[rb + 1, center__, 1] = 0
-                            if max(II[1:, center__, 1]) == 0 and center__ == center and ref == ref_ and len(alt) == 1:
-                                alt_ = alt
+                            if max(II[1:, center__, 1]) == 0:
+                                if abs(center_pred - center) < center_dist_roundback * 3 and len_pred == 1:
+                                    pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
+                                    break
+                                else:
+                                    ref_ = ""
+                                    alt_ = ""
+                                    break
                             else:
                                 alt_ += ACGT[np.argmax(II[1:, center__, 1])]
                             if sum(I[1:, center__, 1]) == 0:
@@ -269,7 +275,7 @@ def pred_vcf_records_path(record):
                     if pos_ == -2:
                         # print "PPP-1",path,pred
                         return vcf_record
-                    len_pred_=len_pred
+                    len_pred_ = len_pred
                     if len_pred == 3:
                         len_pred = max(len(alt) - len(ref), len_pred)
                     if (sum(I[1:, i_, 1]) == 0):
@@ -469,13 +475,12 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     logger.info("no_seq_complexity: {}".format(no_seq_complexity))
     logger.info("zero_ann_cols: {}".format(zero_ann_cols))
     logger.info("ensemble_custom_header: {}".format(ensemble_custom_header))
-    
-    
-    if not ensemble_custom_header:    
+
+    if not ensemble_custom_header:
         expected_ens_fields = NUM_ENS_FEATURES
         if not no_seq_complexity:
             expected_ens_fields += 2
-        
+
         logger.info("expected_ens_fields: {}".format(expected_ens_fields))
 
         expected_st_fields = 4
@@ -493,7 +498,8 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     elif len(x) == 4:
                         break
                     else:
-                        raise Exception("Wrong number of fields in {}: {}".format(tsv, len(x)))
+                        raise Exception(
+                            "Wrong number of fields in {}: {}".format(tsv, len(x)))
 
         num_channels = expected_ens_fields + \
             NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
@@ -539,7 +545,6 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     # 3. load the new state dict
     net.load_state_dict(pretrained_state_dict)
 
-
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
     matrices_dir = "{}/matrices_{}".format(out_dir, model_tag)
@@ -547,7 +552,6 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         logger.warning("Remove matrices directory: {}".format(matrices_dir))
         shutil.rmtree(matrices_dir)
     os.mkdir(matrices_dir)
-
 
     new_split_tsvs_dir = os.path.join(out_dir, "split_tsvs")
     if os.path.exists(new_split_tsvs_dir):
