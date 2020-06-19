@@ -1528,7 +1528,6 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
         Seq_Complexity_ = list(map(lambda x: x[0], filter(
             lambda x: x[1] in ["Seq_Complexity_Span", "Seq_Complexity_Adj"], enumerate(header))))
 
-        max_varscan2_score = 0 if zero_vscore else 60
         min_max_features = [[cov_features, 0, 2 * COV],
                             [mq_features, 0, 70],
                             [bq_features, 0, 41],
@@ -1538,7 +1537,7 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
                             [stralka_scor, 0, 40],
                             [stralka_qss, 0, 200],
                             [stralka_tqss, 0, 4],
-                            [varscan2_score, 0, max_varscan2_score],
+                            [varscan2_score, 0, 60],
                             [vardict_score, 0, 120],
                             [m2_lod, 0, 100],
                             [sniper_score, 0, 120],
@@ -1553,6 +1552,9 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
                             ]
         if not no_seq_complexity:
             min_max_features.append([Seq_Complexity_, 0, 40])
+
+        if zero_vscore:
+            ensemble_data[:,np.array(varscan2_score)] = 0
 
         selected_features = sorted([i for f in min_max_features for i in f[0]])
         selected_features_tags = list(

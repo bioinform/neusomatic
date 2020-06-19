@@ -54,7 +54,7 @@ def extract_features(candidate_record):
                          (tBamFeatures.nref, nBamFeatures.nref)),
                         alternative='greater'))
                 except ValueError:
-                    score_varscan2 = nan
+                    score_varscan2 = float('nan')
 
                 homopolymer_length, site_homopolymer_length = sequencing_features.from_genome_reference(
                     ref_fa, my_coordinate, ref, alt)

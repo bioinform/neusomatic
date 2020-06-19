@@ -1,15 +1,15 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 		
 ENV NEUSOMATIC_VERSION 0.3.0
 ENV ZLIB_VERSION 1.2.11
-ENV NUMPY_VERSION 1.18.5
+ENV NUMPY_VERSION 1.18.1
 ENV SCIPY_VERSION 1.4.1
 ENV IMAGEIO_VERSION 2.8.0
-ENV PILLOW_VERSION 2.8.0
+ENV PILLOW_VERSION 7.1.2
 ENV PYTORCH_VERSION 1.4.0
 ENV TORCHVISION_VERSION 0.5.0
 ENV CUDATOOLKIT_VERSION 9.2
-ENV CMAKE_VERSION 3.17.0
+ENV CMAKE_VERSION 3.14.0
 ENV PYSAM_VERSION 0.15.3
 ENV SAMTOOLS_VERSION 1.9
 ENV TABIX_VERSION 0.2.6
@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --fix-missing \
 				build-essential zlib1g-dev curl less vim bzip2
 RUN apt-get install -y --fix-missing git wget
 
-RUN curl -LO http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+RUN curl -LO https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 RUN bash Miniconda3-latest-Linux-x86_64.sh -p /miniconda -b
 RUN rm Miniconda3-latest-Linux-x86_64.sh
 ENV PATH=/miniconda/bin:${PATH}
