@@ -689,6 +689,9 @@ if __name__ == '__main__':
     parser.add_argument('--merge_d_for_scan', type=int,
                         help='-d used to merge regions before scan',
                         default=None)
+    parser.add_argument('--zero_vscore',
+                        help='set VarScan2_Score to zero',
+                        action="store_true")
     parser.add_argument('--num_splits', type=int,
                         help='number of region splits', default=None)
     parser.add_argument('--num_threads', type=int,
