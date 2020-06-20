@@ -43,6 +43,7 @@ RUN conda install -y pytorch=${PYTORCH_VERSION} \
 
 RUN apt-get install -y --fix-missing gcc-${GCC_VERSION} g++-${GCC_VERSION}
 
+
 ADD https://github.com/bioinform/neusomatic/archive/extended_standalone.tar.gz /opt/extended_standalone.tar.gz 
 RUN cd /opt/ && tar -xzvf extended_standalone.tar.gz && mv neusomatic-extended_standalone neusomatic && rm /opt/extended_standalone.tar.gz
 RUN cd /opt/neusomatic/ && ./build.sh 
