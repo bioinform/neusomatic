@@ -1553,8 +1553,8 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
         if not no_seq_complexity:
             min_max_features.append([Seq_Complexity_, 0, 40])
 
-        if zero_vscore:
-            ensemble_data[:,np.array(varscan2_score)] = 0
+        if zero_vscore and n_vars > 0:
+            ensemble_data[:, np.array(varscan2_score)] = 0
 
         selected_features = sorted([i for f in min_max_features for i in f[0]])
         selected_features_tags = list(

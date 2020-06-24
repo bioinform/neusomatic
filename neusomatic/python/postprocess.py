@@ -40,6 +40,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
             c_f.write("{}\n".format(VCF_HEADER))
             c_f.write(
                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
+            ensemble_header_found = False
             for line in e_f:
                 if "POS" in line:
                     header = line.strip().split()
@@ -47,6 +48,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
                     pos_id = header.index("POS")
                     ref_id = header.index("REF")
                     alt_id = header.index("ALT")
+                    ensemble_header_found = True
                     if "T_DP" in line:
                         dp_id = header.index("T_DP")
                         ref_fw_id = header.index("T_REF_FOR")
@@ -57,6 +59,7 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
                     else:
                         dp_id, ref_fw_id, ref_rv_id, alt_fw_id, alt_rv_id = None, None, None, None, None
                     continue
+                assert ensemble_header_found
                 fields = line.strip().split()
                 chrom = fields[chrom_id]
                 pos = fields[pos_id]

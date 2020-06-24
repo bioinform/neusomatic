@@ -88,6 +88,17 @@ def extract_ins(record):
             pos += L
     return inss
 
+
+def find_vtype(ref, alt):
+    if len(alt) < len(ref):
+        vtype = "DEL"
+    elif len(alt) > len(ref):
+        vtype = "INS"
+    else:
+        vtype = "SNP"
+    return vtype
+
+
 def push_left_var(ref_fasta, chrom, pos, ref, alt):
     logger = logging.getLogger(push_left_var.__name__)
     pos = int(pos)
@@ -114,6 +125,7 @@ class Variant:
         self.score = float(score)
         self.cnt = float(cnt) if cnt is not None else None
         self.vtype = vtype
+        self.len = abs(len(alt) - len(ref))
         self.processed = False
 
     def push_left(self, ref_fasta):
@@ -185,15 +197,15 @@ def resolve_group(ref_fasta, variants, vars_count):
                                           )[0])
 
     out_variants_ = []
-    max_target = [
-        v.cnt for pos in group_vars for v in group_vars[pos] if v.score > 0]
+    max_target = [v.cnt for pos in group_vars for v in group_vars[
+        pos] if v.score > 0 or v.len >= 3]
     if len(max_target) == 0:
         # logger.info(
         #     "No non-zero COUNT with non-zero SCORE: {}".format(list(str(x) for x in group_vars[pos])))
         return []
 
-
-    # logger.info(list([pos, [str(y) for y in x]] for pos,x in group_vars.items()))
+    # logger.info(list([pos, [str(y) for y in x]]
+    #                  for pos, x in group_vars.items()))
 
     max_count = max(max_target)
     for pos in group_vars.keys():
@@ -202,14 +214,15 @@ def resolve_group(ref_fasta, variants, vars_count):
             continue
         mx = max(map(lambda x: x.cnt, group_vars[pos]))
         gts = [x.gt for x in group_vars[pos]]
-        gts = set(gts) - set(["0/0"])
+        gts = set([x.gt for x in group_vars[pos]
+                   if x.gt != "0/0" or x.len >= 3])
         if len(gts) == 0:
             continue
         if len(gts) > 1:
             gts_count = {"0/1": 0, "0/0": 0}
             gts_score = {"0/1": 0, "0/0": 0}
             for x in group_vars[pos]:
-                if x.gt != "0/0" and x.cnt >= 0.4 * mx:
+                if (x.gt != "0/0" or x.len >= 3) and x.cnt >= 0.4 * mx:
                     gts_count[x.gt] += x.cnt
                     gts_score[x.gt] += x.score
             priority = {"0/1": 2, "0/0": 1}
@@ -222,12 +235,11 @@ def resolve_group(ref_fasta, variants, vars_count):
 
         all_vars = sorted(group_vars[pos], key=lambda x: [
                           x.cnt, x.score, x.gt != "0/0"], reverse=True)
-
         vtypes = set([x.vtype for x in group_vars[pos]
-                      if x.gt != "0/0" and x.cnt >= 0.4 * mx])
+                      if (x.gt != "0/0" or x.len >= 3) and x.cnt >= 0.4 * mx])
         if not vtypes:
             vtypes = set([x.vtype for x in group_vars[pos]
-                          if x.gt != "0/0"])
+                          if (x.gt != "0/0" or x.len >= 3)])
         all_vars = list(
             filter(lambda x: x.vtype in vtypes, all_vars))
         if not all_vars:
@@ -237,10 +249,44 @@ def resolve_group(ref_fasta, variants, vars_count):
                 "No vars: {}".format([[list(str(x) for x in group_vars[pos_])]for pos_ in group_vars]))
             raise Exception
         score = max([v.score for v in all_vars])
+        if gt == "0/0":
+            nz_vars = [x for x in all_vars if x.gt !=
+                       "0/0" and x.vtype == all_vars[0].vtype]
+            if nz_vars:
+                nz_vars = sorted(nz_vars, key=lambda x: [
+                                 x.score], reverse=True)[0]
+                gt = nz_vars.gt
         v = all_vars[0]
         out_variants_.append(
             [v.chrom, v.pos, v.ref, v.alt, gt, score, v.cnt])
 
+    if len(out_variants_) == 1 and out_variants_[0][4] == "0/0" and abs(len(out_variants_[0][2]) - len(out_variants_[0][3])) >= 3:
+        chrom_, pos_, ref_, alt_, gt_, score_, cnt_ = out_variants_[0]
+        vtype = find_vtype(ref_, alt_)
+        resolve_candids = []
+        for pos in group_vars.keys():
+            for y in group_vars[pos]:
+                if y.vtype == vtype and y.gt != "0/0":
+                    resolve_candids.append(y)
+        if resolve_candids:
+            resolve_candids = sorted(resolve_candids, key=lambda x: [
+                x.score], reverse=True)[0]
+            out_variants_ = [[chrom_, pos_, ref_, alt_,
+                              resolve_candids.gt, resolve_candids.score, cnt_]]
+
+    if len(out_variants_) > 1 and "0/0" in [x[4] for x in out_variants_]:
+        nz_vars = [x for x in out_variants_ if x[4] != "0/0"]
+        if nz_vars:
+            nz_vtypes = [find_vtype(x[2], x[3]) for x in nz_vars]
+            out_variants__ = []
+            for x in out_variants_:
+                if x[4] != "0/0":
+                    out_variants__.append(x)
+                else:
+                    vtype = find_vtype(x[2], x[3])
+                    if vtype not in nz_vtypes:
+                        out_variants__.append(x)
+            out_variants_ = out_variants__
 
     vars_gt = {}
     for chrom_, pos_, ref_, alt_, gt_, score_, cnt_ in out_variants_:
@@ -255,10 +301,10 @@ def resolve_group(ref_fasta, variants, vars_count):
         v0 = vars_gt[gt_][0]
         good_vs = [v0]
         for v in vars_gt[gt_][1:]:
-            keep=True
+            keep = True
             for g_v in good_vs:
                 if min(v.pos + len(v.ref), g_v.pos + len(g_v.ref)) > max(v.pos, g_v.pos):
-                    keep=False
+                    keep = False
                     break
             if keep:
                 good_vs.append(v)
@@ -266,7 +312,6 @@ def resolve_group(ref_fasta, variants, vars_count):
             out_variants_.append(
                 [v.chrom, v.pos, v.ref, v.alt, v.gt, v.score])
     return out_variants_
-
 
 
 def find_resolved_variants(input_record):
@@ -406,12 +451,7 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
         for line in skip_empty(tv_f):
             fields = line.strip().split()
             id_ = int(fields[2])
-            if len(fields[4]) < len(fields[3]):
-                vartype = "DEL"
-            elif len(fields[4]) > len(fields[3]):
-                vartype = "INS"
-            else:
-                vartype = "SNP"
+            vartype = find_vtype(fields[3], fields[4])
             if id_ not in variants:
                 variants[id_] = []
             variants[id_].append(fields + [vartype])

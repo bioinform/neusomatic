@@ -385,7 +385,7 @@ def subLC(sequence, max_substring_length=20):
         number_of_subseqs = 0
         seq_length = len(sequence)
         max_number_of_subseqs = max_sub_vocabularies(
-            seq_length, max_substring_length)
+            seq_length, min(seq_length, max_substring_length))
 
         set_of_seq_n = set()
         for i in range(1, min(max_substring_length + 1, seq_length + 1)):
