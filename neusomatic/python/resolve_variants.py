@@ -358,6 +358,8 @@ def find_resolved_variants(input_record):
                         inss_.extend(extract_ins(record))
                     aligned_pairs = np.array(
                         record.get_aligned_pairs(matches_only=True))
+                    if len(aligned_pairs)==0:
+                        continue
                     near_pos = np.where((start <= aligned_pairs[:, 1]) & (
                         aligned_pairs[:, 1] <= end))[0]
                     if len(near_pos) != 0:
@@ -435,9 +437,10 @@ def find_resolved_variants(input_record):
         return out_variants_
 
     except Exception as ex:
+        thread_logger.error("Error in {}".format(input_record))
         thread_logger.error(traceback.format_exc())
         thread_logger.error(ex)
-        return None
+        raise Exception
 
 
 def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
