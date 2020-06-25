@@ -213,11 +213,12 @@ def read_callers_vcf(reference,
                 chrom, pos, _, ref, alts, _, filters, info = x[0:8]
                 for ith_alt, alt in enumerate(alts.split(",")):
                     if ref != alt:
-                        mutect_classification, nlod, tlod, tandem, ecnt = get_mutect2_info(
-                            filters, info, ith_alt)
-                        var_id = "-".join([chrom, pos, ref, alt])
-                        mutect2_info[var_id] = [
-                            mutect_classification, nlod, tlod, tandem, ecnt]
+                        if len(ref) == 1 or len(alt) == 1:
+                            mutect_classification, nlod, tlod, tandem, ecnt = get_mutect2_info(
+                                filters, info, ith_alt)
+                            var_id = "-".join([chrom, pos, ref, alt])
+                            mutect2_info[var_id] = [
+                                mutect_classification, nlod, tlod, tandem, ecnt]
             i_f.close()
     strelka2_info = {}
     if strelka2_vcfs:

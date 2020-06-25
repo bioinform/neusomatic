@@ -24,7 +24,7 @@ from extend_features import extend_features
 from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty, vcf_2_bed
 
 
-def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp,
+def process_split_region(tn, work, region, reference, mode, alignment_bam,
                          scan_window_size, scan_maf, min_mapq,
                          filtered_candidates_vcf, min_dp, max_dp,
                          filter_duplicate,
@@ -48,7 +48,7 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
             for i, (raw_vcf, count_bed, split_region_bed) in enumerate(scan_outputs):
                 filtered_vcf = os.path.join(os.path.dirname(
                     os.path.realpath(raw_vcf)), "filtered_candidates.vcf")
-                map_args.append((raw_vcf, filtered_vcf, reference, dbsnp, min_dp, max_dp, good_ao,
+                map_args.append((raw_vcf, filtered_vcf, reference, min_dp, max_dp, good_ao,
                                  min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af, del_merge_min_af,
                                  ins_merge_min_af, merge_r))
             try:
@@ -283,7 +283,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
             work_tumor_without_q, "filtered_candidates.vcf")
 
         tumor_outputs_without_q = process_split_region("tumor", work_tumor_without_q, region_bed, reference, mode,
-                                                       tumor_bam, dbsnp, scan_window_size, scan_maf, min_mapq,
+                                                       tumor_bam, scan_window_size, scan_maf, min_mapq,
                                                        filtered_candidates_vcf_without_q, min_dp, max_dp,
                                                        filter_duplicate,
                                                        good_ao, min_ao,
@@ -309,7 +309,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
 
     logger.info("Scan tumor bam (and extracting quality scores).")
     tumor_outputs = process_split_region("tumor", work_tumor, region_bed, reference, mode,
-                                         tumor_bam, dbsnp, scan_window_size, scan_maf, min_mapq,
+                                         tumor_bam, scan_window_size, scan_maf, min_mapq,
                                          filtered_candidates_vcf, min_dp, max_dp,
                                          filter_duplicate,
                                          good_ao, min_ao,
@@ -338,7 +338,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         os.mkdir(work_normal)
     logger.info("Scan normal bam (and extracting quality scores).")
     normal_counts, _, _ = process_split_region("normal", work_normal, region_bed, reference, mode, normal_bam,
-                                               None, scan_window_size, 0.2, min_mapq,
+                                               scan_window_size, 0.2, min_mapq,
                                                None, min_dp, max_dp,
                                                filter_duplicate,
                                                good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
@@ -361,24 +361,28 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                 shutil.rmtree(work_dataset_split)
             os.mkdir(work_dataset_split)
             ensemble_bed_i = ensemble_beds[i] if ensemble_tsv else None
-            if add_extra_features:
+            if add_extra_features or (ensemble_tsv and not no_feature_recomp_for_ensemble):
                 work_tumor_i = os.path.dirname(filtered_vcf)
-                extra_features_tsv = os.path.join(
-                    work_tumor_i, "extra_features.tsv")
-                ex_tsvs = [extra_features_tsv]
-                if not os.path.exists(extra_features_tsv) or restart:
-                    extend_features(filtered_vcf,
-                                    ensemble_beds[
-                                        i] if (ensemble_tsv and no_feature_recomp_for_ensemble) else None,
-                                    None,
-                                    extra_features_tsv,
-                                    reference, tumor_bam, normal_bam,
-                                    min_mapq, snp_min_bq,
-                                    dbsnp, None,
-                                    no_seq_complexity,
-                                    window_extend,
-                                    max_cluster_size,
-                                    num_threads)
+                if add_extra_features:
+                    extra_features_tsv = os.path.join(
+                        work_tumor_i, "extra_features.tsv")
+                    ex_tsvs = [extra_features_tsv]
+                    if not os.path.exists(extra_features_tsv) or restart:
+                        extend_features(filtered_vcf,
+                                        ensemble_beds[
+                                            i] if (ensemble_tsv and no_feature_recomp_for_ensemble) else None,
+                                        None,
+                                        extra_features_tsv,
+                                        reference, tumor_bam, normal_bam,
+                                        min_mapq, snp_min_bq,
+                                        dbsnp, None,
+                                        no_seq_complexity,
+                                        window_extend,
+                                        max_cluster_size,
+                                        num_threads)
+                else:
+                    ex_tsvs = []
+                    extra_features_tsv = None
                 if ensemble_tsv and not no_feature_recomp_for_ensemble:
                     extra_features_others_tsv = os.path.join(
                         work_tumor_i, "extra_features_others.tsv")
@@ -612,8 +616,8 @@ if __name__ == '__main__':
                         help='normal bam', required=True)
     parser.add_argument('--work', type=str,
                         help='work directory', required=True)
-    parser.add_argument('--dbsnp_to_filter', type=str,
-                        help='dbsnp vcf.gz (will be used to filter candidate variants)', default=None)
+    parser.add_argument('--dbsnp', type=str,
+                        help='dbsnp vcf.gz', default=None)
     parser.add_argument('--scan_window_size', type=int,
                         help='window size to scan the variants', default=2000)
     parser.add_argument('--scan_maf', type=float,
@@ -703,7 +707,7 @@ if __name__ == '__main__':
 
     try:
         preprocess(args.work, args.mode, args.reference, args.region_bed, args.tumor_bam, args.normal_bam,
-                   args.dbsnp_to_filter,
+                   args.dbsnp,
                    args.scan_window_size, args.scan_maf, args.min_mapq,
                    args.min_dp, args.max_dp, args.good_ao, args.min_ao, args.snp_min_af, args.snp_min_bq, args.snp_min_ao,
                    args.ins_min_af, args.del_min_af, args.del_merge_min_af,
