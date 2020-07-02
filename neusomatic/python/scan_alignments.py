@@ -41,12 +41,12 @@ def run_scan_alignments(record):
             os.mkdir(work)
 
         if merge_d_for_scan is not None:
-            split_region_file_=os.path.join(work,"merged_region.bed")
+            split_region_file_ = os.path.join(work, "merged_region.bed")
             tmp_ = bedtools_sort(split_region_file, run_logger=thread_logger)
             bedtools_merge(
-                tmp_, output_fn=split_region_file_ , args=" -d {}".format(merge_d_for_scan), run_logger=thread_logger)
+                tmp_, output_fn=split_region_file_, args=" -d {}".format(merge_d_for_scan), run_logger=thread_logger)
         else:
-            split_region_file_=split_region_file
+            split_region_file_ = split_region_file
 
         if os.path.getsize(split_region_file_) > 0:
             cmd = "{} --ref {} -b {} -L {} --out_vcf_file {}/candidates.vcf --out_count_file {}/count.bed \
@@ -90,7 +90,12 @@ def scan_alignments(work, merge_d_for_scan, scan_alignments_binary, input_bam,
     split_len_ratio = 0.98
     if not split_region_files:
         if regions_bed_file:
-            regions_bed = bedtools_sort(regions_bed_file, run_logger=logger)
+            regions_bed = get_tmp_file()
+            with open(regions_bed_file) as i_f, open(regions_bed, "w") as o_f:
+                for line in skip_empty(i_f):
+                    chrom, st, en = line.strip().split()[0:3]
+                    o_f.wirte("\t".join([chrom, st, en]) + "\n")
+            regions_bed = bedtools_sort(regions_bed, run_logger=logger)
             regions_bed = bedtools_merge(
                 regions_bed, args=" -d 0", run_logger=logger)
         else:

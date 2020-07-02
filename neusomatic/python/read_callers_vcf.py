@@ -415,6 +415,7 @@ def read_callers_vcf(reference,
                  msi, msilen, shift3]
             chrom = "-".join(var_id.split("-")[:-3])
             pos, ref, alt = var_id.split("-")[-3:]
+            ref, alt = ref.upper(), alt.upper()
             o_f.write(
                 "\t".join([chrom, pos, ".", ref, alt] + list(map(lambda x: str(x).replace("nan", "0"), f))) + "\n")
 
