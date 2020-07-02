@@ -94,7 +94,7 @@ def scan_alignments(work, merge_d_for_scan, scan_alignments_binary, input_bam,
             with open(regions_bed_file) as i_f, open(regions_bed, "w") as o_f:
                 for line in skip_empty(i_f):
                     chrom, st, en = line.strip().split()[0:3]
-                    o_f.wirte("\t".join([chrom, st, en]) + "\n")
+                    o_f.write("\t".join([chrom, st, en]) + "\n")
             regions_bed = bedtools_sort(regions_bed, run_logger=logger)
             regions_bed = bedtools_merge(
                 regions_bed, args=" -d 0", run_logger=logger)
