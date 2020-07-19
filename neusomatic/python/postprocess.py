@@ -185,6 +185,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
                 lr_gap_open_penalty, lr_gap_ext_penalty, lr_max_realign_dp, lr_do_split,
                 keep_duplicate,
                 pass_threshold, lowqual_threshold,
+                extend_repeats,
                 msa_binary, num_threads):
     logger = logging.getLogger(postprocess.__name__)
 
@@ -211,7 +212,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     logger.info("Extract targets")
     postprocess_pad = 1 if not long_read else 10
     extract_postprocess_targets(
-        reference, candidates_preds, min_len, postprocess_max_dist, postprocess_pad)
+        reference, candidates_preds, min_len, postprocess_max_dist, extend_repeats, postprocess_pad)
 
     no_resolve = os.path.join(work, "candidates_preds.no_resolve.vcf")
     target_vcf = os.path.join(work, "candidates_preds.resolve_target.vcf")
@@ -329,6 +330,9 @@ if __name__ == '__main__':
     parser.add_argument('--keep_duplicate',
                         help='Dont filter duplicate reads in analysis',
                         action="store_true")
+    parser.add_argument('--extend_repeats', 
+                        help='extend resolve regions to repeat boundaries',
+                        action='store_true')
     parser.add_argument('--msa_binary', type=str,
                         help='MSA binary', default="../bin/msa")
     parser.add_argument('--num_threads', type=int,
@@ -351,6 +355,7 @@ if __name__ == '__main__':
                                  args.lr_do_split,
                                  args.keep_duplicate,
                                  args.pass_threshold, args.lowqual_threshold,
+                                 args.extend_repeats,
                                  args.msa_binary, args.num_threads)
 
     except Exception as e:

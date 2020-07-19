@@ -210,6 +210,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                window_extend,
                max_cluster_size,
                merge_d_for_scan,
+               use_vscore,
                num_splits,
                num_threads,
                scan_alignments_binary,):
@@ -257,7 +258,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                 "The dbSNP file should be a tabix indexed file with .vcf.gz format. No {}.tbi file exists.".format(dbsnp))
 
     zero_vscore = False
-    if not ensemble_tsv and add_extra_features:
+    if (not ensemble_tsv and add_extra_features) and not use_vscore:
         zero_vscore = True
 
     ensemble_bed = None
@@ -693,8 +694,8 @@ if __name__ == '__main__':
     parser.add_argument('--merge_d_for_scan', type=int,
                         help='-d used to merge regions before scan',
                         default=None)
-    parser.add_argument('--zero_vscore',
-                        help='set VarScan2_Score to zero',
+    parser.add_argument('--use_vscore',
+                        help='don\'t set VarScan2_Score to zero',
                         action="store_true")
     parser.add_argument('--num_splits', type=int,
                         help='number of region splits', default=None)
@@ -722,6 +723,7 @@ if __name__ == '__main__':
                    args.window_extend,
                    args.max_cluster_size,
                    args.merge_d_for_scan,
+                   args.use_vscore,
                    args.num_splits,
                    args.num_threads,
                    args.scan_alignments_binary)
