@@ -221,10 +221,14 @@ def resolve_group(ref_fasta, variants, vars_count):
         if len(gts) > 1:
             gts_count = {"0/1": 0, "0/0": 0}
             gts_score = {"0/1": 0, "0/0": 0}
+            nz = 0
             for x in group_vars[pos]:
                 if (x.gt != "0/0" or x.len >= 3) and x.cnt >= 0.4 * mx:
                     gts_count[x.gt] += x.cnt
                     gts_score[x.gt] += x.score
+                    nz += 1
+            if nz == 0:
+                continue
             priority = {"0/1": 2, "0/0": 1}
             sorted_gts = sorted(gts_count.keys(), key=lambda x: [
                                 gts_count[x], gts_score[x],
@@ -311,6 +315,7 @@ def resolve_group(ref_fasta, variants, vars_count):
         for v in good_vs:
             out_variants_.append(
                 [v.chrom, v.pos, v.ref, v.alt, v.gt, v.score])
+    out_variants_ = [x for x in out_variants_ if x[4] != "0/0"]
     return out_variants_
 
 
@@ -358,7 +363,7 @@ def find_resolved_variants(input_record):
                         inss_.extend(extract_ins(record))
                     aligned_pairs = np.array(
                         record.get_aligned_pairs(matches_only=True))
-                    if len(aligned_pairs)==0:
+                    if len(aligned_pairs) == 0:
                         continue
                     near_pos = np.where((start <= aligned_pairs[:, 1]) & (
                         aligned_pairs[:, 1] <= end))[0]
