@@ -784,7 +784,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                 "Remove tmp_preds directory: {}".format(tmp_preds_dir))
             shutil.rmtree(tmp_preds_dir)
 
-    if os.path.exists(tmp_preds_dir):
+    if os.path.exists(new_split_tsvs_dir):
         logger.warning(
             "Remove split candidates directory: {}".format(new_split_tsvs_dir))
         shutil.rmtree(new_split_tsvs_dir)
