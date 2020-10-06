@@ -408,7 +408,8 @@ def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_thr
     logger = logging.getLogger(write_vcf.__name__)
     vcf_records = list(filter(lambda x: len(x) > 0, vcf_records))
     vcf_records = sorted(vcf_records, key=lambda x: [chroms_order[x[0]], x[1]])
-    lines = []
+    old_pos = ""
+    lines_old_pos = set([])
     with open(output_vcf, "w") as ov:
         for chrom_, pos_, ref_, alt_, prob in vcf_records:
             if ref_ == alt_:
@@ -423,9 +424,18 @@ def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_thr
                               filter_, "SCORE={:.4f}".format(
                                   np.round(prob, 4)),
                               "GT", "0/1"]) + "\n"
-            if line not in lines:
+            curr_pos = "-".join([chrom_, str(pos_)])
+            emit = False
+            if old_pos != curr_pos:
+                old_pos = curr_pos
+                lines_old_pos = set([line])
+                emit = True
+            else:
+                if line not in lines_old_pos:
+                    emit = True
+                    lines_old_pos.add(line)
+            if emit:
                 ov.write(line)
-                lines.append(line)
 
 
 def write_merged_vcf(output_vcfs, output_vcf, chroms_order):
@@ -437,12 +447,22 @@ def write_merged_vcf(output_vcfs, output_vcf, chroms_order):
                 x = line.strip().split()
                 vcf_records.append([x[0], int(x[1]), line])
     vcf_records = sorted(vcf_records, key=lambda x: [chroms_order[x[0]], x[1]])
-    lines = []
+    old_pos = ""
+    lines_old_pos = set([])
     with open(output_vcf, "w") as ov:
         for chrom_, pos_, line in vcf_records:
-            if line not in lines:
+            curr_pos = "-".join([chrom_, str(pos_)])
+            emit = False
+            if old_pos != curr_pos:
+                old_pos = curr_pos
+                lines_old_pos = set([line])
+                emit = True
+            else:
+                if line not in lines_old_pos:
+                    emit = True
+                    lines_old_pos.add(line)
+            if emit:
                 ov.write(line)
-                lines.append(line)
 
 
 def single_thread_call(record):

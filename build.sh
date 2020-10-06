@@ -13,3 +13,4 @@ pushd $DIR/neusomatic
       make
     popd
 popd
+rm -rf $DIR/third_party/SeqLib/ $DIR/third_party/seqan/
