@@ -523,6 +523,7 @@ def single_thread_call(record):
 def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     batch_size, max_load_candidates, pass_threshold, lowqual_threshold,
                     force_zero_ann_cols,
+                    force_cov_thr,
                     use_cuda):
     logger = logging.getLogger(call_neusomatic.__name__)
 
@@ -567,6 +568,12 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         logger.info(
             "Override zero_ann_cols from force_zero_ann_cols: {}".format(force_zero_ann_cols))
         zero_ann_cols = force_zero_ann_cols
+
+    if force_cov_thr is not None:
+        logger.info(
+            "Override coverage_thr from force_cov_thr: {}".format(force_cov_thr))
+        coverage_thr = force_cov_thr
+
 
     logger.info("coverage_thr: {}".format(coverage_thr))
     logger.info("normalize_channels: {}".format(normalize_channels))
@@ -851,6 +858,8 @@ if __name__ == '__main__':
                               --zero_ann_cols and pretrained setting.\
                               idx starts from 5th column in candidate.tsv file',
                         default=[])
+    parser.add_argument('--force_cov_thr', type=int,
+                        help='Force maximum coverage threshold.', default=None)
     args = parser.parse_args()
 
     logger.info(args)
@@ -864,6 +873,7 @@ if __name__ == '__main__':
                                      args.num_threads, args.batch_size, args.max_load_candidates,
                                      args.pass_threshold, args.lowqual_threshold,
                                      args.force_zero_ann_cols,
+                                     args.force_cov_thr,
                                      use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())
