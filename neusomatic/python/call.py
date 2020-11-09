@@ -471,7 +471,7 @@ def single_thread_call(record):
     try:
         torch.set_num_threads(1)
         net, candidate_files, max_load_candidates, data_transform, \
-            coverage_thr, normalize_channels, zero_ann_cols, batch_size, \
+            coverage_thr, max_cov, normalize_channels, zero_ann_cols, batch_size, \
             out_dir, model_tag, ref_file, chroms, tmp_preds_dir, chroms_order, \
             pass_threshold, lowqual_threshold, i = record
 
@@ -480,6 +480,7 @@ def single_thread_call(record):
                                      transform=data_transform, is_test=True,
                                      num_threads=1,
                                      coverage_thr=coverage_thr,
+                                     max_cov=max_cov,
                                      normalize_channels=normalize_channels,
                                      zero_ann_cols=zero_ann_cols)
         call_loader = torch.utils.data.DataLoader(call_set,
@@ -523,7 +524,7 @@ def single_thread_call(record):
 def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     batch_size, max_load_candidates, pass_threshold, lowqual_threshold,
                     force_zero_ann_cols,
-                    force_cov_thr,
+                    max_cov,
                     use_cuda):
     logger = logging.getLogger(call_neusomatic.__name__)
 
@@ -569,11 +570,9 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
             "Override zero_ann_cols from force_zero_ann_cols: {}".format(force_zero_ann_cols))
         zero_ann_cols = force_zero_ann_cols
 
-    if force_cov_thr is not None:
+    if max_cov is not None:
         logger.info(
-            "Override coverage_thr from force_cov_thr: {}".format(force_cov_thr))
-        coverage_thr = force_cov_thr
-
+            "Set max_cov: {}".format(max_cov))
 
     logger.info("coverage_thr: {}".format(coverage_thr))
     logger.info("normalize_channels: {}".format(normalize_channels))
@@ -719,6 +718,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                                              transform=data_transform, is_test=True,
                                              num_threads=num_threads,
                                              coverage_thr=coverage_thr,
+                                             max_cov=max_cov,
                                              normalize_channels=normalize_channels,
                                              zero_ann_cols=zero_ann_cols)
                 call_loader = torch.utils.data.DataLoader(call_set,
@@ -773,7 +773,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     "Run for candidate files: {}".format(candidate_files))
 
                 map_args.append([net, candidate_files, max_load_candidates, data_transform,
-                                 coverage_thr, normalize_channels, zero_ann_cols, batch_size,
+                                 coverage_thr, max_cov, normalize_channels, zero_ann_cols, batch_size,
                                  out_dir,
                                  model_tag, ref_file, chroms, tmp_preds_dir, chroms_order,
                                  pass_threshold, lowqual_threshold, j])
@@ -858,8 +858,8 @@ if __name__ == '__main__':
                               --zero_ann_cols and pretrained setting.\
                               idx starts from 5th column in candidate.tsv file',
                         default=[])
-    parser.add_argument('--force_cov_thr', type=int,
-                        help='Force maximum coverage threshold.', default=None)
+    parser.add_argument('--max_cov', type=int,
+                        help='maximum coverage threshold.', default=None)
     args = parser.parse_args()
 
     logger.info(args)
@@ -873,7 +873,7 @@ if __name__ == '__main__':
                                      args.num_threads, args.batch_size, args.max_load_candidates,
                                      args.pass_threshold, args.lowqual_threshold,
                                      args.force_zero_ann_cols,
-                                     args.force_cov_thr,
+                                     args.max_cov,
                                      use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())

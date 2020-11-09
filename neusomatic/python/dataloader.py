@@ -130,6 +130,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                  loader=candidate_loader_tsv, is_test=False,
                  num_threads=1, disable_ensemble=False, data_augmentation=False,
                  nclasses_t=4, nclasses_l=4, coverage_thr=100,
+                 max_cov=None,
                  normalize_channels=False,
                  zero_ann_cols=[],
                  max_opended_tsv=-1):
@@ -195,7 +196,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             if len(map_args) == 1:
                 records_ = [extract_info_tsv(map_args[0])]
             else:
-                if num_threads==1:
+                if num_threads == 1:
                     records_ = []
                     for w in map_args:
                         records_.append(extract_info_tsv(w))
@@ -237,6 +238,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         self.disable_ensemble = disable_ensemble
         self.data_augmentation = data_augmentation
         self.coverage_thr = coverage_thr
+        self.max_cov = max_cov
 
     def open_candidate_tsvs(self):
         for i, tsv in enumerate(self.tsvs):
@@ -271,8 +273,8 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         if self.disable_ensemble:
             anns = []
 
-        if self.zero_ann_cols and len(anns)>0:
-            anns=np.array(anns)
+        if self.zero_ann_cols and len(anns) > 0:
+            anns = np.array(anns)
             anns[self.zero_ann_cols] = 0
             anns = anns.tolist()
 
@@ -281,6 +283,9 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             ".")
         tumor_cov = int(tumor_cov)
         normal_cov = int(normal_cov)
+        if self.max_cov is not None:
+            tumor_cov = min(tumor_cov, self.max_cov)
+            normal_cov = min(normal_cov, self.max_cov)
         center = int(center)
         length = int(length)
 
