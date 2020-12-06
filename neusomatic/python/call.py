@@ -53,7 +53,7 @@ def get_type(ref, alt):
         return "SNP"
 
 
-def call_variants(net, call_loader, out_dir, model_tag, use_cuda):
+def call_variants(net, call_loader, out_dir, model_tag, run_i, use_cuda):
     logger = logging.getLogger(call_variants.__name__)
     net.eval()
     nclasses = len(VARTYPE_CLASSES)
@@ -94,8 +94,8 @@ def call_variants(net, call_loader, out_dir, model_tag, use_cuda):
             path = path_.split("/")[-1]
             preds[i] = [VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i]]
             if VARTYPE_CLASSES[predicted[i]] != "NONE":
-                file_name = "{}/matrices_{}/{}.png".format(
-                    out_dir, model_tag, path)
+                file_name = "{}/matrices_{}/{}/{}.{}_{}.png".format(
+                    out_dir, model_tag, run_i, path, iii, i)
                 if not os.path.exists(file_name):
                     imwrite(file_name, np.array(
                         non_transformed_matrices[i, :, :, 0:3]))
@@ -494,7 +494,7 @@ def single_thread_call(record):
             return [], []
 
         final_preds_, none_preds_, true_path_ = call_variants(
-            net, call_loader, out_dir, model_tag, use_cuda)
+            net, call_loader, out_dir, model_tag, i, use_cuda)
         all_vcf_records = pred_vcf_records(
             ref_file, final_preds_, true_path_, chroms, 1)
         all_vcf_records_none = pred_vcf_records_none(none_preds_, chroms)
@@ -513,6 +513,10 @@ def single_thread_call(record):
         output_vcf_none = "{}/none_{}.vcf".format(tmp_preds_dir, i)
         write_vcf(vcf_records_none, output_vcf_none,
                   chroms_order, pass_threshold, lowqual_threshold)
+        matrices_dir_j = "{}/matrices_{}/{}".format(out_dir, model_tag, i)
+        if os.path.exists(matrices_dir_j):
+            logger.warning("Done with {}. Remove matrices directory {}: {}".format(i, i, matrices_dir_j))
+            shutil.rmtree(matrices_dir_j)
 
         return output_vcf, output_vcf_none
     except Exception as ex:
@@ -707,6 +711,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     all_vcf_records = []
     all_vcf_records_none = []
     if use_cuda:
+        run_i = -1
         for i, (candidate_file, L) in enumerate(sorted(zip(candidates_tsv_, Ls), key=lambda x: x[1])):
             current_L += L
             candidate_files.append(candidate_file)
@@ -728,19 +733,30 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
                 current_L = 0
                 candidate_files = []
-
+                run_i += 1
                 logger.info("N_dataset: {}".format(len(call_set)))
                 if len(call_set) == 0:
                     logger.warning(
                         "Skip {} with 0 candidates".format(candidate_file))
                     continue
 
+                matrices_dir_j = "{}/matrices_{}/{}".format(out_dir, model_tag, run_i)
+                if os.path.exists(matrices_dir_j):
+                    logger.warning("Remove matrices directory {}: {}".format(run_i, matrices_dir_j))
+                    shutil.rmtree(matrices_dir_j)
+                os.mkdir(matrices_dir_j)
+
                 final_preds_, none_preds_, true_path_ = call_variants(
-                    net, call_loader, out_dir, model_tag, use_cuda)
+                    net, call_loader, out_dir, model_tag, run_i, use_cuda)
                 all_vcf_records.extend(pred_vcf_records(
                     ref_file, final_preds_, true_path_, chroms, num_threads))
                 all_vcf_records_none.extend(
                     pred_vcf_records_none(none_preds_, chroms))
+
+                if os.path.exists(matrices_dir_j):
+                    logger.warning("Done with {}. Remove matrices directory {}: {}".format(run_i, run_i, matrices_dir_j))
+                    shutil.rmtree(matrices_dir_j)
+
         all_vcf_records = dict(all_vcf_records)
         all_vcf_records_none = dict(all_vcf_records_none)
 
@@ -772,6 +788,11 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                 logger.info(
                     "Run for candidate files: {}".format(candidate_files))
 
+                matrices_dir_j = "{}/matrices_{}/{}".format(out_dir, model_tag, j)
+                if os.path.exists(matrices_dir_j):
+                    logger.warning("Remove matrices directory {}: {}".format(j, matrices_dir_j))
+                    shutil.rmtree(matrices_dir_j)
+                os.mkdir(matrices_dir_j)
                 map_args.append([net, candidate_files, max_load_candidates, data_transform,
                                  coverage_thr, max_cov, normalize_channels, zero_ann_cols, batch_size,
                                  out_dir,
