@@ -1707,8 +1707,8 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                             rlen = record_len[int(record[-1])]
                             rcenter = record_center[int(record[-1])]
                             ch_order = chroms_order[record[0]]
-                            ann = anns[
-                                int(record[-1])] if ensemble_bed else []
+                            ann = list(anns[int(record[-1])]
+                                       ) if ensemble_bed else []
                             map_args_records.append((ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order,
                                                      matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths))
                         if cnt >= is_end:
@@ -1726,8 +1726,8 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                         if is_current <= cnt < is_end:
                             rcenter = record_center[int(record[-1])]
                             ch_order = chroms_order[record[0]]
-                            ann = anns[
-                                int(record[-1])] if ensemble_bed else []
+                            ann = list(anns[int(record[-1])]
+                                       ) if ensemble_bed else []
                             map_args_nones.append((ref_file, tumor_count_bed, normal_count_bed, record, "NONE",
                                                    0, rcenter, ch_order,
                                                    matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths))
