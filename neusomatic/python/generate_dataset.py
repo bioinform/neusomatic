@@ -1564,7 +1564,7 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
                 if i_s:
                     s = ensemble_data[:, np.array(i_s)]
                     s = np.maximum(np.minimum(s, mx), mn)
-                    s = (s - mn) / (mx - mn)
+                    s = np.round((s - mn) / (mx - mn),6)
                     ensemble_data[:, np.array(i_s)] = s
             ensemble_data = ensemble_data[:, selected_features]
             ensemble_data = ensemble_data.tolist()
