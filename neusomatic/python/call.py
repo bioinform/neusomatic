@@ -15,7 +15,6 @@ import copy
 
 import pysam
 import numpy as np
-from imageio import imwrite, imread
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
@@ -59,7 +58,6 @@ def call_variants(net, call_loader, out_dir, model_tag, run_i, use_cuda):
     nclasses = len(VARTYPE_CLASSES)
     final_preds = {}
     none_preds = {}
-    true_path = {}
 
     final_preds = {}
     none_preds = {}
@@ -94,12 +92,6 @@ def call_variants(net, call_loader, out_dir, model_tag, run_i, use_cuda):
             path = path_.split("/")[-1]
             preds[i] = [VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i]]
             if VARTYPE_CLASSES[predicted[i]] != "NONE":
-                file_name = "{}/matrices_{}/{}/{}.{}_{}.png".format(
-                    out_dir, model_tag, run_i, path, iii, i)
-                if not os.path.exists(file_name):
-                    imwrite(file_name, np.array(
-                        non_transformed_matrices[i, :, :, 0:3]))
-                true_path[path] = file_name
                 final_preds[path] = [VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i],
                                      list(map(lambda x: round(x, 4), F.softmax(
                                          outputs1[i, :], 0).data.cpu().numpy())),
@@ -108,7 +100,8 @@ def call_variants(net, call_loader, out_dir, model_tag, run_i, use_cuda):
                                      list(map(lambda x: round(x, 4),
                                               outputs1.data.cpu()[i].numpy())),
                                      list(map(lambda x: round(x, 4),
-                                              outputs3.data.cpu()[i].numpy()))]
+                                              outputs3.data.cpu()[i].numpy())),
+                                     np.array(non_transformed_matrices[i, :, :, 0:3])]
             else:
                 none_preds[path] = [VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i],
                                     list(map(lambda x: round(x, 4), F.softmax(
@@ -122,17 +115,17 @@ def call_variants(net, call_loader, out_dir, model_tag, run_i, use_cuda):
         if (iii % 10 == 0):
             logger.info("Called {} candidates in this batch.".format(j))
     logger.info("Called {} candidates in this batch.".format(j))
-    return final_preds, none_preds, true_path
+    return final_preds, none_preds
 
 
 def pred_vcf_records_path(record):
-    path, true_path_, pred_all, chroms, ref_file = record
+    path, pred_all, chroms, ref_file = record
     thread_logger = logging.getLogger(
         "{} ({})".format(pred_vcf_records_path.__name__, multiprocessing.current_process().name))
     try:
         fasta_file = pysam.FastaFile(ref_file)
         ACGT = "ACGT"
-        I = imread(true_path_) / 255.0
+        I = pred_all[-1] / 255.0
         vcf_record = []
         Ih, Iw, _ = I.shape
         zref_pos = np.where((np.argmax(I[:, :, 0], 0) == 0) & (
@@ -340,13 +333,13 @@ def pred_vcf_records_path(record):
         return None
 
 
-def pred_vcf_records(ref_file, final_preds, true_path, chroms, num_threads):
+def pred_vcf_records(ref_file, final_preds, chroms, num_threads):
     logger = logging.getLogger(pred_vcf_records.__name__)
     logger.info(
         "Prepare VCF records for predicted somatic variants in this batch.")
     map_args = []
     for path in final_preds.keys():
-        map_args.append([path, true_path[path], final_preds[path],
+        map_args.append([path, final_preds[path],
                          chroms, ref_file])
 
     if num_threads == 1:
@@ -493,10 +486,10 @@ def single_thread_call(record):
                 "Skip {} with 0 candidates".format(candidate_file))
             return [], []
 
-        final_preds_, none_preds_, true_path_ = call_variants(
+        final_preds_, none_preds_ = call_variants(
             net, call_loader, out_dir, model_tag, i, use_cuda)
         all_vcf_records = pred_vcf_records(
-            ref_file, final_preds_, true_path_, chroms, 1)
+            ref_file, final_preds_, chroms, 1)
         all_vcf_records_none = pred_vcf_records_none(none_preds_, chroms)
 
         all_vcf_records = dict(all_vcf_records)
@@ -513,10 +506,6 @@ def single_thread_call(record):
         output_vcf_none = "{}/none_{}.vcf".format(tmp_preds_dir, i)
         write_vcf(vcf_records_none, output_vcf_none,
                   chroms_order, pass_threshold, lowqual_threshold)
-        matrices_dir_j = "{}/matrices_{}/{}".format(out_dir, model_tag, i)
-        if os.path.exists(matrices_dir_j):
-            logger.warning("Done with {}. Remove matrices directory {}: {}".format(i, i, matrices_dir_j))
-            shutil.rmtree(matrices_dir_j)
 
         return output_vcf, output_vcf_none
     except Exception as ex:
@@ -655,11 +644,6 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
 
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
-    matrices_dir = "{}/matrices_{}".format(out_dir, model_tag)
-    if os.path.exists(matrices_dir):
-        logger.warning("Remove matrices directory: {}".format(matrices_dir))
-        shutil.rmtree(matrices_dir)
-    os.mkdir(matrices_dir)
 
     new_split_tsvs_dir = os.path.join(out_dir, "split_tsvs")
     if os.path.exists(new_split_tsvs_dir):
@@ -740,22 +724,12 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                         "Skip {} with 0 candidates".format(candidate_file))
                     continue
 
-                matrices_dir_j = "{}/matrices_{}/{}".format(out_dir, model_tag, run_i)
-                if os.path.exists(matrices_dir_j):
-                    logger.warning("Remove matrices directory {}: {}".format(run_i, matrices_dir_j))
-                    shutil.rmtree(matrices_dir_j)
-                os.mkdir(matrices_dir_j)
-
-                final_preds_, none_preds_, true_path_ = call_variants(
+                final_preds_, none_preds_ = call_variants(
                     net, call_loader, out_dir, model_tag, run_i, use_cuda)
                 all_vcf_records.extend(pred_vcf_records(
-                    ref_file, final_preds_, true_path_, chroms, num_threads))
+                    ref_file, final_preds_, chroms, num_threads))
                 all_vcf_records_none.extend(
                     pred_vcf_records_none(none_preds_, chroms))
-
-                if os.path.exists(matrices_dir_j):
-                    logger.warning("Done with {}. Remove matrices directory {}: {}".format(run_i, run_i, matrices_dir_j))
-                    shutil.rmtree(matrices_dir_j)
 
         all_vcf_records = dict(all_vcf_records)
         all_vcf_records_none = dict(all_vcf_records_none)
@@ -788,11 +762,6 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                 logger.info(
                     "Run for candidate files: {}".format(candidate_files))
 
-                matrices_dir_j = "{}/matrices_{}/{}".format(out_dir, model_tag, j)
-                if os.path.exists(matrices_dir_j):
-                    logger.warning("Remove matrices directory {}: {}".format(j, matrices_dir_j))
-                    shutil.rmtree(matrices_dir_j)
-                os.mkdir(matrices_dir_j)
                 map_args.append([net, candidate_files, max_load_candidates, data_transform,
                                  coverage_thr, max_cov, normalize_channels, zero_ann_cols, batch_size,
                                  out_dir,
@@ -836,9 +805,6 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         logger.warning(
             "Remove split candidates directory: {}".format(new_split_tsvs_dir))
         shutil.rmtree(new_split_tsvs_dir)
-    if os.path.exists(matrices_dir):
-        logger.warning("Remove matrices directory: {}".format(matrices_dir))
-        shutil.rmtree(matrices_dir)
 
     logger.info("Calling is Done.")
 
