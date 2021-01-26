@@ -40,27 +40,29 @@ NeuSomatic first scans the genome to identify candidate variants and extract ali
 The binary for this step can be obtained at `neusomatic/bin` folder by running `./build.sh` (which requires cmake 3.13.2 and g++ 5.4.0).
 
 Python 3.7 and the following Python packages must be installed:
-* pytorch 1.1.0
-* torchvision 0.3.0
-* pybedtools 0.8.0
-* pysam 0.15.2
+* pytorch 1.6.0
+* torchvision 0.7.0
+* pysam 0.16.0.1
 * zlib 1.2.11
-* numpy 1.15.4
-* scipy 1.2.0
-* imageio 2.5.0
-* biopython 1.73
+* numpy 1.18.1
+* scipy 1.4.1
+* pillow 7.2.0
+* imageio 2.8.0
+* biopython 1.77
+* fisher 0.1.9
 
 It also depends on the following packages:
-* cudatoolkit 9.0 (if you want to use GPU)
+* cudatoolkit 10.1 (if you want to use GPU)
 * tabix 0.2.6
-* bedtools 2.27.1
+* bedtools 2.29.2
 * samtools 1.9
 
-You can install these packages using [anaconda](https://www.anaconda.com/download)/[miniconda](https://conda.io/miniconda.html) :
+You can install these packages using [anaconda](https://www.anaconda.com/download)/[miniconda](https://conda.io/miniconda.html) (for Python 3.7 on miniconda you can use [this link](https://repo.anaconda.com/miniconda/Miniconda3-py37_4.8.3-Linux-x86_64.sh)):
 ```
-conda install zlib=1.2.11 numpy=1.15.4 scipy=1.2.0 cmake=3.13.2 imageio=2.5.0
-conda install pysam=0.15.2 pybedtools=0.8.0 samtools=1.9 tabix=0.2.6 bedtools=2.27.1 biopython=1.73 -c bioconda
-conda install pytorch=1.1.0 torchvision=0.3.0 cudatoolkit=9.0 -c pytorch
+conda install zlib=1.2.11 numpy=1.18.1 scipy=1.4.1 pillow=7.2.0 cmake=3.17.0 imageio=2.8.0
+conda install pysam=0.16.0.1 samtools=1.9 tabix=0.2.6 bedtools=2.29.2 biopython=1.77 -c bioconda
+conda install pytorch=1.6.0 torchvision=0.7.0 cudatoolkit=10.1 -c pytorch
+conda install -c conda-forge fisher=0.1.9
 ```
 Then you can export the conda paths as:
 ```
