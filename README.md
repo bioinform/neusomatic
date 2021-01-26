@@ -125,7 +125,7 @@ python preprocess.py \
 	--work work_train \
 	--truth_vcf truth.vcf \
 	--min_mapq 10 \
-	--number_threads 10 \
+	--num_threads 10 \
 	--scan_alignments_binary ../bin/scan_alignments
 ```
 2. Train network
@@ -149,7 +149,7 @@ python preprocess.py \
 	--normal_bam normal.bam \
 	--work work_call \
 	--min_mapq 10 \
-	--number_threads 10 \
+	--num_threads 10 \
 	--scan_alignments_binary ../bin/scan_alignments
 ```
 2. Call variants
@@ -280,7 +280,7 @@ do
 	--reference GRCh38.fa --tumor_bam tumor.bam --normal_bam normal.bam \
 	--region_bed work/splits/region_${i}.bed \
 	--work work/work_${i} \
-	--min_mapq 10 --number_threads 24 \
+	--min_mapq 10 --num_threads 24 \
 	--scan_alignments_binary ../bin/scan_alignments"
 done
 ```
