@@ -410,20 +410,28 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             tumor_cov *= r_cov
             normal_cov *= r_cov
 
+        if self.matrix_dtype == "uint8":
+            max_norm = 255.0
+        elif self.matrix_dtype == "uint16":
+            max_norm = 65535.0
+        else:
+            logger.info(
+                "Wrong matrix_dtype {}. Choices are {}".format(self.matrix_dtype, MAT_DTYPES))
+
         # add COV channel
         matrix_ = np.zeros((matrix.shape[0], matrix.shape[1], 26 + len(anns)))
         matrix_[:, :, 0:23] = matrix
         if self.normalize_channels:
-            matrix_[:, :, 3:23:2] *= (matrix_[:, :, 1:2] / 255.0)
-            matrix_[:, :, 4:23:2] *= (matrix_[:, :, 2:3] / 255.0)
+            matrix_[:, :, 3:23:2] *= (matrix_[:, :, 1:2] / max_norm)
+            matrix_[:, :, 4:23:2] *= (matrix_[:, :, 2:3] / max_norm)
         matrix = matrix_
         matrix[:, center, 23] = np.max(matrix[:, :, 0])
         matrix[:, :, 24] = (min(tumor_cov, self.coverage_thr) /
-                            float(self.coverage_thr)) * 255.0
+                            float(self.coverage_thr)) * max_norm
         matrix[:, :, 25] = (
-            min(normal_cov, self.coverage_thr) / float(self.coverage_thr)) * 255.0
+            min(normal_cov, self.coverage_thr) / float(self.coverage_thr)) * max_norm
         for i, a in enumerate(anns):
-            matrix[:, :, 26 + i] = a * 255.0
+            matrix[:, :, 26 + i] = a * max_norm
 
         if self.is_test:
             orig_matrix_ = np.zeros(
@@ -431,21 +439,13 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             orig_matrix_[:, :, 0:2] = orig_matrix[:, :, 0:2]
             orig_matrix_[:, orig_center, 2] = np.max(orig_matrix[:, :, 0])
             orig_matrix = orig_matrix_
-            if self.matrix_dtype == "uint8":
-                non_transformed_matrix = np.array(orig_matrix).astype(np.uint8)
-            elif self.matrix_dtype == "uint16":
-                non_transformed_matrix = np.array(
-                    orig_matrix).astype(np.uint16)
-            else:
-                logger.info(
-                    "Wrong matrix_dtype {}. Choices are {}".format(matrix_dtype, MAT_DTYPES))
-                raise Exception
+            non_transformed_matrix = np.array(orig_matrix)
 
         else:
             non_transformed_matrix = []
 
         matrix = torch.from_numpy(matrix.transpose((2, 0, 1)))
-        matrix = matrix.float().div(255)
+        matrix = matrix.float().div(max_norm)
         if self.transform is not None:
             matrix = self.transform(matrix)
 

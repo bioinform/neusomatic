@@ -615,44 +615,52 @@ def prep_data_single_tabix(input_record):
         tumor_cov = int(round(max(np.sum(tumor_count_matrix, 0))))
         normal_cov = int(round(max(np.sum(normal_count_matrix, 0))))
 
+        if matrix_dtype == "uint8":
+            max_norm = 255.0
+        elif matrix_dtype == "uint16":
+            max_norm = 65535.0
+        else:
+            logger.info(
+                "Wrong matrix_dtype {}. Choices are {}".format(matrix_dtype, MAT_DTYPES))
+
         candidate_mat[:, :, 0] = candidate_mat[
-            :, :, 0] / (max(np.max(ref_count_matrix), np.max(tumor_count_matrix)) + 0.00001) * 255
+            :, :, 0] / (max(np.max(ref_count_matrix), np.max(tumor_count_matrix)) + 0.00001) * max_norm
         candidate_mat[:, :, 1] = candidate_mat[:, :, 1] / \
-            (np.max(tumor_count_matrix) + 0.00001) * 255
+            (np.max(tumor_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 2] = candidate_mat[:, :, 2] / \
-            (np.max(normal_count_matrix) + 0.00001) * 255
+            (np.max(normal_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 3] = candidate_mat[:, :, 3] / \
-            (max(np.max(bq_tumor_count_matrix), 41.0)) * 255
+            (max(np.max(bq_tumor_count_matrix), 41.0)) * max_norm
         candidate_mat[:, :, 4] = candidate_mat[:, :, 4] / \
-            (max(np.max(bq_normal_count_matrix), 41.0)) * 255
+            (max(np.max(bq_normal_count_matrix), 41.0)) * max_norm
         candidate_mat[:, :, 5] = candidate_mat[:, :, 5] / \
-            (max(np.max(mq_tumor_count_matrix), 70.0)) * 255
+            (max(np.max(mq_tumor_count_matrix), 70.0)) * max_norm
         candidate_mat[:, :, 6] = candidate_mat[:, :, 6] / \
-            (max(np.max(mq_normal_count_matrix), 70.0)) * 255
+            (max(np.max(mq_normal_count_matrix), 70.0)) * max_norm
         candidate_mat[:, :, 7] = candidate_mat[:, :, 7] / \
-            (np.max(tumor_count_matrix) + 0.00001) * 255
+            (np.max(tumor_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 8] = candidate_mat[:, :, 8] / \
-            (np.max(normal_count_matrix) + 0.00001) * 255
+            (np.max(normal_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 9] = candidate_mat[:, :, 9] / \
-            (np.max(tumor_count_matrix) + 0.00001) * 255
+            (np.max(tumor_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 10] = candidate_mat[:, :, 10] / \
-            (np.max(normal_count_matrix) + 0.00001) * 255
+            (np.max(normal_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 11] = candidate_mat[:, :, 11] / \
-            (np.max(tumor_count_matrix) + 0.00001) * 255
+            (np.max(tumor_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 12] = candidate_mat[:, :, 12] / \
-            (np.max(normal_count_matrix) + 0.00001) * 255
+            (np.max(normal_count_matrix) + 0.00001) * max_norm
         for iii in range(len(tag_tumor_count_matrices)):
             candidate_mat[:, :, 13 + (iii * 2)] = candidate_mat[:, :, 13 + (iii * 2)] / (
-                max(np.max(tag_tumor_count_matrices[iii]), 100.0)) * 255
+                max(np.max(tag_tumor_count_matrices[iii]), 100.0)) * max_norm
             candidate_mat[:, :, 13 + (iii * 2) + 1] = candidate_mat[:, :, 13 + (
-                iii * 2) + 1] / (max(np.max(tag_normal_count_matrices[iii]), 100.0)) * 255
+                iii * 2) + 1] / (max(np.max(tag_normal_count_matrices[iii]), 100.0)) * max_norm
 
         if matrix_dtype == "uint8":
             candidate_mat = np.maximum(0, np.minimum(
-                candidate_mat, 255)).astype(np.uint8)
+                candidate_mat, max_norm)).astype(np.uint8)
         elif matrix_dtype == "uint16":
             candidate_mat = np.maximum(0, np.minimum(
-                candidate_mat, 255)).astype(np.uint16)
+                candidate_mat, max_norm)).astype(np.uint16)
         else:
             logger.info(
                 "Wrong matrix_dtype {}. Choices are {}".format(matrix_dtype, MAT_DTYPES))

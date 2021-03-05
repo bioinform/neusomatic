@@ -26,7 +26,7 @@ from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset, matrix_transform
 from utils import get_chromosomes_order, prob2phred, skip_empty
 from merge_tsvs import merge_tsvs
-from defaults import VARTYPE_CLASSES, NUM_ENS_FEATURES, NUM_ST_FEATURES
+from defaults import VARTYPE_CLASSES, NUM_ENS_FEATURES, NUM_ST_FEATURES, MAT_DTYPES
 
 import torch._utils
 try:
@@ -52,7 +52,7 @@ def get_type(ref, alt):
         return "SNP"
 
 
-def call_variants(net, call_loader, out_dir, model_tag, run_i, use_cuda):
+def call_variants(net, call_loader, out_dir, model_tag, run_i, matrix_dtype, use_cuda):
     logger = logging.getLogger(call_variants.__name__)
     net.eval()
     nclasses = len(VARTYPE_CLASSES)
@@ -62,6 +62,14 @@ def call_variants(net, call_loader, out_dir, model_tag, run_i, use_cuda):
     final_preds = {}
     none_preds = {}
     loader_ = call_loader
+
+    if matrix_dtype == "uint8":
+        max_norm = 255.0
+    elif matrix_dtype == "uint16":
+        max_norm = 65535.0
+    else:
+        logger.info(
+            "Wrong matrix_dtype {}. Choices are {}".format(matrix_dtype, MAT_DTYPES))
 
     iii = 0
     j = 0
@@ -101,7 +109,7 @@ def call_variants(net, call_loader, out_dir, model_tag, run_i, use_cuda):
                                               outputs1.data.cpu()[i].numpy())),
                                      list(map(lambda x: round(x, 4),
                                               outputs3.data.cpu()[i].numpy())),
-                                     np.array(non_transformed_matrices[i, :, :, 0:3])]
+                                     np.array(non_transformed_matrices[i, :, :, 0:3]) / max_norm]
             else:
                 none_preds[path] = [VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i],
                                     list(map(lambda x: round(x, 4), F.softmax(
@@ -125,7 +133,7 @@ def pred_vcf_records_path(record):
     try:
         fasta_file = pysam.FastaFile(ref_file)
         ACGT = "ACGT"
-        I = pred_all[-1] / 255.0
+        I = pred_all[-1]
         vcf_record = []
         Ih, Iw, _ = I.shape
         zref_pos = np.where((np.argmax(I[:, :, 0], 0) == 0) & (
@@ -488,7 +496,7 @@ def single_thread_call(record):
             return [], []
 
         final_preds_, none_preds_ = call_variants(
-            net, call_loader, out_dir, model_tag, i, use_cuda)
+            net, call_loader, out_dir, model_tag, i, matrix_dtype, use_cuda)
         all_vcf_records = pred_vcf_records(
             ref_file, final_preds_, chroms, 1)
         all_vcf_records_none = pred_vcf_records_none(none_preds_, chroms)
@@ -732,7 +740,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     continue
 
                 final_preds_, none_preds_ = call_variants(
-                    net, call_loader, out_dir, model_tag, run_i, use_cuda)
+                    net, call_loader, out_dir, model_tag, run_i, matrix_dtype, use_cuda)
                 all_vcf_records.extend(pred_vcf_records(
                     ref_file, final_preds_, chroms, num_threads))
                 all_vcf_records_none.extend(
