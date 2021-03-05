@@ -24,7 +24,7 @@ import pickle
 from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset, matrix_transform
 from merge_tsvs import merge_tsvs
-from defaults import TYPE_CLASS_DICT, VARTYPE_CLASSES, NUM_ENS_FEATURES, NUM_ST_FEATURES
+from defaults import TYPE_CLASS_DICT, VARTYPE_CLASSES, NUM_ENS_FEATURES, NUM_ST_FEATURES, MAT_DTYPES
 
 import torch._utils
 try:
@@ -207,6 +207,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                      zero_ann_cols,
                      force_zero_ann_cols,
                      ensemble_custom_header,
+                     matrix_dtype,
                      use_cuda):
     logger = logging.getLogger(train_neusomatic.__name__)
 
@@ -258,6 +259,10 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
             ensemble_custom_header = pretrained_dict["ensemble_custom_header"]
         else:
             ensemble_custom_header = False
+        if "matrix_dtype" in pretrained_dict:
+            matrix_dtype = pretrained_dict["matrix_dtype"]
+        else:
+            matrix_dtype = "uint8"
         prev_epochs = sofar_epochs
     else:
         prev_epochs = 0
@@ -292,7 +297,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                     elif len(x) == 4:
                         break
                     else:
-                        raise Exception("Wrong number of fields in {}: {}".format(tsv, len(x)))
+                        raise Exception(
+                            "Wrong number of fields in {}: {}".format(tsv, len(x)))
 
         num_channels = expected_ens_fields + \
             NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
@@ -382,7 +388,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                                       transform=data_transform, is_test=False,
                                       num_threads=num_threads, coverage_thr=coverage_thr,
                                       normalize_channels=normalize_channels,
-                                      zero_ann_cols=zero_ann_cols)
+                                      zero_ann_cols=zero_ann_cols,
+                                      matrix_dtype=matrix_dtype)
         train_sets.append(train_set)
         none_indices = train_set.get_none_indices()
         var_indices = train_set.get_var_indices()
@@ -416,7 +423,8 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                                            transform=data_transform, is_test=True,
                                            num_threads=num_threads, coverage_thr=coverage_thr,
                                            normalize_channels=normalize_channels,
-                                           zero_ann_cols=zero_ann_cols)
+                                           zero_ann_cols=zero_ann_cols,
+                                           matrix_dtype=matrix_dtype)
         validation_loader = torch.utils.data.DataLoader(validation_set,
                                                         batch_size=batch_size, shuffle=True,
                                                         num_workers=num_threads, pin_memory=True)
@@ -463,6 +471,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "no_seq_complexity": no_seq_complexity,
                 "zero_ann_cols": zero_ann_cols,
                 "ensemble_custom_header": ensemble_custom_header,
+                "matrix_dtype": matrix_dtype,
                 }, '{}/models/checkpoint_{}_epoch{}_.pth'.format(out_dir, tag, curr_epoch))
 
     if len(train_sets) == 1:
@@ -531,6 +540,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                         "no_seq_complexity": no_seq_complexity,
                         "zero_ann_cols": zero_ann_cols,
                         "ensemble_custom_header": ensemble_custom_header,
+                        "matrix_dtype": matrix_dtype,
                         }, '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
             if validation_candidates_tsv:
                 test(net, curr_epoch, validation_loader, use_cuda)
@@ -552,6 +562,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "no_seq_complexity": no_seq_complexity,
                 "zero_ann_cols": zero_ann_cols,
                 "ensemble_custom_header": ensemble_custom_header,
+                "matrix_dtype": matrix_dtype,
                 }, '{}/models/checkpoint_{}_epoch{}.pth'.format(
         out_dir, tag, curr_epoch))
     if validation_candidates_tsv:
@@ -642,6 +653,9 @@ if __name__ == '__main__':
                         help='Allow ensemble tsv to have custom header fields. (Features should be\
                             normalized between [0,1]',
                         action="store_true")
+    parser.add_argument('--matrix_dtype', type=str,
+                        help='matrix_dtype to be used to store matrix', default="uint8",
+                        choices=MAT_DTYPES)
     args = parser.parse_args()
 
     logger.info(args)
@@ -663,6 +677,7 @@ if __name__ == '__main__':
                                       args.zero_ann_cols,
                                       args.force_zero_ann_cols,
                                       args.ensemble_custom_header,
+                                      args.matrix_dtype,
                                       use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())

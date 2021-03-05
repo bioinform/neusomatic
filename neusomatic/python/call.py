@@ -466,7 +466,7 @@ def single_thread_call(record):
         net, candidate_files, max_load_candidates, data_transform, \
             coverage_thr, max_cov, normalize_channels, zero_ann_cols, batch_size, \
             out_dir, model_tag, ref_file, chroms, tmp_preds_dir, chroms_order, \
-            pass_threshold, lowqual_threshold, i = record
+            pass_threshold, lowqual_threshold, matrix_dtype, i = record
 
         call_set = NeuSomaticDataset(roots=candidate_files,
                                      max_load_candidates=max_load_candidates,
@@ -475,7 +475,8 @@ def single_thread_call(record):
                                      coverage_thr=coverage_thr,
                                      max_cov=max_cov,
                                      normalize_channels=normalize_channels,
-                                     zero_ann_cols=zero_ann_cols)
+                                     zero_ann_cols=zero_ann_cols,
+                                     matrix_dtype=matrix_dtype)
         call_loader = torch.utils.data.DataLoader(call_set,
                                                   batch_size=batch_size,
                                                   shuffle=True,  # pin_memory=True,
@@ -557,6 +558,10 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         ensemble_custom_header = pretrained_dict["ensemble_custom_header"]
     else:
         ensemble_custom_header = False
+    if "matrix_dtype" in pretrained_dict:
+        matrix_dtype = pretrained_dict["matrix_dtype"]
+    else:
+        matrix_dtype = "uint8"
 
     if force_zero_ann_cols:
         logger.info(
@@ -572,6 +577,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     logger.info("no_seq_complexity: {}".format(no_seq_complexity))
     logger.info("zero_ann_cols: {}".format(zero_ann_cols))
     logger.info("ensemble_custom_header: {}".format(ensemble_custom_header))
+    logger.info("matrix_dtype: {}".format(matrix_dtype))
 
     if not ensemble_custom_header:
         expected_ens_fields = NUM_ENS_FEATURES
@@ -709,7 +715,8 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                                              coverage_thr=coverage_thr,
                                              max_cov=max_cov,
                                              normalize_channels=normalize_channels,
-                                             zero_ann_cols=zero_ann_cols)
+                                             zero_ann_cols=zero_ann_cols,
+                                             matrix_dtype=matrix_dtype)
                 call_loader = torch.utils.data.DataLoader(call_set,
                                                           batch_size=batch_size,
                                                           shuffle=True, pin_memory=True,
@@ -766,7 +773,7 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                                  coverage_thr, max_cov, normalize_channels, zero_ann_cols, batch_size,
                                  out_dir,
                                  model_tag, ref_file, chroms, tmp_preds_dir, chroms_order,
-                                 pass_threshold, lowqual_threshold, j])
+                                 pass_threshold, lowqual_threshold, matrix_dtype, j])
                 j += 1
                 current_L = 0
                 candidate_files = []

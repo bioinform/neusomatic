@@ -22,6 +22,7 @@ from generate_dataset import generate_dataset, extract_ensemble
 from scan_alignments import scan_alignments
 from extend_features import extend_features
 from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty, vcf_2_bed
+from defaults import MAT_DTYPES
 
 
 def process_split_region(tn, work, region, reference, mode, alignment_bam,
@@ -83,8 +84,9 @@ def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, regi
                             matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_bed,
                             ensemble_custom_header,
                             no_seq_complexity,
-                            no_feature_recomp_for_ensemble, 
+                            no_feature_recomp_for_ensemble,
                             zero_vscore,
+                            matrix_dtype,
                             tsv_batch_size):
     logger = logging.getLogger(generate_dataset_region.__name__)
     generate_dataset(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
@@ -93,6 +95,7 @@ def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, regi
                      no_seq_complexity,
                      no_feature_recomp_for_ensemble,
                      zero_vscore,
+                     matrix_dtype,
                      tsv_batch_size)
 
 
@@ -212,6 +215,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                merge_d_for_scan,
                use_vscore,
                num_splits,
+               matrix_dtype,
                num_threads,
                scan_alignments_binary,):
     logger = logging.getLogger(preprocess.__name__)
@@ -588,8 +592,9 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                     matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, num_threads,
                                     ensemble_bed_i,
                                     ensemble_custom_header,
-                                    no_seq_complexity, no_feature_recomp_for_ensemble, 
+                                    no_seq_complexity, no_feature_recomp_for_ensemble,
                                     zero_vscore,
+                                    matrix_dtype,
                                     tsv_batch_size)
 
     shutil.rmtree(bed_tempdir)
@@ -699,6 +704,9 @@ if __name__ == '__main__':
                         action="store_true")
     parser.add_argument('--num_splits', type=int,
                         help='number of region splits', default=None)
+    parser.add_argument('--matrix_dtype', type=str,
+                        help='matrix_dtype to be used to store matrix', default="uint8",
+                        choices=MAT_DTYPES)
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     parser.add_argument('--scan_alignments_binary', type=str,
@@ -725,6 +733,7 @@ if __name__ == '__main__':
                    args.merge_d_for_scan,
                    args.use_vscore,
                    args.num_splits,
+                   args.matrix_dtype,
                    args.num_threads,
                    args.scan_alignments_binary)
     except Exception as e:

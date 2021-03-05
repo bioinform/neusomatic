@@ -21,7 +21,7 @@ from PIL import Image
 
 from split_bed import split_region
 from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty
-from defaults import NUM_ENS_FEATURES, VCF_HEADER
+from defaults import NUM_ENS_FEATURES, VCF_HEADER, MAT_DTYPES
 
 NUC_to_NUM_tabix = {"A": 1, "C": 2, "G": 3, "T": 4, "-": 0}
 
@@ -571,7 +571,7 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
 def prep_data_single_tabix(input_record):
 
     ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order, \
-        matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths = input_record
+        matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths, matrix_dtype = input_record
 
     thread_logger = logging.getLogger(
         "{} ({})".format(prep_data_single_tabix.__name__, multiprocessing.current_process().name))
@@ -647,8 +647,16 @@ def prep_data_single_tabix(input_record):
             candidate_mat[:, :, 13 + (iii * 2) + 1] = candidate_mat[:, :, 13 + (
                 iii * 2) + 1] / (max(np.max(tag_normal_count_matrices[iii]), 100.0)) * 255
 
-        candidate_mat = np.maximum(0, np.minimum(
-            candidate_mat, 255)).astype(np.uint8)
+        if matrix_dtype == "uint8":
+            candidate_mat = np.maximum(0, np.minimum(
+                candidate_mat, 255)).astype(np.uint8)
+        elif matrix_dtype == "uint16":
+            candidate_mat = np.maximum(0, np.minimum(
+                candidate_mat, 255)).astype(np.uint16)
+        else:
+            logger.info(
+                "Wrong matrix_dtype {}. Choices are {}".format(matrix_dtype, MAT_DTYPES))
+            raise Exception
         tag = "{}.{}.{}.{}.{}.{}.{}.{}.{}".format(ch_order, pos, ref[0:55], alt[
                                                   0:55], vartype, center, rlen, tumor_cov, normal_cov)
         candidate_mat = base64.b64encode(
@@ -1564,7 +1572,7 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
                 if i_s:
                     s = ensemble_data[:, np.array(i_s)]
                     s = np.maximum(np.minimum(s, mx), mn)
-                    s = np.round((s - mn) / (mx - mn),6)
+                    s = np.round((s - mn) / (mx - mn), 6)
                     ensemble_data[:, np.array(i_s)] = s
             ensemble_data = ensemble_data[:, selected_features]
             ensemble_data = ensemble_data.tolist()
@@ -1585,6 +1593,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                      ensemble_custom_header,
                      no_seq_complexity, enforce_header,
                      zero_vscore,
+                     matrix_dtype,
                      tsv_batch_size):
     logger = logging.getLogger(generate_dataset.__name__)
 
@@ -1710,7 +1719,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                             ann = list(anns[int(record[-1])]
                                        ) if ensemble_bed else []
                             map_args_records.append((ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order,
-                                                     matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths))
+                                                     matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths, matrix_dtype))
                         if cnt >= is_end:
                             break
                     if cnt >= is_end:
@@ -1730,7 +1739,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                                        ) if ensemble_bed else []
                             map_args_nones.append((ref_file, tumor_count_bed, normal_count_bed, record, "NONE",
                                                    0, rcenter, ch_order,
-                                                   matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths))
+                                                   matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths, matrix_dtype))
                         if cnt >= is_end:
                             break
                     if cnt >= is_end:
@@ -1851,6 +1860,9 @@ if __name__ == '__main__':
     parser.add_argument('--zero_vscore',
                         help='set VarScan2_Score to zero',
                         action="store_true")
+    parser.add_argument('--matrix_dtype', type=str,
+                        help='matrix_dtype to be used to store matrix', default="uint8",
+                        choices=MAT_DTYPES)
     args = parser.parse_args()
     logger.info(args)
 
@@ -1873,7 +1885,8 @@ if __name__ == '__main__':
     tsv_batch_size = args.tsv_batch_size
     ensemble_custom_header = args.ensemble_custom_header
     enforce_header = args.enforce_header
-    zero_vscore = zero_vscore
+    zero_vscore = args.zero_vscore
+    matrix_dtype = args.matrix_dtype
     try:
         generate_dataset(work, truth_vcf_file, mode, tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                          matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
@@ -1881,6 +1894,7 @@ if __name__ == '__main__':
                          ensemble_custom_header,
                          no_seq_complexity, enforce_header,
                          zero_vscore,
+                         matrix_dtype,
                          tsv_batch_size)
     except Exception as e:
         logger.error(traceback.format_exc())

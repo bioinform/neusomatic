@@ -16,7 +16,7 @@ import torch
 import resource
 
 from utils import skip_empty
-from defaults import TYPE_CLASS_DICT, VARTYPE_CLASSES
+from defaults import TYPE_CLASS_DICT, VARTYPE_CLASSES, MAT_DTYPES
 
 FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
 logging.basicConfig(level=logging.INFO, format=FORMAT)
@@ -36,11 +36,18 @@ class matrix_transform():
         return matrix_
 
 
-def extract_zlib(zlib_compressed_im):
-    return np.fromstring(zlib.decompress(zlib_compressed_im), dtype="uint8").reshape((5, 32, 23))
+def extract_zlib(zlib_compressed_im, matrix_dtype):
+    if matrix_dtype == "uint8":
+        return np.fromstring(zlib.decompress(zlib_compressed_im), dtype="uint8").reshape((5, 32, 23))
+    elif matrix_dtype == "uint16":
+        return np.fromstring(zlib.decompress(zlib_compressed_im), dtype="uint16").reshape((5, 32, 23))
+    else:
+        logger.info(
+            "Wrong matrix_dtype {}. Choices are {}".format(matrix_dtype, MAT_DTYPES))
+        raise Exception
 
 
-def candidate_loader_tsv(tsv, open_tsv, idx, i):
+def candidate_loader_tsv(tsv, open_tsv, idx, i, matrix_dtype):
     if open_tsv:
         i_f = open_tsv
     else:
@@ -48,7 +55,7 @@ def candidate_loader_tsv(tsv, open_tsv, idx, i):
     i_f.seek(idx[i])
     fields = i_f.read(idx[i + 1] - idx[i]).strip().split()
     tag = fields[2]
-    im = extract_zlib(base64.b64decode(fields[3]))
+    im = extract_zlib(base64.b64decode(fields[3]), matrix_dtype)
     if len(fields) > 4:
         anns = list(map(float, fields[4:]))
     else:
@@ -60,7 +67,7 @@ def candidate_loader_tsv(tsv, open_tsv, idx, i):
 
 
 def extract_info_tsv(record):
-    i_b, tsv, idx, L, max_load_candidates, nclasses_t, nclasses_l = record
+    i_b, tsv, idx, L, max_load_candidates, nclasses_t, nclasses_l, matrix_dtype = record
     thread_logger = logging.getLogger(
         "{} ({})".format(extract_info_tsv.__name__, multiprocessing.current_process().name))
     try:
@@ -101,7 +108,8 @@ def extract_info_tsv(record):
                 count_class_l[min(int(length), 3)] += 1
                 if ((cnt_var < max_load_candidates_var) and ("NONE" not in tag)) or (
                         (cnt_none < max_load_candidates_none) and ("NONE" in tag)):
-                    im = extract_zlib(base64.b64decode(fields[3]))
+                    im = extract_zlib(base64.b64decode(
+                        fields[3]), matrix_dtype)
                     label = TYPE_CLASS_DICT[tag.split(".")[4]]
                     if len(fields) > 4:
                         anns = list(map(float, fields[4:]))
@@ -133,6 +141,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                  max_cov=None,
                  normalize_channels=False,
                  zero_ann_cols=[],
+                 matrix_dtype="uint8",
                  max_opended_tsv=-1):
 
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -144,6 +153,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         self.max_opended_tsv = max_opended_tsv
         self.normalize_channels = normalize_channels
         self.zero_ann_cols = zero_ann_cols
+        self.matrix_dtype = matrix_dtype
         self.da_shift_p = 0.3
         self.da_base_p = 0.05
         self.da_rev_p = 0.1
@@ -190,7 +200,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                 max_load_ = self.Ls[i_b] * max_load_candidates // \
                     total_L if total_L > 0 else 0
                 map_args.append([i_b, tsv, self.idxs[i_b], self.Ls[i_b],
-                                 max_load_, nclasses_t, nclasses_l])
+                                 max_load_, nclasses_t, nclasses_l, self.matrix_dtype])
                 Ls_.append(self.Ls[i_b])
             logger.info("Len's of tsv files in this batch: {}".format(Ls_))
             if len(map_args) == 1:
@@ -260,12 +270,14 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                                                                  self.open_tsvs[
                     int(multiprocessing.current_process()._identity[0]
                         ) % self.num_threads][i_b],
-                    self.idxs[i_b], i)
+                    self.idxs[i_b], i, self.matrix_dtype)
             else:
                 path, matrix, anns, label = candidate_loader_tsv(self.tsvs[i_b],
                                                                  self.open_tsvs[
                                                                      0][i_b],
-                                                                 self.idxs[i_b], i)
+                                                                 self.idxs[
+                                                                     i_b], i,
+                                                                 self.matrix_dtype)
 
         else:
             path, matrix, anns, label = self.data[index]
@@ -419,7 +431,16 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             orig_matrix_[:, :, 0:2] = orig_matrix[:, :, 0:2]
             orig_matrix_[:, orig_center, 2] = np.max(orig_matrix[:, :, 0])
             orig_matrix = orig_matrix_
-            non_transformed_matrix = np.array(orig_matrix).astype(np.uint8)
+            if self.matrix_dtype == "uint8":
+                non_transformed_matrix = np.array(orig_matrix).astype(np.uint8)
+            elif self.matrix_dtype == "uint16":
+                non_transformed_matrix = np.array(
+                    orig_matrix).astype(np.uint16)
+            else:
+                logger.info(
+                    "Wrong matrix_dtype {}. Choices are {}".format(matrix_dtype, MAT_DTYPES))
+                raise Exception
+
         else:
             non_transformed_matrix = []
 
