@@ -88,6 +88,7 @@ def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, regi
                             no_feature_recomp_for_ensemble,
                             zero_vscore,
                             matrix_dtype,
+                            strict_labeling,
                             tsv_batch_size):
     logger = logging.getLogger(generate_dataset_region.__name__)
     generate_dataset(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
@@ -97,6 +98,7 @@ def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, regi
                      no_feature_recomp_for_ensemble,
                      zero_vscore,
                      matrix_dtype,
+                     strict_labeling,
                      tsv_batch_size)
 
 
@@ -218,6 +220,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                num_splits,
                matrix_dtype,
                report_all_alleles,
+               strict_labeling,
                num_threads,
                scan_alignments_binary,):
     logger = logging.getLogger(preprocess.__name__)
@@ -600,6 +603,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                     no_seq_complexity, no_feature_recomp_for_ensemble,
                                     zero_vscore,
                                     matrix_dtype,
+                                    strict_labeling,
                                     tsv_batch_size)
 
     shutil.rmtree(bed_tempdir)
@@ -715,6 +719,9 @@ if __name__ == '__main__':
     parser.add_argument('--report_all_alleles',
                         help='report all alleles per position',
                         action="store_true")
+    parser.add_argument('--strict_labeling',
+                        help='strict labeling in train mode',
+                        action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     parser.add_argument('--scan_alignments_binary', type=str,
@@ -743,6 +750,7 @@ if __name__ == '__main__':
                    args.num_splits,
                    args.matrix_dtype,
                    args.report_all_alleles,
+                   args.strict_labeling,
                    args.num_threads,
                    args.scan_alignments_binary)
     except Exception as e:

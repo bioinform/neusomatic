@@ -794,7 +794,7 @@ def merge_records(fasta_file, records):
     return [str(chrom), pos_m + 1, ref2_, alt2_]
 
 
-def is_part_of(record1, record2):
+def is_part_of(record1, record2, strict_labeling):
     logger = logging.getLogger(is_part_of.__name__)
     chrom1, pos1, ref1, alt1 = record1[0:4]
     chrom2, pos2, ref2, alt2 = record2[0:4]
@@ -802,10 +802,10 @@ def is_part_of(record1, record2):
         return False
     vartype1 = get_type(ref1, alt1)
     vartype2 = get_type(ref2, alt2)
-    if vartype1 == "SNP" and vartype2 == "DEL":
+    if (not strict_labeling) and (vartype1 == "SNP" and vartype2 == "DEL"):
         if pos2 < pos1 < pos2 + len(ref2):
             return True
-    elif vartype2 == "SNP" and vartype1 == "DEL":
+    elif (not strict_labeling) and (vartype2 == "SNP" and vartype1 == "DEL"):
         if pos1 < pos2 < pos1 + len(ref1):
             return True
     elif vartype1 == vartype2:
@@ -877,7 +877,7 @@ def keep_in_region(input_file, region_bed,
 
 
 def find_records(input_record):
-    work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, num_ens_features, work_index = input_record
+    work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, num_ens_features, strict_labeling, work_index = input_record
     thread_logger = logging.getLogger(
         "{} ({})".format(find_records.__name__, multiprocessing.current_process().name))
     try:
@@ -1238,7 +1238,7 @@ def find_records(input_record):
                 truth_record = truth_records[i]
                 tr, eqs = push_lr(fasta_file, truth_record, 2)
                 for eq in eqs:
-                    if is_part_of(eq, record):
+                    if is_part_of(eq, record, strict_labeling):
                         ref_t, alt_t = truth_record[2:4]
                         vartype_t = get_type(ref_t, alt_t)
                         record_center[j] = find_i_center(ref, alt)
@@ -1256,7 +1256,7 @@ def find_records(input_record):
                     ref_p, alt_p = records[p][2:4]
                     tr, eqs = push_lr(fasta_file, records[p], 2)
                     for eq in eqs:
-                        if is_part_of(eq, record):
+                        if is_part_of(eq, record, strict_labeling):
                             vartype = vtype[p]
                             record_center[j] = find_i_center(ref, alt)
                             record_len[j] = find_len(ref_p, alt_p)
@@ -1602,6 +1602,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                      no_seq_complexity, enforce_header,
                      zero_vscore,
                      matrix_dtype,
+                     strict_labeling,
                      tsv_batch_size):
     logger = logging.getLogger(generate_dataset.__name__)
 
@@ -1671,7 +1672,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     map_args = []
     for i, split_region_file in enumerate(split_region_files):
         map_args.append((work, split_region_file, truth_vcf_file,
-                         tumor_pred_vcf_file, ref_file, ensemble_bed, num_ens_features, i))
+                         tumor_pred_vcf_file, ref_file, ensemble_bed, num_ens_features, strict_labeling, i))
     try:
         records_data = pool.map_async(find_records, map_args).get()
         pool.close()
@@ -1871,6 +1872,9 @@ if __name__ == '__main__':
     parser.add_argument('--matrix_dtype', type=str,
                         help='matrix_dtype to be used to store matrix', default="uint8",
                         choices=MAT_DTYPES)
+    parser.add_argument('--strict_labeling',
+                        help='strict labeling in train mode',
+                        action="store_true")
     args = parser.parse_args()
     logger.info(args)
 
@@ -1895,6 +1899,7 @@ if __name__ == '__main__':
     enforce_header = args.enforce_header
     zero_vscore = args.zero_vscore
     matrix_dtype = args.matrix_dtype
+    strict_labeling = args.strict_labeling
     try:
         generate_dataset(work, truth_vcf_file, mode, tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                          matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
@@ -1903,6 +1908,7 @@ if __name__ == '__main__':
                          no_seq_complexity, enforce_header,
                          zero_vscore,
                          matrix_dtype,
+                         strict_labeling,
                          tsv_batch_size)
     except Exception as e:
         logger.error(traceback.format_exc())
