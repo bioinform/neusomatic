@@ -744,6 +744,35 @@ def push_lr(fasta_file, record, left_right_both):
     return record, eqs
 
 
+def push_left(fasta_file, record):
+    logger = logging.getLogger(push_lr.__name__)
+    record[0] = str(record[0])
+    if "," not in record[3]:
+        if record[2] != record[3]:
+            chrom, pos, ref, alt = record[0:4]
+            new_pos = pos
+            new_ref = ref
+            new_alt = alt
+            while(new_pos > 1):
+                l_base = fasta_file.fetch(
+                    (chrom), new_pos - 2, new_pos - 1).upper()
+                new_ref = l_base + new_ref
+                new_alt = l_base + new_alt
+                new_pos -= 1
+                while(len(new_alt) > 1 and len(new_ref) > 1):
+                    if new_alt[-1] == new_ref[-1]:
+                        new_alt = new_alt[:-1]
+                        new_ref = new_ref[:-1]
+                    else:
+                        break
+                if len(new_alt) > len(alt):
+                    new_ref = new_ref[1:]
+                    new_alt = new_alt[1:]
+                    new_pos += 1
+                    break
+            record = [chrom, new_pos, new_ref, new_alt] + record[4:]
+    return record
+
 def merge_records(fasta_file, records):
     logger = logging.getLogger(merge_records.__name__)
     if len(set(map(lambda x: x[0], records))) != 1:
@@ -1117,8 +1146,10 @@ def find_records(input_record):
                         record[3] = l_base + record[3]
                         record[4] = l_base + record[4]
                         pos -= 1
-                truth_records.append(
-                    [record[0], pos, record[3], record[4], str(i)])
+                tr = [record[0], pos, record[3], record[4], str(i)]
+                if strict_labeling:
+                    tr = push_left(fasta_file, tr)
+                truth_records.append(tr)
                 i += 1
 
         truth_bed = get_tmp_file()
