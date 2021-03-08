@@ -29,6 +29,7 @@ namespace neusomatic {
     {"filter_improper_pair",            no_argument,            0,        'E'},
     {"filter_mate_unmapped",            no_argument,            0,        'F'},
     {"filter_improper_orientation",     no_argument,            0,        'G'},
+    {"report_all_alleles",     no_argument,            0,        'A'},
     {0, 0, 0, 0} // terminator
   };
 
@@ -58,6 +59,7 @@ namespace neusomatic {
     std::cerr<< "-E/--filter_improper_pair,            filter improper pairs if the flag is set,                              default is False.\n";
     std::cerr<< "-F/--filter_mate_unmapped,            filter reads with unmapeed mates if the flag is set,                   default is False.\n";
     std::cerr<< "-G/--filter_improper_orientation,     filter reads with improper orientation (not FR) or different chrom,    default is False.\n";
+    std::cerr<< "-A/--report_all_alleles,     report all alleles per column,    default is False.\n";
   }
 
   int parseInt(const char* optarg, int lower, const char *errmsg, void (*print_help)()) {
@@ -162,6 +164,9 @@ namespace neusomatic {
           break;
         case 'G':
           opt.filter_improper_orientation() = true;
+          break;
+        case 'A':
+          opt.report_all_alleles() = true;
           break;
         case 'a':
           opt.min_allele_freq() = parseFloat(optarg, 0.0, 1.0, "-a/--min_af must be between 0 and 1", print_help);
@@ -329,6 +334,14 @@ struct Options {
     return (filter_improper_orientation_);
   }
 
+  decltype(auto) report_all_alleles() const {
+    return (report_all_alleles_);
+  }
+
+  decltype(auto) report_all_alleles() {
+    return (report_all_alleles_);
+  }
+
 private:
   unsigned verbosity_ = 0;
   std::string bam_in_;
@@ -350,6 +363,7 @@ private:
   bool filter_improper_pair_ = false;
   bool filter_mate_unmapped_ = false;
   bool filter_improper_orientation_ = false;
+  bool report_all_alleles_ = false;
 };
 }//namespace neusomatic
 

@@ -58,6 +58,7 @@ int main(int argc, char **argv) {
   float del_min_af=min_af;
   float snp_min_af=min_af;
   const bool calculate_qual_stat = opts.calculate_qual_stat(); 
+  const bool report_all_alleles = opts.report_all_alleles(); 
 
   //const std::map<char, int> empty_pileup_counts = {{'-', 0}, {'A', 0}, {'C', 0}, {'G', 0}, {'T', 0}};
   static const std::vector<char> nuc_code_char = {'A', 'C', 'G', 'T', '-', 'N'};
@@ -206,83 +207,109 @@ int main(int argc, char **argv) {
           <<":"<<pileup_counts[3]<<std::endl;
         }
 
-        int major = -1;
-        int major_count = 0;
-        int minor = -1;
-        int minor_count = 0;
-        int minor2 = -1;
-        int minor2_count = 0;
-
-        for (int row = 0;  row < cols[i].base_freq_.size(); ++row) {
-          if (cols[i].base_freq_[row] > major_count) {
-            minor2 = minor;
-            minor2_count = minor_count;
-            minor_count = major_count;
-            minor = major;
-            major_count = cols[i].base_freq_[row];
-            major = row;
-          } else if (cols[i].base_freq_[row] > minor_count) {
-            minor2 = minor;
-            minor2_count = minor_count;
-            minor_count = cols[i].base_freq_[row];
-            minor = row;
-          } else if (cols[i].base_freq_[row] > minor2_count) {
-            minor2_count = cols[i].base_freq_[row];
-            minor2 = row;
-          }
-        }
-
-        if (minor != -1 and major != -1){
-          if (minor2 != -1 and ref_code == major and minor == 4 and ref_code != 4 ){
-            if (minor2_count>0.5*minor_count){
-              minor = minor2;
-              minor_count = minor2_count;
-            }
-          }
-        }
+        std::map<int, int> alt_counts;
         auto ref_count = cols[i].base_freq_[ref_code];
         auto var_code = ref_code; 
         int var_count = 0;
-        auto af = minor_count/float(major_count+minor_count);
-        if (major != ref_code){
-          var_code = major;
-          var_count = major_count;
-        } else if (minor != ref_code and ( (minor == 4 and  af > del_min_af ) or
-                                        (minor != 4 and ref_base != '-' and af > snp_min_af ) or
-                                        (ref_base =='-' and af > ins_min_af))){
-          var_code = minor;
-          var_count = minor_count;
+        int dp = ref_count;
+        if (report_all_alleles){
+          for (int row = 0;  row < cols[i].base_freq_.size(); ++row) {
+            auto alt_cnt = cols[i].base_freq_[row];
+            if (( row != ref_code) and (alt_cnt > 0)){
+              auto af = alt_cnt/float(alt_cnt+ref_count);
+              if ((alt_cnt >= ref_code) or ((row == 4 and  af > del_min_af ) or
+                                              (row != 4 and ref_base != '-' and af > snp_min_af ) or
+                                              (ref_base =='-' and af > ins_min_af))){
+                alt_counts.insert(std::pair<int, int>(row, alt_cnt));
+                dp += alt_cnt;
+              }
+            }
+          }
+        }else{
+          int major = -1;
+          int major_count = 0;
+          int minor = -1;
+          int minor_count = 0;
+          int minor2 = -1;
+          int minor2_count = 0;
+
+          for (int row = 0;  row < cols[i].base_freq_.size(); ++row) {
+            if (cols[i].base_freq_[row] > major_count) {
+              minor2 = minor;
+              minor2_count = minor_count;
+              minor_count = major_count;
+              minor = major;
+              major_count = cols[i].base_freq_[row];
+              major = row;
+            } else if (cols[i].base_freq_[row] > minor_count) {
+              minor2 = minor;
+              minor2_count = minor_count;
+              minor_count = cols[i].base_freq_[row];
+              minor = row;
+            } else if (cols[i].base_freq_[row] > minor2_count) {
+              minor2_count = cols[i].base_freq_[row];
+              minor2 = row;
+            }
+          }
+
+          if (minor != -1 and major != -1){
+            if (minor2 != -1 and ref_code == major and minor == 4 and ref_code != 4 ){
+              if (minor2_count>0.5*minor_count){
+                minor = minor2;
+                minor_count = minor2_count;
+              }
+            }
+          }
+          auto af = minor_count/float(major_count+minor_count);
+          if (major != ref_code){
+            var_code = major;
+            var_count = major_count;
+          } else if (minor != ref_code and ( (minor == 4 and  af > del_min_af ) or
+                                          (minor != 4 and ref_base != '-' and af > snp_min_af ) or
+                                          (ref_base =='-' and af > ins_min_af))){
+            var_code = minor;
+            var_count = minor_count;
+          }
+          if (var_count > 0) { 
+            alt_counts.insert(std::pair<int, int>(var_code,var_count));
+            dp += var_count;
+          }
         }
-
-        if (var_count > 0) { 
-
-          auto record_info = "AF="+std::to_string((var_count)/float(var_count+ref_count))+";DP="+std::to_string(nrow)+";RO="+std::to_string(ref_count)+";AO="+std::to_string(var_count);
-          auto gtinfo = "0/1:"+std::to_string(nrow)+":"+std::to_string(ref_count)+":"+std::to_string(var_count);
+        // for(auto it = alt_counts.cbegin(); it != alt_counts.cend(); ++it)
+        // {
+        //     std::cout << it->first << " " << it->second << std::endl;
+        // }          
+        for(auto it = alt_counts.cbegin(); it != alt_counts.cend(); ++it)
+        {
+          auto var_code_ = it->first;
+          auto var_count_ = it->second;
+          auto record_info = "AF="+std::to_string((var_count_)/float(dp))+";DP="+std::to_string(nrow)+";RO="+std::to_string(ref_count)+";AO="+std::to_string(var_count_);
+          auto gtinfo = "0/1:"+std::to_string(nrow)+":"+std::to_string(ref_count)+":"+std::to_string(var_count_);
           if (calculate_qual_stat){
             record_info += ";ST="+std::to_string(int(round(ref_count*(cols_strand[i].strand_mean[ref_code]/100))))+ \
-                           ","+std::to_string(int(round(var_count*(cols_strand[i].strand_mean[var_code]/100))))+ \
+                           ","+std::to_string(int(round(var_count_*(cols_strand[i].strand_mean[var_code_]/100))))+ \
                            ";LS="+std::to_string(lsc_counts)+\
                            ";RS="+std::to_string(rsc_counts)+\
-                           ";NM="+std::to_string(int(round(cols_tag[i].tag_mean[var_code][0])))+\
-                           ";AS="+std::to_string(int(round(cols_tag[i].tag_mean[var_code][1])))+ \
-                           ";XS="+std::to_string(int(round(cols_tag[i].tag_mean[var_code][2])))+ \
-                           ";PR="+std::to_string(int(round(cols_tag[i].tag_mean[var_code][3])))+ \
-                           ";CL="+std::to_string(int(round(cols_tag[i].tag_mean[var_code][4])))+ \
-                           ";MQ="+std::to_string(int(round(cols_mqual[i].mqual_mean[var_code])))+ \
-                           ";BQ="+std::to_string(int(round(cols[i].bqual_mean[var_code])));
+                           ";NM="+std::to_string(int(round(cols_tag[i].tag_mean[var_code_][0])))+\
+                           ";AS="+std::to_string(int(round(cols_tag[i].tag_mean[var_code_][1])))+ \
+                           ";XS="+std::to_string(int(round(cols_tag[i].tag_mean[var_code_][2])))+ \
+                           ";PR="+std::to_string(int(round(cols_tag[i].tag_mean[var_code_][3])))+ \
+                           ";CL="+std::to_string(int(round(cols_tag[i].tag_mean[var_code_][4])))+ \
+                           ";MQ="+std::to_string(int(round(cols_mqual[i].mqual_mean[var_code_])))+ \
+                           ";BQ="+std::to_string(int(round(cols[i].bqual_mean[var_code_])));
             gtinfo += ":"+std::to_string(int(round(ref_count*(cols_strand[i].strand_mean[ref_code]/100))))+","+ \
-                      std::to_string(int(round(var_count*(cols_strand[i].strand_mean[var_code]/100))))+":"+\
+                      std::to_string(int(round(var_count_*(cols_strand[i].strand_mean[var_code_]/100))))+":"+\
                       std::to_string(lsc_counts)+":"+\
                       std::to_string(rsc_counts)+":"+\
-                      std::to_string(int(round(cols_tag[i].tag_mean[var_code][0])))+":"+\
-                      std::to_string(int(round(cols_tag[i].tag_mean[var_code][1])))+":"+\
-                      std::to_string(int(round(cols_tag[i].tag_mean[var_code][2])))+":"+\
-                      std::to_string(int(round(cols_tag[i].tag_mean[var_code][3])))+":"+\
-                      std::to_string(int(round(cols_tag[i].tag_mean[var_code][4])))+":"+\
-                      std::to_string(int(round(cols_mqual[i].mqual_mean[var_code])))+":"+\
-                      std::to_string(int(round(cols[i].bqual_mean[var_code])));
+                      std::to_string(int(round(cols_tag[i].tag_mean[var_code_][0])))+":"+\
+                      std::to_string(int(round(cols_tag[i].tag_mean[var_code_][1])))+":"+\
+                      std::to_string(int(round(cols_tag[i].tag_mean[var_code_][2])))+":"+\
+                      std::to_string(int(round(cols_tag[i].tag_mean[var_code_][3])))+":"+\
+                      std::to_string(int(round(cols_tag[i].tag_mean[var_code_][4])))+":"+\
+                      std::to_string(int(round(cols_mqual[i].mqual_mean[var_code_])))+":"+\
+                      std::to_string(int(round(cols[i].bqual_mean[var_code_])));
           }
-          auto var_base = nuc_code_char[var_code];  
+          auto var_base = nuc_code_char[var_code_];  
           if (ref_base == '-') {ref_base = 'N';}
           if (var_base == '-') {var_base = 'N';}
           auto var_ref_pos=ginv.left() + cc.UngapPos(i);
@@ -304,7 +331,7 @@ int main(int argc, char **argv) {
           appendValue(record.genotypeInfos, gtinfo);
           vcf_writer.Write(record);
           if (opts.verbosity()>0){
-            std::cout<<"var: " << i << "," << var_ref_pos << ","<< ref_base << "," << var_base<<","<<nrow<<":"<<ref_count<<":"<<var_count<<std::endl;
+            std::cout<<"var: " << i << "," << var_ref_pos << ","<< ref_base << "," << var_base<<","<<nrow<<":"<<ref_count<<":"<<var_count_<<std::endl;
             std::cout<<"col "<<i<<": ";
             std::cout<<"(ref= "<< ref_base << ") ";
             for (size_t row = 0; row < cols[i].base_freq_.size(); ++row) {

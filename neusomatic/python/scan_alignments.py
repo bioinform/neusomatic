@@ -25,12 +25,16 @@ from split_bed import split_region
 
 def run_scan_alignments(record):
     work, reference, merge_d_for_scan, scan_alignments_binary, split_region_file, \
-        input_bam, window_size, maf, min_mapq, max_dp, filter_duplicate, calc_qual = record
+        input_bam, window_size, maf, min_mapq, max_dp, report_all_alleles, filter_duplicate, calc_qual = record
 
     if filter_duplicate:
         filter_duplicate_str = "--filter_duplicate"
     else:
         filter_duplicate_str = ""
+    if report_all_alleles:
+        report_all_alleles_str = "--report_all_alleles"
+    else:
+        report_all_alleles_str = ""
     thread_logger = logging.getLogger(
         "{} ({})".format(run_scan_alignments.__name__, multiprocessing.current_process().name))
     try:
@@ -50,9 +54,9 @@ def run_scan_alignments(record):
 
         if os.path.getsize(split_region_file_) > 0:
             cmd = "{} --ref {} -b {} -L {} --out_vcf_file {}/candidates.vcf --out_count_file {}/count.bed \
-                        --window_size {} --min_af {} --min_mapq {} --max_depth {} {}".format(
+                        --window_size {} --min_af {} --min_mapq {} --max_depth {} {} {}".format(
                 scan_alignments_binary, reference, input_bam, split_region_file_,
-                work, work, window_size, maf, min_mapq, max_dp * window_size / 100.0, filter_duplicate_str)
+                work, work, window_size, maf, min_mapq, max_dp * window_size / 100.0, report_all_alleles_str, filter_duplicate_str)
             if calc_qual:
                 cmd += " --calculate_qual_stat"
             run_shell_command(cmd, stdout=os.path.join(work, "scan.out"),
@@ -80,7 +84,7 @@ def run_scan_alignments(record):
 
 def scan_alignments(work, merge_d_for_scan, scan_alignments_binary, input_bam,
                     regions_bed_file, reference, num_splits,
-                    num_threads, window_size, maf, min_mapq, max_dp, filter_duplicate, restart=True,
+                    num_threads, window_size, maf, min_mapq, max_dp, report_all_alleles, filter_duplicate, restart=True,
                     split_region_files=[], calc_qual=True):
 
     logger = logging.getLogger(scan_alignments.__name__)
@@ -152,7 +156,7 @@ def scan_alignments(work, merge_d_for_scan, scan_alignments_binary, input_bam,
                 shutil.rmtree(work_)
             map_args.append((os.path.join(work, "work.{}".format(i)),
                              reference, merge_d_for_scan, scan_alignments_binary, split_region_file,
-                             input_bam, window_size, maf, min_mapq, max_dp, filter_duplicate, calc_qual))
+                             input_bam, window_size, maf, min_mapq, max_dp, report_all_alleles, filter_duplicate, calc_qual))
             not_done.append(i)
         else:
             all_outputs[i] = [os.path.join(work, "work.{}".format(i), "candidates.vcf"),
@@ -209,6 +213,9 @@ if __name__ == '__main__':
     parser.add_argument('--merge_d_for_scan', type=int,
                         help='-d used to merge regions before scan',
                         default=None)
+    parser.add_argument('--report_all_alleles',
+                        help='report all alleles per position',
+                        action="store_true")
     parser.add_argument('--num_splits', type=int,
                         help='number of region splits', default=None)
     parser.add_argument('--num_threads', type=int,
@@ -220,7 +227,7 @@ if __name__ == '__main__':
         outputs = scan_alignments(args.work, args.merge_d_for_scan, args.scan_alignments_binary, args.input_bam,
                                   args.regions_bed_file, args.reference, args.num_splits,
                                   args.num_threads, args.window_size, args.maf,
-                                  args.min_mapq, args.max_dp, args.filter_duplicate)
+                                  args.min_mapq, args.max_dp, args.report_all_alleles, args.filter_duplicate)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")

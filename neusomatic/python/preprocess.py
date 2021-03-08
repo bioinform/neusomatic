@@ -33,13 +33,14 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam,
                          ins_min_af, del_min_af, del_merge_min_af,
                          ins_merge_min_af, merge_r,
                          merge_d_for_scan,
+                         report_all_alleles,
                          scan_alignments_binary, restart, num_splits, num_threads, calc_qual, regions=[]):
 
     logger = logging.getLogger(process_split_region.__name__)
     logger.info("Scan bam.")
     scan_outputs = scan_alignments(work, merge_d_for_scan, scan_alignments_binary, alignment_bam,
                                    region, reference, num_splits, num_threads, scan_window_size, scan_maf,
-                                   min_mapq, max_dp, filter_duplicate, restart=restart, split_region_files=regions,
+                                   min_mapq, max_dp, report_all_alleles, filter_duplicate, restart=restart, split_region_files=regions,
                                    calc_qual=calc_qual)
     if filtered_candidates_vcf:
         logger.info("Filter candidates.")
@@ -216,6 +217,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                use_vscore,
                num_splits,
                matrix_dtype,
+               report_all_alleles,
                num_threads,
                scan_alignments_binary,):
     logger = logging.getLogger(preprocess.__name__)
@@ -296,6 +298,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                                        ins_min_af, del_min_af, del_merge_min_af,
                                                        ins_merge_min_af, merge_r,
                                                        merge_d_for_scan,
+                                                       report_all_alleles,
                                                        scan_alignments_binary, restart, num_splits, num_threads,
                                                        calc_qual=False)
         tumor_counts_without_q, split_regions, filtered_candidates_vcfs_without_q = tumor_outputs_without_q
@@ -322,6 +325,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                          ins_min_af, del_min_af, del_merge_min_af,
                                          ins_merge_min_af, merge_r,
                                          merge_d_for_scan,
+                                         report_all_alleles,
                                          scan_alignments_binary, restart, num_splits, num_threads,
                                          calc_qual=True,
                                          regions=candidates_split_regions)
@@ -350,6 +354,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                                ins_min_af, del_min_af, del_merge_min_af,
                                                ins_merge_min_af, merge_r,
                                                merge_d_for_scan,
+                                               report_all_alleles,
                                                scan_alignments_binary, restart, num_splits, num_threads,
                                                calc_qual=True,
                                                regions=candidates_split_regions)
@@ -707,6 +712,9 @@ if __name__ == '__main__':
     parser.add_argument('--matrix_dtype', type=str,
                         help='matrix_dtype to be used to store matrix', default="uint8",
                         choices=MAT_DTYPES)
+    parser.add_argument('--report_all_alleles',
+                        help='report all alleles per position',
+                        action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     parser.add_argument('--scan_alignments_binary', type=str,
@@ -734,6 +742,7 @@ if __name__ == '__main__':
                    args.use_vscore,
                    args.num_splits,
                    args.matrix_dtype,
+                   args.report_all_alleles,
                    args.num_threads,
                    args.scan_alignments_binary)
     except Exception as e:
