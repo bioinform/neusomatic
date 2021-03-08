@@ -794,7 +794,7 @@ def merge_records(fasta_file, records):
     return [str(chrom), pos_m + 1, ref2_, alt2_]
 
 
-def is_part_of(record1, record2, strict_labeling):
+def is_part_of(record1, record2):
     logger = logging.getLogger(is_part_of.__name__)
     chrom1, pos1, ref1, alt1 = record1[0:4]
     chrom2, pos2, ref2, alt2 = record2[0:4]
@@ -802,10 +802,10 @@ def is_part_of(record1, record2, strict_labeling):
         return False
     vartype1 = get_type(ref1, alt1)
     vartype2 = get_type(ref2, alt2)
-    if (not strict_labeling) and (vartype1 == "SNP" and vartype2 == "DEL"):
+    if (vartype1 == "SNP" and vartype2 == "DEL"):
         if pos2 < pos1 < pos2 + len(ref2):
             return True
-    elif (not strict_labeling) and (vartype2 == "SNP" and vartype1 == "DEL"):
+    elif (vartype2 == "SNP" and vartype1 == "DEL"):
         if pos1 < pos2 < pos1 + len(ref1):
             return True
     elif vartype1 == vartype2:
@@ -1236,9 +1236,12 @@ def find_records(input_record):
             done = False
             for i in i_s:
                 truth_record = truth_records[i]
-                tr, eqs = push_lr(fasta_file, truth_record, 2)
+                if not strict_labeling:
+                    tr, eqs = push_lr(fasta_file, truth_record, 2)
+                else:
+                    tr, eqs = push_lr(fasta_file, truth_record, 0)
                 for eq in eqs:
-                    if is_part_of(eq, record, strict_labeling):
+                    if is_part_of(eq, record):
                         ref_t, alt_t = truth_record[2:4]
                         vartype_t = get_type(ref_t, alt_t)
                         record_center[j] = find_i_center(ref, alt)
@@ -1254,9 +1257,12 @@ def find_records(input_record):
                     perfect_idx)
                 for p in p_s:
                     ref_p, alt_p = records[p][2:4]
-                    tr, eqs = push_lr(fasta_file, records[p], 2)
+                    if not strict_labeling:
+                        tr, eqs = push_lr(fasta_file, truth_record, 2)
+                    else:
+                        tr, eqs = push_lr(fasta_file, truth_record, 0)
                     for eq in eqs:
-                        if is_part_of(eq, record, strict_labeling):
+                        if is_part_of(eq, record):
                             vartype = vtype[p]
                             record_center[j] = find_i_center(ref, alt)
                             record_len[j] = find_len(ref_p, alt_p)
