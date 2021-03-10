@@ -1289,9 +1289,9 @@ def find_records(input_record):
                 for p in p_s:
                     ref_p, alt_p = records[p][2:4]
                     if not strict_labeling:
-                        tr, eqs = push_lr(fasta_file, truth_record, 2)
+                        tr, eqs = push_lr(fasta_file, records[p], 2)
                     else:
-                        tr, eqs = push_lr(fasta_file, truth_record, 0)
+                        tr, eqs = push_lr(fasta_file, records[p], 0)
                     for eq in eqs:
                         if is_part_of(eq, record):
                             vartype = vtype[p]
