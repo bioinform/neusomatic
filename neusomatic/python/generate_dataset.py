@@ -773,6 +773,7 @@ def push_left(fasta_file, record):
             record = [chrom, new_pos, new_ref, new_alt] + record[4:]
     return record
 
+
 def merge_records(fasta_file, records):
     logger = logging.getLogger(merge_records.__name__)
     if len(set(map(lambda x: x[0], records))) != 1:
@@ -1190,6 +1191,7 @@ def find_records(input_record):
         good_records = {"INS": [], "DEL": [], "SNP": []}
         vtype = {}
         record_len = {}
+        perfect_t_idx = set([])
         for i, js in map_truth_2_pred.items():
             truth_record = truth_records[i]
             for j in js:
@@ -1203,6 +1205,7 @@ def find_records(input_record):
                         record_len[j] = find_len(ref, alt)
                         good_records[vartype].append(j)
                         vtype[j] = vartype
+                        perfect_t_idx.add(i)
 
         good_records_idx = [i for w in list(good_records.values()) for i in w]
         remained_idx = sorted(set(range(len(records))) -
@@ -1250,6 +1253,7 @@ def find_records(input_record):
                                             record_len[j] = find_len(ref, alt)
                                             good_records[vartype].append(j)
                                             vtype[j] = vartype
+                                            perfect_t_idx |= set(t_i)
                                             done_js.append(j)
                                             done_js_.append(j)
                                         done_is_.extend(t_i)
@@ -1266,6 +1270,8 @@ def find_records(input_record):
             i_s = map_pred_2_truth[j]
             done = False
             for i in i_s:
+                if strict_labeling and (i not in perfect_t_idx):
+                    continue
                 truth_record = truth_records[i]
                 if not strict_labeling:
                     tr, eqs = push_lr(fasta_file, truth_record, 2)
@@ -1342,7 +1348,7 @@ def find_records(input_record):
                 vartype = get_type(record[2], record[3])
                 pos, ref, alt = record[1:4]
                 rc = find_i_center(ref, alt)
-                if vartype_t == vartype and pos_t == pos:
+                if vartype_t == vartype and pos_t == pos and ((not strict_labeling) or vartype_t != "SNP"):
                     good_records[vartype_t].append(j)
                     vtype[j] = vartype_t
                     record_len[j] = find_len(ref_t, alt_t)
