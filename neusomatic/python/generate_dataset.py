@@ -1357,50 +1357,55 @@ def find_records(input_record):
         good_records_idx = [i for w in list(good_records.values()) for i in w]
         remained_idx = sorted(set(range(len(records))) -
                               (set(good_records_idx) | set(none_records_ids)))
-        for i, js in map_truth_2_pred.items():
-            truth_record = truth_records[i]
+        if not strict_labeling:
+            for i, js in map_truth_2_pred.items():
+                truth_record = truth_records[i]
 
-            if set(js) & set(good_records_idx):
-                continue
-            pos_t, ref_t, alt_t = truth_record[1:4]
-            vartype_t = get_type(ref_t, alt_t)
-            rct = find_i_center(ref_t, alt_t)
-            for j in js:
-                if j not in remained_idx:
+                if set(js) & set(good_records_idx):
                     continue
-                record = records[j]
-                vartype = get_type(record[2], record[3])
-                pos, ref, alt = record[1:4]
-                rc = find_i_center(ref, alt)
-                if pos_t + rct[0] + rct[1] == pos + rc[0] + rc[1]:
-                    if (vartype_t == "INS" and vartype == "SNP") or (vartype == "INS" and vartype_t == "SNP"):
+                pos_t, ref_t, alt_t = truth_record[1:4]
+                vartype_t = get_type(ref_t, alt_t)
+                rct = find_i_center(ref_t, alt_t)
+                for j in js:
+                    if j not in remained_idx:
+                        continue
+                    record = records[j]
+                    vartype = get_type(record[2], record[3])
+                    pos, ref, alt = record[1:4]
+                    rc = find_i_center(ref, alt)
+                    if pos_t + rct[0] + rct[1] == pos + rc[0] + rc[1]:
+                        if (vartype_t == "INS" and vartype == "SNP") or (vartype == "INS" and vartype_t == "SNP"):
+                            good_records[vartype_t].append(j)
+                            vtype[j] = vartype_t
+                            record_len[j] = find_len(ref_t, alt_t)
+                            record_center[j] = rc
+
+            good_records_idx = [i for w in list(
+                good_records.values()) for i in w]
+            remained_idx = sorted(set(range(len(records))) -
+                                  (set(good_records_idx) | set(none_records_ids)))
+
+        if not strict_labeling:
+            for i, js in map_truth_2_pred.items():
+                truth_record = truth_records[i]
+                if set(js) & set(good_records_idx):
+                    continue
+                pos_t, ref_t, alt_t = truth_record[1:4]
+                vartype_t = get_type(ref_t, alt_t)
+                for j in js:
+                    record = records[j]
+                    pos, ref, alt = record[1:4]
+                    vartype = get_type(record[2], record[3])
+                    if (vartype == vartype_t) and vartype_t != "SNP" and abs(pos - pos_t) < 2:
                         good_records[vartype_t].append(j)
                         vtype[j] = vartype_t
+                        record_center[j] = find_i_center(ref, alt)
                         record_len[j] = find_len(ref_t, alt_t)
-                        record_center[j] = rc
 
-        good_records_idx = [i for w in list(good_records.values()) for i in w]
-        remained_idx = sorted(set(range(len(records))) -
-                              (set(good_records_idx) | set(none_records_ids)))
-        for i, js in map_truth_2_pred.items():
-            truth_record = truth_records[i]
-            if set(js) & set(good_records_idx):
-                continue
-            pos_t, ref_t, alt_t = truth_record[1:4]
-            vartype_t = get_type(ref_t, alt_t)
-            for j in js:
-                record = records[j]
-                pos, ref, alt = record[1:4]
-                vartype = get_type(record[2], record[3])
-                if (vartype == vartype_t) and vartype_t != "SNP" and abs(pos - pos_t) < 2:
-                    good_records[vartype_t].append(j)
-                    vtype[j] = vartype_t
-                    record_center[j] = find_i_center(ref, alt)
-                    record_len[j] = find_len(ref_t, alt_t)
-
-        good_records_idx = [i for w in list(good_records.values()) for i in w]
-        remained_idx = sorted(set(range(len(records))) -
-                              (set(good_records_idx) | set(none_records_ids)))
+            good_records_idx = [i for w in list(
+                good_records.values()) for i in w]
+            remained_idx = sorted(set(range(len(records))) -
+                                  (set(good_records_idx) | set(none_records_ids)))
         for i, js in map_truth_2_pred.items():
             truth_record = truth_records[i]
 

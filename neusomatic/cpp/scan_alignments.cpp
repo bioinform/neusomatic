@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
         auto var_code = ref_code; 
         int var_count = 0;
         int dp = ref_count;
-        if (report_all_alleles){
+        if (report_all_alleles and ref_base != '-'){
           for (int row = 0;  row < cols[i].base_freq_.size(); ++row) {
             auto alt_cnt = cols[i].base_freq_[row];
             if (( row != ref_code) and (alt_cnt > 0)){

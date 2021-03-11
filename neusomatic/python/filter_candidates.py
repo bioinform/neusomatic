@@ -109,7 +109,7 @@ def filter_candidates(candidate_record):
                 else:
                     ins = [ins[0][:-1]]
             good_records.extend(ins)
-            if dels and (ins or list(filter(lambda x: x[3] != "N" and x[2] != "N", rs))):
+            if dels and (ins or len(list(filter(lambda x: x[3] == "N" and x[2] != "N", rs))) == 0):
                 # emit del
                 if len(dels) == 1:
                     ro = dels[0][5]
