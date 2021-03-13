@@ -335,7 +335,7 @@ int main(int argc, char **argv) {
             std::cout<<"col "<<i<<": ";
             std::cout<<"(ref= "<< ref_base << ") ";
             for (size_t row = 0; row < cols[i].base_freq_.size(); ++row) {
-              std::cout<<"("<<row<<"): "<<cols[i][row]<<",";
+              std::cout<<"("<<row<<"): "<<cols[i].base_freq_[row]<<",";
             }
             std::cout<< std::endl;
           }
