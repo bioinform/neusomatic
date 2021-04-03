@@ -34,13 +34,15 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam,
                          ins_merge_min_af, merge_r,
                          merge_d_for_scan,
                          report_all_alleles,
+                         report_count_for_all_positions,
                          scan_alignments_binary, restart, num_splits, num_threads, calc_qual, regions=[]):
 
     logger = logging.getLogger(process_split_region.__name__)
     logger.info("Scan bam.")
     scan_outputs = scan_alignments(work, merge_d_for_scan, scan_alignments_binary, alignment_bam,
                                    region, reference, num_splits, num_threads, scan_window_size, scan_maf,
-                                   min_mapq, max_dp, report_all_alleles, filter_duplicate, restart=restart, split_region_files=regions,
+                                   min_mapq, max_dp, report_all_alleles, report_count_for_all_positions, 
+                                   filter_duplicate, restart=restart, split_region_files=regions,
                                    calc_qual=calc_qual)
     if filtered_candidates_vcf:
         logger.info("Filter candidates.")
@@ -302,6 +304,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                                        ins_merge_min_af, merge_r,
                                                        merge_d_for_scan,
                                                        report_all_alleles,
+                                                       False,
                                                        scan_alignments_binary, restart, num_splits, num_threads,
                                                        calc_qual=False)
         tumor_counts_without_q, split_regions, filtered_candidates_vcfs_without_q = tumor_outputs_without_q
@@ -329,6 +332,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                          ins_merge_min_af, merge_r,
                                          merge_d_for_scan,
                                          report_all_alleles,
+                                         False,
                                          scan_alignments_binary, restart, num_splits, num_threads,
                                          calc_qual=True,
                                          regions=candidates_split_regions)
@@ -358,6 +362,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                                ins_merge_min_af, merge_r,
                                                merge_d_for_scan,
                                                report_all_alleles,
+                                               True,
                                                scan_alignments_binary, restart, num_splits, num_threads,
                                                calc_qual=True,
                                                regions=candidates_split_regions)
