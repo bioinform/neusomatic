@@ -40,8 +40,11 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam,
     logger = logging.getLogger(process_split_region.__name__)
     logger.info("Scan bam.")
     scan_outputs = scan_alignments(work, merge_d_for_scan, scan_alignments_binary, alignment_bam,
-                                   region, reference, num_splits, num_threads, scan_window_size, scan_maf,
-                                   min_mapq, max_dp, report_all_alleles, report_count_for_all_positions, 
+                                   region, reference, num_splits, num_threads, scan_window_size, 
+                                   snp_min_ao,
+                                   snp_min_af, scan_maf, scan_maf,
+                                   min_mapq, snp_min_bq, max_dp, min_dp,
+                                   report_all_alleles, report_count_for_all_positions, 
                                    filter_duplicate, restart=restart, split_region_files=regions,
                                    calc_qual=calc_qual)
     if filtered_candidates_vcf:
@@ -355,7 +358,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     logger.info("Scan normal bam (and extracting quality scores).")
     normal_counts, _, _ = process_split_region("normal", work_normal, region_bed, reference, mode, normal_bam,
                                                scan_window_size, 0.2, min_mapq,
-                                               None, min_dp, max_dp,
+                                               None, 1, max_dp,
                                                filter_duplicate,
                                                good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
                                                ins_min_af, del_min_af, del_merge_min_af,

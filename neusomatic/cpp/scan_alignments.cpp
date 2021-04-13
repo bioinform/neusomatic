@@ -53,10 +53,12 @@ int main(int argc, char **argv) {
   const std::string& vcf_out = opts.vcf_out();
   const std::string& count_out = opts.count_out();
   int window_size = opts.window_size();
-  float min_af = opts.min_allele_freq();
-  float ins_min_af=min_af;
-  float del_min_af=min_af;
-  float snp_min_af=min_af;
+  float snp_min_af = opts.snp_min_allele_freq();
+  float ins_min_af = opts.ins_min_allele_freq();;
+  float del_min_af = opts.del_min_allele_freq();;
+  int snp_min_ao = opts.snp_min_ao();
+  int snp_min_bq = opts.snp_min_bq();
+  int min_depth = opts.min_depth();
   const bool calculate_qual_stat = opts.calculate_qual_stat(); 
   const bool report_all_alleles = opts.report_all_alleles(); 
   const bool report_count_for_all_positions = opts.report_count_for_all_positions(); 
@@ -138,6 +140,9 @@ int main(int argc, char **argv) {
       }
       ++cnt_region;
       if (records.empty()) continue; 
+      // if (records.size() < min_depth) {
+      //   continue;
+      // }
       if (records.size() > opts.max_depth()) {
         records.resize(opts.max_depth());
       }
@@ -260,9 +265,10 @@ int main(int argc, char **argv) {
           pileup_counts[base] = base_freq_[base];
           total_count+=base_freq_[base];
         }
-
-
+        
         if (total_count==0) {continue;}
+        if ((ref_base!='-')  and ( total_count <min_depth)) {continue;}
+        // if  ( total_count <min_depth) {continue;}
 
         auto start_pos=ginv.left() + cc.UngapPos(i);
         if (ref_base!='-'){
@@ -286,9 +292,20 @@ int main(int argc, char **argv) {
             auto alt_cnt = base_freq_[row];
             if (( row != ref_code) and (alt_cnt > 0)){
               auto af = alt_cnt/float(alt_cnt+ref_count);
+
               if ((alt_cnt >= ref_count) or ((row == 4 and  af > del_min_af ) or
-                                              (row != 4 and ref_base != '-' and af > snp_min_af ) or
+                                              (row != 4 and ref_base != '-' and ((af >= snp_min_af) or (alt_cnt >= snp_min_ao))) or
                                               (ref_base =='-' and af > ins_min_af))){
+                if (row != 4 and ref_base != '-'){
+                  bool passed_bq = true;
+                  if (calculate_qual_stat){
+                    auto bqual_mean_ = condensed_array.GetBQMean(i);
+                    passed_bq = int(round(bqual_mean_[row])) >= snp_min_bq;
+                  }
+                  if (not passed_bq){
+                    continue;
+                  }
+                }
                 alt_counts.insert(std::pair<int, int>(row, alt_cnt));
                 dp += alt_cnt;
               }
@@ -334,8 +351,18 @@ int main(int argc, char **argv) {
             var_code = major;
             var_count = major_count;
           } else if (minor != ref_code and ( (minor == 4 and  af > del_min_af ) or
-                                          (minor != 4 and ref_base != '-' and af > snp_min_af ) or
+                                          (minor != 4 and ref_base != '-' and ((af >= snp_min_af) or (minor_count >= snp_min_ao))) or
                                           (ref_base =='-' and af > ins_min_af))){
+            if (minor != 4 and ref_base != '-'){
+              bool passed_bq = true;
+              if (calculate_qual_stat){
+                auto bqual_mean_ = condensed_array.GetBQMean(i);
+                passed_bq = int(round(bqual_mean_[minor])) >= snp_min_bq;
+              }
+              if (not passed_bq){
+                continue;
+              }
+            }
             var_code = minor;
             var_count = minor_count;
           }
@@ -456,7 +483,6 @@ int main(int argc, char **argv) {
       }
 
       var_cols.push_back(std::max(0,int(ncol)-1));
-                // for (auto i=std::max(processed_col+1,j-matrix_base_pad-1); i < std::min(int(ncol),j+matrix_base_pad+1); ++i){
 
       std::vector<int> count_cols;
       if (report_count_for_all_positions){
@@ -547,6 +573,7 @@ int main(int argc, char **argv) {
         }
 
         auto base_freq_ = condensed_array.GetBaseFreq(i);
+        base_freq_.erase(base_freq_.begin() + 5);
 
         std::vector<int> pileup_counts(base_freq_.size());
         int total_count=0;
@@ -554,8 +581,6 @@ int main(int argc, char **argv) {
           pileup_counts[base] = base_freq_[base];
           total_count+=base_freq_[base];
         }
-
-
         if (total_count==0) {continue;}
 
         if (calculate_qual_stat){ 

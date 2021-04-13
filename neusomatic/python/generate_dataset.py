@@ -1988,9 +1988,10 @@ def parallel_generation(inputs):
             del tumor_tabix_records, normal_tabix_records
             # thread_logger.info(["ffff-3",time.time()-t2])
 
-        thread_logger.info("Gener-8")
-        for i_ in range(len(map_args)):
-            w = map_args[i_]
+        thread_logger.info(["Gener-8",len(map_args)])
+
+        records_done=[]
+        for w in map_args:
             record = w[3]
             chrom = record[0]
             pos = int(record[1])
@@ -1998,11 +1999,8 @@ def parallel_generation(inputs):
             e_pos = min(pos + matrix_base_pad, chrom_lengths[chrom] - 2)
             tumor_counts ={x_pos:tumor_tabix_records_dict[chrom][x_pos]  for x_pos in range(s_pos,e_pos+1) if x_pos in tumor_tabix_records_dict[chrom]}
             normal_counts ={x_pos:normal_tabix_records_dict[chrom][x_pos]  for x_pos in range(s_pos,e_pos+1) if x_pos in normal_tabix_records_dict[chrom]}
-            map_args[i_][1] = tumor_counts
-            map_args[i_][2] = normal_counts
-
-        records_done=[]
-        for w in map_args:
+            w[1] = tumor_counts
+            w[2] = normal_counts
             o=prep_data_single_tabix(w)
             if o is None:
                 aaaa
@@ -2142,7 +2140,6 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
             logger.info("Write {}/{} split to {} for cnts ({}..{})/{}".format(
                 is_ + 1, candidates_split, candidates_tsv_file, is_current,
                 is_end, total_ims))
-            pool = multiprocessing.Pool(num_threads)
             map_args_records = []
             for records_r, none_records, vtype, record_len, record_center, chroms_order, anns in records_data:
                 if len(records_r) + len(none_records) + cnt < is_current:
@@ -2182,9 +2179,10 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                 logger.info("Gener-9")
                 pool = multiprocessing.Pool(num_threads)
                 try:
+                    split_len=max(1,len_records//num_threads)
                     records_done_ = pool.map_async(
-                        parallel_generation, [[map_args_records[i_split:i_split+(len_records//num_threads)],matrix_base_pad, chrom_lengths, tumor_count_bed, normal_count_bed] 
-                        for   i_split in range(0, len_records, len_records//num_threads)]).get()
+                        parallel_generation, [[map_args_records[i_split:i_split+(split_len)],matrix_base_pad, chrom_lengths, tumor_count_bed, normal_count_bed] 
+                        for   i_split in range(0, len_records, split_len)]).get()
                     pool.close()
                 except Exception as inst:
                     logger.error(inst)

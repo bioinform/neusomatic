@@ -201,14 +201,6 @@ public:
         ++cspace_[pp].base_freq_[DnaCharToDnaCode(seq[pp])];
       }
 
-
-      // for (int pp = s; pp <= e; ++pp) {
-      //   std::map<int, int> alt_counts;
-      //   int dp = 0;
-      //   auto ref_base = ref[pp];
-      //   Compute_ALTs(alt_counts, cspace_[pp].base_freq_, dp, ref_base, report_all_alleles, del_min_af, snp_min_af, ins_min_af);
-
-
       // auto end_3p0p1 = std::chrono::system_clock::now();
       // std::chrono::duration<double> elapsed_seconds_3p0p1 = end_3p0p1-start_3p0p1;
       // std::time_t end_time_3p0p1 = std::chrono::system_clock::to_time_t(end_3p0p1);
@@ -637,96 +629,6 @@ std::string add_tag_col(auto  & data_array, bool is_int, int idx, const std::str
   }
   return ret;
 }
-
-
-// void Compute_ALTs(auto & alt_counts, auto & base_freq_, auto  & dp, auto ref_base, bool report_all_alleles){
-//   ref_base = std::toupper(ref_base);
-//   auto ref_code = DnaCharToDnaCode(ref_base);
-
-//   if (ref_base == 'N') {
-//     ref_base = '-';
-//   }
-
-//   base_freq_.erase(base_freq_.begin() + 5);
-
-//   std::vector<int> pileup_counts(base_freq_.size());
-//   int total_count=0;
-//   for (int base = 0; base < (int) base_freq_.size(); ++base) {
-//     pileup_counts[base] = base_freq_[base];
-//     total_count+=base_freq_[base];
-//   }
-  
-//   if (total_count==0) {
-//     return;
-//   }
-//   auto ref_count = base_freq_[ref_code];
-//   auto var_code = ref_code; 
-//   int var_count = 0;
-//   dp = ref_count;
-//   if (report_all_alleles and ref_base != '-'){
-//     for (int row = 0;  row < base_freq_.size(); ++row) {
-//       auto alt_cnt = base_freq_[row];
-//       if (( row != ref_code) and (alt_cnt > 0)){
-//         auto af = alt_cnt/float(alt_cnt+ref_count);
-//         if ((alt_cnt >= ref_count) or ((row == 4 and  af > del_min_af ) or
-//                                         (row != 4 and ref_base != '-' and af > snp_min_af ) or
-//                                         (ref_base =='-' and af > ins_min_af))){
-//           alt_counts.insert(std::pair<int, int>(row, alt_cnt));
-//           dp += alt_cnt;
-//         }
-//       }
-//     }
-//   }else{
-//     int major = -1;
-//     int major_count = 0;
-//     int minor = -1;
-//     int minor_count = 0;
-//     int minor2 = -1;
-//     int minor2_count = 0;
-
-//     for (int row = 0;  row < base_freq_.size(); ++row) {
-//       if (base_freq_[row] > major_count) {
-//         minor2 = minor;
-//         minor2_count = minor_count;
-//         minor_count = major_count;
-//         minor = major;
-//         major_count = base_freq_[row];
-//         major = row;
-//       } else if (base_freq_[row] > minor_count) {
-//         minor2 = minor;
-//         minor2_count = minor_count;
-//         minor_count = base_freq_[row];
-//         minor = row;
-//       } else if (base_freq_[row] > minor2_count) {
-//         minor2_count = base_freq_[row];
-//         minor2 = row;
-//       }
-//     }
-
-//     if (minor != -1 and major != -1){
-//       if (minor2 != -1 and ref_code == major and minor == 4 and ref_code != 4 ){
-//         if (minor2_count>0.5*minor_count){
-//           minor = minor2;
-//           minor_count = minor2_count;
-//         }
-//       }
-//     }
-//     auto af = minor_count/float(major_count+minor_count);
-//     if (major != ref_code){
-//       var_code = major;
-//       var_count = major_count;
-//     } else if (minor != ref_code and ( (minor == 4 and  af > del_min_af ) or
-//                                     (minor != 4 and ref_base != '-' and af > snp_min_af ) or
-//                                     (ref_base =='-' and af > ins_min_af))){
-//       var_code = minor;
-//       var_count = minor_count;
-//     }
-//     if (var_count > 0) { 
-//       alt_counts.insert(std::pair<int, int>(var_code,var_count));
-//       dp += var_count;
-//     }
-//   }
-// }
 
 
 }// end neusomatic
