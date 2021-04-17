@@ -1950,7 +1950,7 @@ def parallel_generation(inputs):
                 chrom_pos[chrom] = [min(s_pos,chrom_pos[chrom][0]), max(e_pos,chrom_pos[chrom][1])]
         thread_logger.info(chrom_pos)
 
-        thread_logger.info("Gener-7")
+        # thread_logger.info("Gener-7")
         tb_tumor = pysam.TabixFile(tumor_count_bed, parser=pysam.asTuple())
         tb_normal = pysam.TabixFile(normal_count_bed, parser=pysam.asTuple())
 
@@ -2026,7 +2026,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     logger.info(tumor_count_bed)
 
     t1=time.time()
-    logger.info("Gener-0")
+    # logger.info("Gener-0")
 
     if not os.path.exists(work):
         os.mkdir(work)
@@ -2093,21 +2093,25 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     # logger.info(["rrr-1",time.time()-t1])
     t1 = time.time()
 
-    logger.info("Gener-1")
-    pool = multiprocessing.Pool(num_threads)
+    # logger.info("Gener-1")
     map_args = []
     for i, split_region_file in enumerate(split_region_files):
         map_args.append((work, split_region_file, truth_vcf_file,
                          tumor_pred_vcf_file, ref_file, ensemble_bed, num_ens_features, strict_labeling, i))
-    try:
-        records_data = pool.map_async(find_records, map_args).get()
-        pool.close()
-    except Exception as inst:
-        logger.error(inst)
-        pool.close()
-        traceback.print_exc()
-        raise Exception
-
+    if num_threads == 1:
+        records_data = []
+        for w in map_args:
+            records_data.append(find_records(w))
+    else:
+        pool = multiprocessing.Pool(num_threads)
+        try:
+            records_data = pool.map_async(find_records, map_args).get()
+            pool.close()
+        except Exception as inst:
+            logger.error(inst)
+            pool.close()
+            traceback.print_exc()
+            raise Exception
     for o in records_data:
         if o is None:
             raise Exception("find_records failed!")
@@ -2122,14 +2126,14 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     for records_r, none_records, vtype, record_len, record_center, chroms_order, anns in records_data:
         total_ims += len(records_r) + len(none_records)
 
-    logger.info("Gener-2")
+    # logger.info("Gener-2")
     candidates_split = int(total_ims // tsv_batch_size) + 1
     is_split = total_ims // candidates_split
     with open(var_vcf, "w") as vv, open(none_vcf, "w") as nv:
         is_current = 0
         is_ = -1
         while is_ < candidates_split:
-            logger.info("Gener-3")
+            # logger.info("Gener-3")
             is_ += 1
             cnt = -1
             if is_ < candidates_split - 1:
@@ -2171,24 +2175,27 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                 if cnt >= is_end:
                     break
 
-            logger.info("Gener-4")
+            # logger.info("Gener-4")
 
             len_records = len(map_args_records)
             records_done = []
             if len_records>0:
-                logger.info("Gener-9")
-                pool = multiprocessing.Pool(num_threads)
-                try:
-                    split_len=max(1,len_records//num_threads)
-                    records_done_ = pool.map_async(
-                        parallel_generation, [[map_args_records[i_split:i_split+(split_len)],matrix_base_pad, chrom_lengths, tumor_count_bed, normal_count_bed] 
-                        for   i_split in range(0, len_records, split_len)]).get()
-                    pool.close()
-                except Exception as inst:
-                    logger.error(inst)
-                    pool.close()
-                    traceback.print_exc()
-                    raise Exception
+                # logger.info("Gener-9")
+                if num_threads == 1:
+                    records_done_ = [parallel_generation([map_args_records, matrix_base_pad, chrom_lengths, tumor_count_bed, normal_count_bed])]
+                else: 
+                    pool = multiprocessing.Pool(num_threads)
+                    try:
+                        split_len=max(1,len_records//num_threads)
+                        records_done_ = pool.map_async(
+                            parallel_generation, [[map_args_records[i_split:i_split+(split_len)],matrix_base_pad, chrom_lengths, tumor_count_bed, normal_count_bed] 
+                            for   i_split in range(0, len_records, split_len)]).get()
+                        pool.close()
+                    except Exception as inst:
+                        logger.error(inst)
+                        pool.close()
+                        traceback.print_exc()
+                        raise Exception
 
                 for o in records_done_:
                     if o is None:
@@ -2196,7 +2203,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                     records_done.extend(o)
 
             shuffle(records_done)
-            logger.info("Gener-10")
+            # logger.info("Gener-10")
             cnt_ims = 0
             tsv_idx = []
             with open(candidates_tsv_file, "w") as b_o:

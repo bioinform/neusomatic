@@ -105,6 +105,7 @@ def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, regi
                      matrix_dtype,
                      strict_labeling,
                      tsv_batch_size)
+    return True
 
 
 def get_ensemble_region(record):
@@ -204,6 +205,38 @@ def extract_candidate_split_regions(
 
         candidates_split_regions.append(candidates_region_file)
     return candidates_split_regions
+
+
+def generate_dataset_region_parallel(record):
+    work_dataset_split, truth_vcf, mode, filtered_vcf, \
+    candidates_split_region, tumor_count, normal_count, reference, \
+    matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, \
+    ensemble_bed_i, \
+    ensemble_custom_header, \
+    no_seq_complexity, no_feature_recomp_for_ensemble, \
+    zero_vscore, \
+    matrix_dtype, \
+    strict_labeling, \
+    tsv_batch_size = record
+    thread_logger = logging.getLogger(
+        "{} ({})".format(generate_dataset_region_parallel.__name__, multiprocessing.current_process().name))
+    try:
+        ret = generate_dataset_region(work_dataset_split, truth_vcf, mode, filtered_vcf,
+                                candidates_split_region, tumor_count, normal_count, reference,
+                                matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, 1,
+                                ensemble_bed_i,
+                                ensemble_custom_header,
+                                no_seq_complexity, no_feature_recomp_for_ensemble,
+                                zero_vscore,
+                                matrix_dtype,
+                                strict_labeling,
+                                tsv_batch_size)
+        return ret
+
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
@@ -374,6 +407,7 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     if restart or not os.path.exists(work_dataset):
         os.mkdir(work_dataset)
     logger.info("Generate dataset.")
+    map_args_gen = []
     for i, (tumor_count, normal_count, filtered_vcf, candidates_split_region) in enumerate(zip(tumor_counts, normal_counts, filtered_candidates_vcfs, candidates_split_regions)):
         logger.info("Dataset for region {}".format(candidates_split_region))
         work_dataset_split = os.path.join(work_dataset, "work.{}".format(i))
@@ -602,17 +636,32 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                     ensemble_bed_i = merged_features_bed
                 else:
                     ensemble_bed_i = extra_features_bed
-
-            generate_dataset_region(work_dataset_split, truth_vcf, mode, filtered_vcf,
+            map_args_gen.append([work_dataset_split, truth_vcf, mode, filtered_vcf,
                                     candidates_split_region, tumor_count, normal_count, reference,
-                                    matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, num_threads,
+                                    matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp,
                                     ensemble_bed_i,
                                     ensemble_custom_header,
                                     no_seq_complexity, no_feature_recomp_for_ensemble,
                                     zero_vscore,
                                     matrix_dtype,
                                     strict_labeling,
-                                    tsv_batch_size)
+                                    tsv_batch_size])
+
+    pool = multiprocessing.Pool(num_threads)
+    try:
+        done_gen = pool.map_async(
+            generate_dataset_region_parallel, map_args_gen).get()
+        pool.close()
+    except Exception as inst:
+        logger.error(inst)
+        pool.close()
+        traceback.print_exc()
+        raise Exception
+
+    for o in done_gen:
+        if o is None:
+            raise Exception("Generate dataset failed!")
+
 
     shutil.rmtree(bed_tempdir)
     tempfile.tempdir = original_tempdir
