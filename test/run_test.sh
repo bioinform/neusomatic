@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+num_threads=1
 test_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 neusomatic_dir="$( dirname ${test_dir} )"
 
@@ -35,7 +36,7 @@ python ${neusomatic_dir}/neusomatic/python/preprocess.py \
 	--snp_min_ao 10 \
 	--ins_min_af 0.05 \
 	--del_min_af 0.05 \
-	--num_threads 1 \
+	--num_threads ${num_threads} \
 	--no_seq_complexity \
 	--scan_alignments_binary ${neusomatic_dir}/neusomatic/bin/scan_alignments
 
@@ -44,7 +45,7 @@ CUDA_VISIBLE_DEVICES= python ${neusomatic_dir}/neusomatic/python/call.py \
 		--reference Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
 		--out work_standalone \
 		--checkpoint ${neusomatic_dir}/neusomatic/models/NeuSomatic_v0.1.0_standalone_Dream3_70purity.pth \
-		--num_threads 1 \
+		--num_threads ${num_threads} \
 		--batch_size 100
 
 python ${neusomatic_dir}/neusomatic/python/postprocess.py \
@@ -72,7 +73,7 @@ python ${neusomatic_dir}/neusomatic/python/preprocess.py \
 	--snp_min_ao 10 \
 	--ins_min_af 0.05 \
 	--del_min_af 0.05 \
-	--num_threads 1 \
+	--num_threads ${num_threads} \
 	--ensemble_tsv ${test_dir}/ensemble.tsv \
 	--no_seq_complexity \
 	--scan_alignments_binary ${neusomatic_dir}/neusomatic/bin/scan_alignments
@@ -82,7 +83,7 @@ CUDA_VISIBLE_DEVICES= python ${neusomatic_dir}/neusomatic/python/call.py \
 		--reference Homo_sapiens.GRCh37.75.dna.chromosome.22.fa \
 		--out work_ensemble \
 		--checkpoint ${neusomatic_dir}/neusomatic/models/NeuSomatic_v0.1.0_ensemble_Dream3_70purity.pth \
-		--num_threads 1 \
+		--num_threads ${num_threads} \
 		--ensemble \
 		--batch_size 100
 
