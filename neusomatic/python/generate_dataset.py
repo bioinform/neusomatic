@@ -2103,13 +2103,11 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
         for w in map_args:
             records_data.append(find_records(w))
     else:
-        pool = multiprocessing.Pool(num_threads)
         try:
-            records_data = pool.map_async(find_records, map_args).get()
-            pool.close()
+            with multiprocessing.Pool(num_threads) as pool:
+                records_data = pool.map_async(find_records, map_args).get()
         except Exception as inst:
             logger.error(inst)
-            pool.close()
             traceback.print_exc()
             raise Exception
     for o in records_data:
@@ -2184,16 +2182,14 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                 if num_threads == 1:
                     records_done_ = [parallel_generation([map_args_records, matrix_base_pad, chrom_lengths, tumor_count_bed, normal_count_bed])]
                 else: 
-                    pool = multiprocessing.Pool(num_threads)
                     try:
                         split_len=max(1,len_records//num_threads)
-                        records_done_ = pool.map_async(
-                            parallel_generation, [[map_args_records[i_split:i_split+(split_len)],matrix_base_pad, chrom_lengths, tumor_count_bed, normal_count_bed] 
-                            for   i_split in range(0, len_records, split_len)]).get()
-                        pool.close()
+                        with multiprocessing.Pool(num_threads) as pool:
+                            records_done_ = pool.map_async(
+                                parallel_generation, [[map_args_records[i_split:i_split+(split_len)],matrix_base_pad, chrom_lengths, tumor_count_bed, normal_count_bed] 
+                                for   i_split in range(0, len_records, split_len)]).get()
                     except Exception as inst:
                         logger.error(inst)
-                        pool.close()
                         traceback.print_exc()
                         raise Exception
 

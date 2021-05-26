@@ -50,7 +50,6 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam,
     if filtered_candidates_vcf:
         logger.info("Filter candidates.")
         if restart or not os.path.exists(filtered_candidates_vcf):
-            pool = multiprocessing.Pool(num_threads)
             map_args = []
             for i, (raw_vcf, count_bed, split_region_bed) in enumerate(scan_outputs):
                 filtered_vcf = os.path.join(os.path.dirname(
@@ -59,12 +58,14 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam,
                                  min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af, del_merge_min_af,
                                  ins_merge_min_af, merge_r))
             try:
-                filtered_candidates_vcfs = pool.map_async(
-                    filter_candidates, map_args).get()
-                pool.close()
+                if num_threads == 1:
+                    filtered_candidates_vcfs = [filter_candidates(w) for w in map_args]
+                else:
+                    with multiprocessing.Pool(num_threads) as pool:
+                        filtered_candidates_vcfs = pool.map_async(
+                            filter_candidates, map_args).get()
             except Exception as inst:
                 logger.error(inst)
-                pool.close()
                 traceback.print_exc()
                 raise Exception
 
@@ -141,13 +142,14 @@ def get_ensemble_beds(work, reference, ensemble_bed, split_regions, matrix_base_
         ensemble_beds.append(ensemble_bed_region_file)
         map_args.append((reference, ensemble_bed, split_region_,
                          ensemble_bed_region_file, matrix_base_pad))
-    pool = multiprocessing.Pool(num_threads)
     try:
-        outputs = pool.map_async(get_ensemble_region, map_args).get()
-        pool.close()
+        if num_threads == 1:
+            outputs = [get_ensemble_region(w) for w in map_args]
+        else:
+            with multiprocessing.Pool(num_threads) as pool:
+                outputs = pool.map_async(get_ensemble_region, map_args).get()
     except Exception as inst:
         logger.error(inst)
-        pool.close()
         traceback.print_exc()
         raise Exception
     for o in outputs:
@@ -647,14 +649,15 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                     strict_labeling,
                                     tsv_batch_size])
 
-    pool = multiprocessing.Pool(num_threads)
     try:
-        done_gen = pool.map_async(
-            generate_dataset_region_parallel, map_args_gen).get()
-        pool.close()
+        if num_threads == 1:
+            done_gen = [generate_dataset_region_parallel(w) for w in map_args_gen]
+        else:
+            with multiprocessing.Pool(num_threads) as pool:
+                done_gen = pool.map_async(
+                    generate_dataset_region_parallel, map_args_gen).get()
     except Exception as inst:
         logger.error(inst)
-        pool.close()
         traceback.print_exc()
         raise Exception
 
