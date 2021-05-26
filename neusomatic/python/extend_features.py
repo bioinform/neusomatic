@@ -330,7 +330,6 @@ def extend_features(candidates_vcf,
     n_variants = len(all_variants)
     logger.info("Number of variants: {}".format(n_variants))
     split_len = (n_variants + num_threads - 1) // num_threads
-    pool = multiprocessing.Pool(num_threads)
     map_args = []
     nei_cluster = []
     batch = []
@@ -382,8 +381,11 @@ def extend_features(candidates_vcf,
                    "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp", "InDel_Length"])
 
     try:
-        ext_features = pool.map_async(extract_features, map_args).get()
-        pool.close()
+        if num_threads == 1:
+            ext_features = [extract_features(w) for w in map_args]
+        else:
+            with multiprocessing.Pool(num_threads) as pool:
+                ext_features = pool.map_async(extract_features, map_args).get()
         with open(output_tsv, "w") as o_f:
             o_f.write("\t".join(header) + "\n")
             for features in ext_features:
@@ -392,7 +394,6 @@ def extend_features(candidates_vcf,
                         "\t".join(map(lambda x: str(x).replace("nan", "0"), w)) + "\n")
     except Exception as inst:
         logger.error(inst)
-        pool.close()
         traceback.print_exc()
         raise Exception
 

@@ -198,12 +198,13 @@ def scan_alignments(work, merge_d_for_scan, scan_alignments_binary, input_bam,
                                   i), "count.bed.gz"),
                               os.path.join(work, "work.{}".format(i), "region.bed")]
 
-    pool = multiprocessing.Pool(num_threads)
     try:
-        outputs = pool.map_async(run_scan_alignments, map_args).get()
-        pool.close()
+        if num_threads == 1:
+            outputs = [run_scan_alignments(w) for w in map_args]
+        else:
+            with multiprocessing.Pool(num_threads) as pool:
+                outputs = pool.map_async(run_scan_alignments, map_args).get()
     except Exception as inst:
-        pool.close()
         logger.error(inst)
         traceback.print_exc()
         raise Exception

@@ -350,19 +350,15 @@ def pred_vcf_records(ref_file, final_preds, chroms, num_threads):
         map_args.append([path, final_preds[path],
                          chroms, ref_file])
 
-    if num_threads == 1:
-        all_vcf_records = []
-        for w in map_args:
-            all_vcf_records.append(pred_vcf_records_path(w))
-    else:
-        pool = multiprocessing.Pool(num_threads)
         try:
-            all_vcf_records = pool.map_async(
-                pred_vcf_records_path, map_args).get()
-            pool.close()
+            if num_threads == 1:
+                all_vcf_records = [pred_vcf_records_path(w) for w in map_args]
+            else:
+                with multiprocessing.Pool(num_threads) as pool:
+                    all_vcf_records = pool.map_async(
+                        pred_vcf_records_path, map_args).get()
         except Exception as inst:
             logger.error(inst)
-            pool.close()
             traceback.print_exc()
             raise Exception
 
@@ -786,13 +782,14 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                 current_L = 0
                 candidate_files = []
 
-        pool = multiprocessing.Pool(num_threads)
         try:
-            all_records = pool.map_async(single_thread_call, map_args).get()
-            pool.close()
+            if num_threads == 1:
+                all_records = [single_thread_call(w) for w in map_args]
+            else:
+                with multiprocessing.Pool(num_threads) as pool:
+                    all_records = pool.map_async(single_thread_call, map_args).get()
         except Exception as inst:
             logger.error(inst)
-            pool.close()
             traceback.print_exc()
             raise Exception
 

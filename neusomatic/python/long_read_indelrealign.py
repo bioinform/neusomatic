@@ -783,7 +783,6 @@ def parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file, realign_be
                          num_threads):
     logger = logging.getLogger(parallel_correct_bam.__name__)
     if num_threads > 1:
-        pool = multiprocessing.Pool(num_threads)
         bam_header = output_bam[:-4] + ".header"
         with open(bam_header, "w") as h_f:
             h_f.write(pysam.view("-H", input_bam,))
@@ -795,10 +794,9 @@ def parallel_correct_bam(work, input_bam, output_bam, ref_fasta_file, realign_be
                     (work, input_bam, realign_bed_file, ref_fasta_file, chrom))
 
         try:
-            sams = pool.map_async(correct_bam_chrom, map_args).get()
-            pool.close()
+            with multiprocessing.Pool(num_threads) as pool:
+                sams = pool.map_async(correct_bam_chrom, map_args).get()
         except Exception as inst:
-            pool.close()
             logger.error(inst)
             traceback.print_exc()
             raise Exception
@@ -1356,7 +1354,6 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, output_not_r
         map(lambda x: [x[0], int(x[1]), int(x[2])], target_regions))
 
     get_var = True if output_vcf else False
-    pool = multiprocessing.Pool(num_threads)
     map_args = []
     for target_region in target_regions:
         map_args.append((work, ref_fasta_file, target_region, pad, chunk_size,
@@ -1368,10 +1365,12 @@ def long_read_indelrealign(work, input_bam, output_bam, output_vcf, output_not_r
 
     shuffle(map_args)
     try:
-        realign_output = pool.map_async(run_realignment, map_args).get()
-        pool.close()
+        if num_threads == 1:
+            realign_output = [run_realignment(w) for w in map_args]
+        else:
+            with multiprocessing.Pool(num_threads) as pool:
+                realign_output = pool.map_async(run_realignment, map_args).get()
     except Exception as inst:
-        pool.close()
         logger.error(inst)
         traceback.print_exc()
         raise Exception
