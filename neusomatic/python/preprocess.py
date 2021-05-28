@@ -37,8 +37,9 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam,
                          report_count_for_all_positions,
                          scan_alignments_binary, restart, num_splits, num_threads, calc_qual, regions=[]):
 
-    logger = logging.getLogger(process_split_region.__name__)
-    logger.info("Scan bam.")
+    logger = logging.getLogger(
+        "{} ({})".format(process_split_region.__name__, multiprocessing.current_process().name))
+    logger.info("-------------- Scan bam ----------------")
     scan_outputs = scan_alignments(work, merge_d_for_scan, scan_alignments_binary, alignment_bam,
                                    region, reference, num_splits, num_threads, scan_window_size, 
                                    snp_min_ao,
@@ -83,6 +84,7 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam,
                 filtered_candidates_vcfs.append(filtered_vcf)
     else:
         filtered_candidates_vcfs = None
+    logger.info('Scanning splits complete')
     return list(map(lambda x: x[1], scan_outputs)), list(map(lambda x: x[2], scan_outputs)), filtered_candidates_vcfs
 
 
@@ -112,6 +114,7 @@ def get_ensemble_region(record):
     reference, ensemble_bed, region, ensemble_bed_region_file, matrix_base_pad = record
     thread_logger = logging.getLogger(
         "{} ({})".format(get_ensemble_region.__name__, multiprocessing.current_process().name))
+    thread_logger.info('--------- Getting ensemble region ---------')
     try:
         ensemble_bed_region_file_tmp = bedtools_slop(
             region, reference + ".fai", args=" -b {}".format(matrix_base_pad + 3),
@@ -119,6 +122,7 @@ def get_ensemble_region(record):
         bedtools_intersect(
             ensemble_bed, ensemble_bed_region_file_tmp, args=" -u -header",
             output_fn=ensemble_bed_region_file, run_logger=thread_logger)
+        thread_logger.info('Getting ensemble region completed')
         return ensemble_bed_region_file
 
     except Exception as ex:
@@ -128,8 +132,10 @@ def get_ensemble_region(record):
 
 
 def get_ensemble_beds(work, reference, ensemble_bed, split_regions, matrix_base_pad, num_threads):
-    logger = logging.getLogger(get_ensemble_beds.__name__)
+    logger = logging.getLogger(
+        "{} ({})".format(get_ensemble_beds.__name__, multiprocessing.current_process().name))
 
+    logger.info("------------- Extracting ensemble beds ------------")
     work_ensemble = os.path.join(work, "ensemble_anns")
     if not os.path.exists(work_ensemble):
         os.mkdir(work_ensemble)
@@ -153,14 +159,17 @@ def get_ensemble_beds(work, reference, ensemble_bed, split_regions, matrix_base_
     for o in outputs:
         if o is None:
             raise Exception("get_ensemble_region failed!")
+    logger.info("Extracting ensemble beds completed")
     return ensemble_beds
 
 
 def extract_candidate_split_regions(
         work, filtered_candidates_vcfs, split_regions, ensemble_beds,
         reference, matrix_base_pad, merge_d_for_short_read):
-    logger = logging.getLogger(extract_candidate_split_regions.__name__)
+    logger = logging.getLogger(
+        "{} ({})".format(extract_candidate_split_regions.__name__, multiprocessing.current_process().name))
 
+    logger.info("------------------- Extracting candidate split regions -------------")
     candidates_split_regions = []
     for i, (filtered_vcf, split_region_) in enumerate(zip(filtered_candidates_vcfs,
                                                           split_regions)):
@@ -204,6 +213,7 @@ def extract_candidate_split_regions(
                       output_fn=candidates_region_file, run_logger=logger)
 
         candidates_split_regions.append(candidates_region_file)
+    logger.info("Extracting candidate split regions completed")
     return candidates_split_regions
 
 
@@ -261,7 +271,8 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                strict_labeling,
                num_threads,
                scan_alignments_binary,):
-    logger = logging.getLogger(preprocess.__name__)
+    logger = logging.getLogger(
+        "{} ({})".format(preprocess.__name__, multiprocessing.current_process().name))
 
     logger.info("----------------------Preprocessing------------------------")
     if restart or not os.path.exists(work):

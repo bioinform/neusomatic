@@ -23,6 +23,7 @@ def extract_features(candidate_record):
     reference, tumor_bam, normal_bam, min_mapq, min_bq, dbsnp, no_seq_complexity, batch = candidate_record
     thread_logger = logging.getLogger(
         "{} ({})".format(extract_features.__name__, multiprocessing.current_process().name))
+    thread_logger.info('---------------Extracting features-------------')
     try:
         tbam = pysam.AlignmentFile(tumor_bam)
         nbam = pysam.AlignmentFile(normal_bam)
@@ -203,6 +204,7 @@ def extract_features(candidate_record):
                                  tBAM_REF_InDel_1bp, tBAM_ALT_InDel_3bp, tBAM_ALT_InDel_2bp, tBAM_ALT_InDel_1bp, InDel_Length])
 
                 ext_features.append(features)
+        thread_logger.info('Extracting features complete')
         return ext_features
 
     except Exception as ex:
@@ -223,7 +225,8 @@ def extend_features(candidates_vcf,
                     max_cluster_size,
                     num_threads):
 
-    logger = logging.getLogger(extend_features.__name__)
+    logger = logging.getLogger(
+        "{} ({})".format(extend_features.__name__, multiprocessing.current_process().name))
 
     logger.info(
         "----------------------Extend Standalone Features------------------------")

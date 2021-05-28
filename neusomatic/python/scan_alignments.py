@@ -24,6 +24,10 @@ from split_bed import split_region
 
 
 def run_scan_alignments(record):
+    thread_logger = logging.getLogger(
+        "{} ({})".format(run_scan_alignments.__name__, multiprocessing.current_process().name))
+    thread_logger.info('------------ Running scan alignments binary -----------')
+    
     work, reference, merge_d_for_scan, scan_alignments_binary, split_region_file, \
         input_bam, window_size, \
         snp_min_ao, \
@@ -43,8 +47,6 @@ def run_scan_alignments(record):
         report_count_for_all_positions_str = "--report_count_for_all_positions"
     else:
         report_count_for_all_positions_str = ""
-    thread_logger = logging.getLogger(
-        "{} ({})".format(run_scan_alignments.__name__, multiprocessing.current_process().name))
     try:
 
         if not os.path.exists(scan_alignments_binary):
@@ -87,6 +89,7 @@ def run_scan_alignments(record):
         pysam.tabix_index(os.path.join(work, "count.bed"), preset="bed")
         concatenate_files([split_region_file],
                           os.path.join(work, "region.bed"))
+        thread_logger.info('Run scan alignments complete')
         return os.path.join(work, "candidates.vcf"), os.path.join(work, "count.bed.gz"), os.path.join(work, "region.bed")
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
@@ -117,7 +120,8 @@ def scan_alignments(work, merge_d_for_scan, scan_alignments_binary, input_bam,
                     report_count_for_all_positions, filter_duplicate, restart=True,
                     split_region_files=[], calc_qual=True):
 
-    logger = logging.getLogger(scan_alignments.__name__)
+    logger = logging.getLogger(
+        "{} ({})".format(scan_alignments.__name__, multiprocessing.current_process().name))
 
     logger.info("-------------------Scan Alignment BAM----------------------")
 
@@ -214,6 +218,7 @@ def scan_alignments(work, merge_d_for_scan, scan_alignments_binary, input_bam,
 
     for i, output in zip(not_done, outputs):
         all_outputs[i] = output
+    logger.info('Scan alignment complete')
     return all_outputs
 
 if __name__ == '__main__':
