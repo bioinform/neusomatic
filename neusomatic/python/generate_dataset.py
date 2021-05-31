@@ -57,25 +57,12 @@ def get_variant_matrix_tabix(
 ):
     logger = logging.getLogger(get_variant_matrix_tabix.__name__)
     chrom, pos, ref, alt = record[0:4]
-    # logger.info("vvv-1")
-    # fasta_file = pysam.Fastafile(ref_file)
-    # logger.info("vvv-2")
-    # try:
-    #     tb = pysam.TabixFile(count_info, parser=pysam.asTuple())
-    #     tabix_records = tb.fetch(
-    #         chrom, max(pos - matrix_base_pad, 0), min(pos + matrix_base_pad, chrom_lengths[chrom] - 2))
-    # except:
-    #     logger.warning("No count information at {}:{}-{} for {}".format(chrom,
-    #                                                                     pos - matrix_base_pad, pos + matrix_base_pad, count_info))
-    #     tabix_records = []
 
     t1 = time.time()
 
     tabix_records = []
     for pos_ in sorted(count_info.keys()):
-        # print([record[0:4],pos_])
         tabix_records.extend(count_info[pos_])
-    # logger.info("vvv-3")
     matrix_ = []
     bq_matrix_ = []
     mq_matrix_ = []
@@ -89,21 +76,15 @@ def get_variant_matrix_tabix(
     s_pos = max(1, pos - matrix_base_pad)
     curr_pos = s_pos
 
-    # logger.info(["rrr-11",time.time()-t1])
     t1 = time.time()
     tabix_records = list(tabix_records)
-    # logger.info(["rrr-12",time.time()-t1])
-    # logger.info("vvv-30")
     t1 = time.time()
     t2 = time.time()
     t0 = time.time()
     for rec in tabix_records:
-        # print(rec)
-        # logger.info(["rrr-13",time.time()-t1])
         t1 = time.time()
         pos_ = int(rec[1])
         if pos_ > pos + matrix_base_pad:
-            # logger.info(["rrr-19",time.time()-t0])
             t0 = time.time()
             t1 = time.time()
             continue
@@ -111,13 +92,10 @@ def get_variant_matrix_tabix(
         if ref_base.upper() not in "ACGT-":
             ref_base = "-"
         if pos_ in col_pos_map and ref_base != "-":
-            # logger.info(["rrr-19",time.time()-t0])
             t0 = time.time()
             t1 = time.time()
             continue
         if pos_ > (curr_pos):
-            # refs = fasta_file.fetch(
-            #     chrom, curr_pos - 1, pos_ - 1).upper().replace("N", "-")
             refs = ref_seq[curr_pos - s_pos : pos_ - s_pos]
 
             for i in range(curr_pos, pos_):
@@ -133,16 +111,12 @@ def get_variant_matrix_tabix(
                 for iii in range(len(tag_matrices_)):
                     tag_matrices_[iii].append([0, 0, 0, 0, 0])
                 ref_array.append(NUC_to_NUM_tabix[ref_base_])
-                # if ref_base_ != "-" and i not in col_pos_map:
                 if i not in col_pos_map:
                     col_pos_map[i] = cnt
                 cnt += 1
             curr_pos = pos_
-        # logger.info(["rrr-14",time.time()-t1])
         t1 = time.time()
         if pos_ == (curr_pos) and ref_base == "-" and pos_ not in col_pos_map:
-            # ref_base_ = fasta_file.fetch(
-            #     chrom, pos_ - 1, pos_).upper().replace("N", "-")
             ref_base_ = ref_seq[pos_ - s_pos : pos_ - s_pos + 1]
             if ref_base_.upper() not in "ACGT-":
                 ref_base_ = "-"
@@ -155,13 +129,10 @@ def get_variant_matrix_tabix(
             for iii in range(len(tag_matrices_)):
                 tag_matrices_[iii].append([0, 0, 0, 0, 0])
             ref_array.append(NUC_to_NUM_tabix[ref_base_])
-            # if ref_base_ != "-" and pos_ not in col_pos_map:
             if pos_ not in col_pos_map:
                 col_pos_map[pos_] = cnt
                 cnt += 1
             curr_pos = pos_ + 1
-        # logger.info(["rrr-15",time.time()-t1])
-        # logger.info(["rrr-19",time.time()-t0])
         t0 = time.time()
         t1 = time.time()
         matrix_.append(list(map(int, rec[4].split(":"))))
@@ -177,15 +148,11 @@ def get_variant_matrix_tabix(
             col_pos_map[pos_] = cnt
         cnt += 1
         curr_pos = pos_ + 1
-        # logger.info(["rrr-16",time.time()-t1])
         t1 = time.time()
 
-    # logger.info("vvv-32")
     end_pos = min(pos + matrix_base_pad, chrom_lengths[chrom] - 2)
 
     if curr_pos < pos + matrix_base_pad + 1:
-        # refs = fasta_file.fetch(
-        #     chrom, curr_pos - 1, end_pos).upper().replace("N", "-")
         refs = ref_seq[curr_pos - s_pos : end_pos - s_pos + 1]
         for i in range(curr_pos, end_pos + 1):
             ref_base_ = refs[i - curr_pos]
@@ -200,13 +167,10 @@ def get_variant_matrix_tabix(
             for iii in range(len(tag_matrices_)):
                 tag_matrices_[iii].append([0, 0, 0, 0, 0])
             ref_array.append(NUC_to_NUM_tabix[ref_base_])
-            # if ref_base_ != "-" and i not in col_pos_map:
             if i not in col_pos_map:
                 col_pos_map[i] = cnt
             cnt += 1
         curr_pos = end_pos + 1
-
-    # logger.info(["rrr-18",time.time()-t2])
 
     t1 = time.time()
 
@@ -220,9 +184,6 @@ def get_variant_matrix_tabix(
         tag_matrices_[iii] = np.array(tag_matrices_[iii]).transpose()
 
     ref_array = np.array(ref_array)
-    # logger.info(["vvv-4",matrix_.shape])
-
-    # logger.info(["rrr-17",time.time()-t1])
 
     return (
         matrix_,
@@ -235,204 +196,6 @@ def get_variant_matrix_tabix(
         ref_array,
         col_pos_map,
     )
-
-
-# def get_variant_matrix_tabix(ref_seq, count_info, record, matrix_base_pad, chrom_lengths):
-#     logger = logging.getLogger(get_variant_matrix_tabix.__name__)
-#     chrom, pos, ref, alt = record[0:4]
-#     # logger.info("vvv-1")
-#     # fasta_file = pysam.Fastafile(ref_file)
-#     # logger.info("vvv-2")
-#     # try:
-#     #     tb = pysam.TabixFile(count_info, parser=pysam.asTuple())
-#     #     tabix_records = tb.fetch(
-#     #         chrom, max(pos - matrix_base_pad, 0), min(pos + matrix_base_pad, chrom_lengths[chrom] - 2))
-#     # except:
-#     #     logger.warning("No count information at {}:{}-{} for {}".format(chrom,
-#     #                                                                     pos - matrix_base_pad, pos + matrix_base_pad, count_info))
-#     #     tabix_records = []
-
-#     t1=time.time()
-
-#     tabix_records=[]
-#     for pos_ in sorted(count_info.keys()):
-#         # print([record[0:4],pos_])
-#         tabix_records.extend(count_info[pos_])
-#     # logger.info("vvv-3")
-#     ref_array = []
-#     col_pos_map = {}
-#     cnt = 0
-#     s_pos = max(1, pos - matrix_base_pad)
-#     curr_pos = s_pos
-
-#     # logger.info(["rrr-11",time.time()-t1])
-#     t1=time.time()
-#     tabix_records=list(tabix_records)
-#     # logger.info(["rrr-12",time.time()-t1])
-#     # logger.info("vvv-30")
-#     t1=time.time()
-#     t2=time.time()
-#     t0=time.time()
-#     z_s={}
-#     z_e=0
-#     n_=0
-#     for i_rec, rec in enumerate(tabix_records):
-#         z_s[i_rec]=[0,-1]
-#         # print(rec)
-#         # logger.info(["rrr-13",time.time()-t1])
-#         t1=time.time()
-#         pos_ = int(rec[1])
-#         if pos_ > pos + matrix_base_pad:
-#             # logger.info(["rrr-19",time.time()-t0])
-#             t0=time.time()
-#             t1=time.time()
-#             continue
-#         ref_base = rec[3]
-#         if ref_base.upper() not in "ACGT-":
-#             ref_base = "-"
-#         if pos_ in col_pos_map and ref_base != "-":
-#             # logger.info(["rrr-19",time.time()-t0])
-#             t0=time.time()
-#             t1=time.time()
-#             continue
-#         if pos_ > (curr_pos):
-#             # refs = fasta_file.fetch(
-#             #     chrom, curr_pos - 1, pos_ - 1).upper().replace("N", "-")
-#             refs = ref_seq[curr_pos-s_pos:pos_-s_pos]
-
-#             for i in range(curr_pos, pos_):
-#                 ref_base_ = refs[i - curr_pos]
-#                 if ref_base_.upper() not in "ACGT-":
-#                     ref_base_ = "-"
-#                 # G.append([0, 0, 0, 0, 0])
-#                 # bq_G.append([0, 0, 0, 0, 0])
-#                 # mq_matrix_.append([0, 0, 0, 0, 0])
-#                 # st_matrix_.append([0, 0, 0, 0, 0])
-#                 # lsc_matrix_.append([0, 0, 0, 0, 0])
-#                 # rsc_matrix_.append([0, 0, 0, 0, 0])
-#                 # for iii in range(len(tag_matrices_)):
-#                 #     tag_matrices_[iii].append([0, 0, 0, 0, 0])
-#                 z_s[i_rec][0]+=1
-#                 n_ += 1
-#                 ref_array.append(NUC_to_NUM_tabix[ref_base_])
-#                 # if ref_base_ != "-" and i not in col_pos_map:
-#                 if i not in col_pos_map:
-#                     col_pos_map[i] = cnt
-#                 cnt += 1
-#             curr_pos = pos_
-#         # logger.info(["rrr-14",time.time()-t1])
-#         t1=time.time()
-#         if pos_ == (curr_pos) and ref_base == "-" and pos_ not in col_pos_map:
-#             # ref_base_ = fasta_file.fetch(
-#             #     chrom, pos_ - 1, pos_).upper().replace("N", "-")
-#             ref_base_ = ref_seq[pos_-s_pos:pos_-s_pos+1]
-#             if ref_base_.upper() not in "ACGT-":
-#                 ref_base_ = "-"
-#             # matrix_.append([0, 0, 0, 0, 0])
-#             # bq_matrix_.append([0, 0, 0, 0, 0])
-#             # mq_matrix_.append([0, 0, 0, 0, 0])
-#             # st_matrix_.append([0, 0, 0, 0, 0])
-#             # lsc_matrix_.append([0, 0, 0, 0, 0])
-#             # rsc_matrix_.append([0, 0, 0, 0, 0])
-#             # for iii in range(len(tag_matrices_)):
-#             #     tag_matrices_[iii].append([0, 0, 0, 0, 0])
-#             z_s[i_rec][0]+=1
-#             n_ += 1
-#             ref_array.append(NUC_to_NUM_tabix[ref_base_])
-#             # if ref_base_ != "-" and pos_ not in col_pos_map:
-#             if pos_ not in col_pos_map:
-#                 col_pos_map[pos_] = cnt
-#                 cnt += 1
-#             curr_pos = pos_ + 1
-#         # logger.info(["rrr-15",time.time()-t1])
-#         # logger.info(["rrr-19",time.time()-t0])
-#         t0=time.time()
-#         t1=time.time()
-#         z_s[i_rec][1]=n_
-#         n_ += 1
-#         # matrix_.append(list(map(int, rec[4].split(":"))))
-#         # bq_matrix_.append(list(map(int, rec[5].split(":"))))
-#         # mq_matrix_.append(list(map(int, rec[6].split(":"))))
-#         # st_matrix_.append(list(map(int, rec[7].split(":"))))
-#         # lsc_matrix_.append(list(map(int, rec[8].split(":"))))
-#         # rsc_matrix_.append(list(map(int, rec[9].split(":"))))
-#         # for iii in range(len(tag_matrices_)):
-#         #     tag_matrices_[iii].append(list(map(int, rec[10 + iii].split(":"))))
-#         ref_array.append(NUC_to_NUM_tabix[ref_base])
-#         if ref_base != "-" and pos_ not in col_pos_map:
-#             col_pos_map[pos_] = cnt
-#         cnt += 1
-#         curr_pos = pos_ + 1
-#         # logger.info(["rrr-16",time.time()-t1])
-#         t1=time.time()
-
-
-#     # logger.info("vvv-32")
-#     end_pos = min(pos + matrix_base_pad, chrom_lengths[chrom] - 2)
-
-#     if curr_pos < pos + matrix_base_pad + 1:
-#         # refs = fasta_file.fetch(
-#         #     chrom, curr_pos - 1, end_pos).upper().replace("N", "-")
-#         refs = ref_seq[curr_pos-s_pos:end_pos-s_pos+1]
-#         for i in range(curr_pos, end_pos + 1):
-#             ref_base_ = refs[i - curr_pos]
-#             if ref_base_.upper() not in "ACGT-":
-#                 ref_base_ = "-"
-#             # matrix_.append([0, 0, 0, 0, 0])
-#             # bq_matrix_.append([0, 0, 0, 0, 0])
-#             # mq_matrix_.append([0, 0, 0, 0, 0])
-#             # st_matrix_.append([0, 0, 0, 0, 0])
-#             # lsc_matrix_.append([0, 0, 0, 0, 0])
-#             # rsc_matrix_.append([0, 0, 0, 0, 0])
-#             # for iii in range(len(tag_matrices_)):
-#             #     tag_matrices_[iii].append([0, 0, 0, 0, 0])
-#             n_ += 1
-#             z_e += 1
-#             ref_array.append(NUC_to_NUM_tabix[ref_base_])
-#             # if ref_base_ != "-" and i not in col_pos_map:
-#             if i not in col_pos_map:
-#                 col_pos_map[i] = cnt
-#             cnt += 1
-#         curr_pos = end_pos + 1
-
-#     # logger.info(["rrr-18",time.time()-t2])
-#     t1=time.time()
-
-#     matrix_ = np.zeros((5,n_))
-#     bq_matrix_ = np.zeros((5,n_))
-#     mq_matrix_ = np.zeros((5,n_))
-#     st_matrix_ = np.zeros((5,n_))
-#     lsc_matrix_ = np.zeros((5,n_))
-#     rsc_matrix_ = np.zeros((5,n_))
-#     tag_matrices_ = [np.zeros((5,n_)), np.zeros((5,n_)), np.zeros((5,n_)), np.zeros((5,n_)), np.zeros((5,n_))]
-
-#     # logger.info(["rrr-21",time.time()-t1])
-#     t1=time.time()
-
-
-#     for i in sorted(z_s.keys()):
-#         if z_s[i][1]>=0:
-#             rec=tabix_records[i]
-#             matrix_[:,z_s[i][1]]=[int(x) for x in rec[4].split(":")]
-#             bq_matrix_[:,z_s[i][1]]=[int(x) for x in rec[5].split(":")]
-#             mq_matrix_[:,z_s[i][1]]=[int(x) for x in rec[6].split(":")]
-#             st_matrix_[:,z_s[i][1]]=[int(x) for x in rec[7].split(":")]
-#             lsc_matrix_[:,z_s[i][1]]=[int(x) for x in rec[8].split(":")]
-#             rsc_matrix_[:,z_s[i][1]]=[int(x) for x in rec[9].split(":")]
-#             for iii in range(len(tag_matrices_)):
-#                 tag_matrices_[iii][:,z_s[i][1]]=[int(x) for x in rec[10 + iii].split(":")]
-
-#     # logger.info(["rrr-20",time.time()-t1])
-#     t1=time.time()
-
-#     st_matrix_ = (st_matrix_ / 100.0) * matrix_
-
-#     ref_array = np.array(ref_array)
-#     # logger.info(["vvv-4",matrix_.shape])
-
-#     # logger.info(["rrr-17",time.time()-t1])
-
-#     return matrix_, bq_matrix_, mq_matrix_, st_matrix_, lsc_matrix_, rsc_matrix_, tag_matrices_, ref_array, col_pos_map
 
 
 def align_tumor_normal_matrices(
@@ -613,7 +376,6 @@ def prepare_info_matrices_tabix(
     chrom, pos, ref, alt = record[0:4]
 
     t1 = time.time()
-    # logger.info("ttt-1")
     (
         tumor_matrix_,
         bq_tumor_matrix_,
@@ -641,14 +403,12 @@ def prepare_info_matrices_tabix(
         ref_seq, normal_count_info, record, matrix_base_pad, chrom_lengths
     )
 
-    # logger.info(["rrr-8",time.time()-t1])
     t1 = time.time()
 
     if not tumor_col_pos_map:
         logger.warning("Skip {} for all N reference".format(record))
         return None
 
-    # logger.info("ttt-2")
     bq_tumor_matrix_[0, np.where(tumor_matrix_.sum(0) == 0)[0]] = np.max(
         bq_tumor_matrix_
     )
@@ -688,7 +448,6 @@ def prepare_info_matrices_tabix(
             tag_normal_matrices_[iii]
         )
 
-    # logger.info("ttt-3")
     tumor_matrix_[0, np.where(tumor_matrix_.sum(0) == 0)[0]] = max(
         np.sum(tumor_matrix_, 0)
     )
@@ -704,8 +463,6 @@ def prepare_info_matrices_tabix(
         rsc_normal_matrix_[0, :] = np.max(rsc_tumor_matrix_)
         for iii in range(len(tag_normal_matrices_)):
             tag_normal_matrices_[iii][0, :] = np.max(tag_normal_matrices_[iii])
-
-    # logger.info("ttt-4")
 
     (
         tumor_matrix_,
@@ -746,7 +503,6 @@ def prepare_info_matrices_tabix(
         normal_col_pos_map,
     )
 
-    # logger.info(["rrr-9",time.time()-t1])
     t1 = time.time()
 
     tw = int(matrix_width)
@@ -1039,10 +795,6 @@ def prepare_info_matrices_tabix(
             ref_count_matrix.shape[1] - 1,
         )
 
-    # logger.info("ttt-9")
-
-    # logger.info(["rrr-10",time.time()-t1])
-
     return [
         tumor_matrix_,
         tumor_matrix,
@@ -1098,7 +850,6 @@ def prep_data_single_tabix(input_record):
     try:
         chrom, pos, ref, alt = record[:4]
         pos = int(pos)
-        # thread_logger.info("prep-1")
 
         t1 = time.time()
 
@@ -1143,10 +894,8 @@ def prep_data_single_tabix(input_record):
         else:
             return []
 
-        # thread_logger.info(["rrr-6",time.time()-t1])
         t1 = time.time()
 
-        # thread_logger.info("prep-2")
         candidate_mat = np.zeros(
             (
                 tumor_count_matrix.shape[0],
@@ -1243,7 +992,6 @@ def prep_data_single_tabix(input_record):
                 * max_norm
             )
 
-        # thread_logger.info("prep-3")
         if matrix_dtype == "uint8":
             candidate_mat = np.maximum(0, np.minimum(candidate_mat, max_norm)).astype(
                 np.uint8
@@ -1268,11 +1016,7 @@ def prep_data_single_tabix(input_record):
             tumor_cov,
             normal_cov,
         )
-        # thread_logger.info("prep-4")
         candidate_mat = base64.b64encode(zlib.compress(candidate_mat)).decode("ascii")
-        # thread_logger.info("prep-5")
-
-        # thread_logger.info(["rrr-7",time.time()-t1])
 
         return tag, candidate_mat, record[0:4], ann, is_none
     except Exception as ex:
@@ -2740,7 +2484,6 @@ def parallel_generation(inputs):
                 ]
         thread_logger.info(chrom_pos)
 
-        # thread_logger.info("Gener-7")
         tb_tumor = pysam.TabixFile(tumor_count_bed, parser=pysam.asTuple())
         tb_normal = pysam.TabixFile(normal_count_bed, parser=pysam.asTuple())
 
@@ -2778,7 +2521,6 @@ def parallel_generation(inputs):
                     )
                 )
                 normal_tabix_records = []
-            # thread_logger.info(["ffff-1",time.time()-t2])
             t2 = time.time()
 
             for x in tumor_tabix_records:
@@ -2791,10 +2533,8 @@ def parallel_generation(inputs):
                 if pos not in normal_tabix_records_dict[chrom]:
                     normal_tabix_records_dict[chrom][pos] = []
                 normal_tabix_records_dict[chrom][pos].append(list(x))
-            # thread_logger.info(["ffff-2",time.time()-t2])
             t2 = time.time()
             del tumor_tabix_records, normal_tabix_records
-            # thread_logger.info(["ffff-3",time.time()-t2])
 
         thread_logger.info(["Gener-8", len(map_args)])
 
@@ -2863,7 +2603,6 @@ def generate_dataset(
     logger.info(tumor_count_bed)
 
     t1 = time.time()
-    # logger.info("Gener-0")
 
     if not os.path.exists(work):
         os.mkdir(work)
@@ -2931,10 +2670,8 @@ def generate_dataset(
             if x:
                 num_ens_features = len(x) - 5
 
-    # logger.info(["rrr-1",time.time()-t1])
     t1 = time.time()
 
-    # logger.info("Gener-1")
     map_args = []
     for i, split_region_file in enumerate(split_region_files):
         map_args.append(
@@ -2983,14 +2720,12 @@ def generate_dataset(
     ) in records_data:
         total_ims += len(records_r) + len(none_records)
 
-    # logger.info("Gener-2")
     candidates_split = int(total_ims // tsv_batch_size) + 1
     is_split = total_ims // candidates_split
     with open(var_vcf, "w") as vv, open(none_vcf, "w") as nv:
         is_current = 0
         is_ = -1
         while is_ < candidates_split:
-            # logger.info("Gener-3")
             is_ += 1
             cnt = -1
             if is_ < candidates_split - 1:
@@ -3077,12 +2812,9 @@ def generate_dataset(
                 if cnt >= is_end:
                     break
 
-            # logger.info("Gener-4")
-
             len_records = len(map_args_records)
             records_done = []
             if len_records > 0:
-                # logger.info("Gener-9")
                 if num_threads == 1:
                     records_done_ = [
                         parallel_generation(
@@ -3125,7 +2857,6 @@ def generate_dataset(
                     records_done.extend(o)
 
             shuffle(records_done)
-            # logger.info("Gener-10")
             cnt_ims = 0
             tsv_idx = []
             with open(candidates_tsv_file, "w") as b_o:
@@ -3186,13 +2917,10 @@ def generate_dataset(
     with open(done_flag, "w") as d_f:
         d_f.write("Done")
 
-    # logger.info(["rrr-4",time.time()-t1])
     t1 = time.time()
 
     shutil.rmtree(bed_tempdir)
     tempfile.tempdir = original_tempdir
-
-    # logger.info(["rrr-5",time.time()-t1])
 
     logger.info("Generating dataset is Done.")
 
