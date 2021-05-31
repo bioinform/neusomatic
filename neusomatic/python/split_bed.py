@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 # split_bed.py
 # split bed file to multiple sub-regions
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 import os
 import argparse
 import traceback
@@ -13,16 +13,23 @@ import multiprocessing
 from utils import write_tsv_file, bedtools_sort, bedtools_merge, skip_empty
 
 
-def split_region(work, region_bed_file, num_splits, max_region=1000000, min_region=20, shuffle_intervals=False):
+def split_region(
+    work,
+    region_bed_file,
+    num_splits,
+    max_region=1000000,
+    min_region=20,
+    shuffle_intervals=False,
+):
 
     logger = logging.getLogger(
-        "{} ({})".format(split_region.__name__, multiprocessing.current_process().name))
+        "{} ({})".format(split_region.__name__, multiprocessing.current_process().name)
+    )
 
     logger.info("------------------------Split region-----------------------")
 
     regions_bed = bedtools_sort(region_bed_file, run_logger=logger)
-    regions_bed = bedtools_merge(
-        regions_bed, args=" -d 0", run_logger=logger)
+    regions_bed = bedtools_merge(regions_bed, args=" -d 0", run_logger=logger)
 
     intervals = []
     with open(regions_bed) as r_f:
@@ -31,8 +38,7 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
             start, end = int(start), int(end)
             if end - start + 1 > max_region:
                 for i in range(start, end + 1, max_region):
-                    intervals.append(
-                        [chrom, i, min(end, i + max_region - 1)])
+                    intervals.append([chrom, i, min(end, i + max_region - 1)])
             else:
                 intervals.append([chrom, start, end])
     if shuffle_intervals:
@@ -50,7 +56,7 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
         start, end = int(start), int(end)
         s = start
         e = -1
-        while(current_len < split_len):
+        while current_len < split_len:
             s = max(s, e + 1)
             e = min(s + split_len - current_len - 1, end)
             if (e - s + 1) < 2 * min_region:
@@ -59,7 +65,7 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
                 e = end
             current_regions.append([chrom, s, e])
             current_len += e - s + 1
-            if (current_len >= split_len):
+            if current_len >= split_len:
                 sofar_len += current_len
                 split_lens.append(current_len)
                 current_len = 0
@@ -76,8 +82,7 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
     for i, split_region_ in enumerate(split_regions):
         split_region_file = os.path.join(work, "region_{}.bed".format(i))
         logger.info(split_region_file)
-        write_tsv_file(split_region_file, split_region_,
-                       add_fields=[".", ".", "."])
+        write_tsv_file(split_region_file, split_region_, add_fields=[".", ".", "."])
 
         logger.info("Split {}: {}".format(i, split_lens[i]))
         split_region_files.append(split_region_file)
@@ -85,24 +90,28 @@ def split_region(work, region_bed_file, num_splits, max_region=1000000, min_regi
     logger.info("Total splitted length: {}".format(sum_len))
     return split_region_files
 
-if __name__ == '__main__':
 
-    FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+if __name__ == "__main__":
+
+    FORMAT = "%(levelname)s %(asctime)-15s %(name)-20s %(message)s"
     logging.basicConfig(level=logging.INFO, format=FORMAT)
     logger = logging.getLogger(__name__)
 
-    parser = argparse.ArgumentParser(
-        description='Split bedfile to multiple beds')
-    parser.add_argument('--region_bed', type=str,
-                        help='region bed', required=True)
-    parser.add_argument('--num_splits', type=int,
-                        help='number of splits', required=True)
-    parser.add_argument('--output', type=str,
-                        help='output directory', required=True)
-    parser.add_argument('--max_region', type=int,
-                        help='max region size in the bed (for shuffling purpose)', default=1000000)
-    parser.add_argument('--min_region', type=int,
-                        help='min region size for spliting', default=20)
+    parser = argparse.ArgumentParser(description="Split bedfile to multiple beds")
+    parser.add_argument("--region_bed", type=str, help="region bed", required=True)
+    parser.add_argument(
+        "--num_splits", type=int, help="number of splits", required=True
+    )
+    parser.add_argument("--output", type=str, help="output directory", required=True)
+    parser.add_argument(
+        "--max_region",
+        type=int,
+        help="max region size in the bed (for shuffling purpose)",
+        default=1000000,
+    )
+    parser.add_argument(
+        "--min_region", type=int, help="min region size for spliting", default=20
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.output):
@@ -113,10 +122,10 @@ if __name__ == '__main__':
 
     try:
         split_region_files = split_region(
-            work, args.region_bed, args.num_splits, args.max_region, args.min_region)
+            work, args.region_bed, args.num_splits, args.max_region, args.min_region
+        )
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")
-        logger.error(
-            "split_bed.py failure on arguments: {}".format(args))
+        logger.error("split_bed.py failure on arguments: {}".format(args))
         raise e

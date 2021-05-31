@@ -2,5 +2,5 @@ NUM_ENS_FEATURES = 93
 NUM_ST_FEATURES = 26
 VCF_HEADER = "##fileformat=VCFv4.2"
 TYPE_CLASS_DICT = {"DEL": 0, "INS": 1, "NONE": 2, "SNP": 3}
-VARTYPE_CLASSES = ['DEL', 'INS', 'NONE', 'SNP']
+VARTYPE_CLASSES = ["DEL", "INS", "NONE", "SNP"]
 MAT_DTYPES = ["uint8", "uint16"]
