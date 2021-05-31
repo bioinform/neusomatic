@@ -8,13 +8,15 @@ import argparse
 import traceback
 from random import shuffle
 import logging
+import multiprocessing
 
 from utils import write_tsv_file, bedtools_sort, bedtools_merge, skip_empty
 
 
 def split_region(work, region_bed_file, num_splits, max_region=1000000, min_region=20, shuffle_intervals=False):
 
-    logger = logging.getLogger(split_region.__name__)
+    logger = logging.getLogger(
+        "{} ({})".format(split_region.__name__, multiprocessing.current_process().name))
 
     logger.info("------------------------Split region-----------------------")
 

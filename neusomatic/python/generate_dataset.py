@@ -1715,6 +1715,7 @@ def find_records(input_record):
         none_records = list(map(lambda x: records[x], none_records_ids))
         none_records = sorted(none_records, key=lambda x: [x[0], int(x[1])])
 
+        thread_logger.info("Completed find_records for worker {}".format(work_index))
         return records_r, none_records, vtype, record_len, record_center, chroms_order, anns
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
@@ -1726,7 +1727,9 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
                      custom_header,
                      zero_vscore,
                      is_extend):
-    logger = logging.getLogger(extract_ensemble.__name__)
+    logger = logging.getLogger(
+        "{} ({})".format(extract_ensemble.__name__, multiprocessing.current_process().name))
+    logger.info("--------------Start extract ensemble--------------")
     ensemble_data = []
     ensemble_pos = []
     header = []
@@ -1922,6 +1925,7 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
             "#" + "\t".join(map(str, header_pos + selected_features_tags)) + "\n")
         for i, s in enumerate(ensemble_data):
             f_.write("\t".join(map(str, ensemble_pos[i] + s)) + "\n")
+    logger.info('Extract ensemble complete')
     return ensemble_bed
 
 def chunks(lst, n):
@@ -1936,6 +1940,7 @@ def parallel_generation(inputs):
 
     thread_logger = logging.getLogger(
         "{} ({})".format(parallel_generation.__name__, multiprocessing.current_process().name))
+    thread_logger.info('------------Start parallel generation------------')
     try:
         chrom_pos={}
         for w in map_args:
@@ -2005,6 +2010,7 @@ def parallel_generation(inputs):
             if o is None:
                 aaaa
             records_done.append(o)
+        thread_logger.info('Parallel generation complete')
         return records_done
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
@@ -2020,7 +2026,8 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                      matrix_dtype,
                      strict_labeling,
                      tsv_batch_size):
-    logger = logging.getLogger(generate_dataset.__name__)
+    logger = logging.getLogger(
+        "{} ({})".format(generate_dataset.__name__, multiprocessing.current_process().name))
 
     logger.info("---------------------Generate Dataset----------------------")
     logger.info(tumor_count_bed)

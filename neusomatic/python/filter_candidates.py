@@ -263,6 +263,7 @@ def filter_candidates(candidate_record):
                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
             for record in final_records:
                 o_f.write(record[-1] + "\n")
+        thread_logger.info("Filter candidates complete")
         return filtered_candidates_vcf
 
     except Exception as ex:
