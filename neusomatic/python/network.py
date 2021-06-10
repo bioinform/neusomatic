@@ -1,7 +1,7 @@
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 # network.py
 # Defines the architecture of NeuSomatic network
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 import logging
 
 import torch.nn as nn
@@ -9,40 +9,42 @@ import torch.nn.functional as F
 import numpy as np
 
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+FORMAT = "%(levelname)s %(asctime)-15s %(name)-20s %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
 
 
 class NSBlock(nn.Module):
-
     def __init__(self, dim, ks_1=3, ks_2=3, dl_1=1, dl_2=1, mp_ks=3, mp_st=1):
         super(NSBlock, self).__init__()
         self.dim = dim
         self.conv_r1 = nn.Conv2d(
-            dim, dim, kernel_size=ks_1, dilation=dl_1, padding=(dl_1 * (ks_1 - 1)) // 2)
+            dim, dim, kernel_size=ks_1, dilation=dl_1, padding=(dl_1 * (ks_1 - 1)) // 2
+        )
         self.bn_r1 = nn.BatchNorm2d(dim)
         self.conv_r2 = nn.Conv2d(
-            dim, dim, kernel_size=ks_2, dilation=dl_2, padding=(dl_2 * (ks_2 - 1)) // 2)
+            dim, dim, kernel_size=ks_2, dilation=dl_2, padding=(dl_2 * (ks_2 - 1)) // 2
+        )
         self.bn_r2 = nn.BatchNorm2d(dim)
-        self.pool_r2 = nn.MaxPool2d((1, mp_ks), padding=(
-            0, (mp_ks - 1) // 2), stride=(1, mp_st))
+        self.pool_r2 = nn.MaxPool2d(
+            (1, mp_ks), padding=(0, (mp_ks - 1) // 2), stride=(1, mp_st)
+        )
 
     def forward(self, x):
-        y1 = (F.relu(self.bn_r1(self.conv_r1(x))))
-        y2 = (self.bn_r2(self.conv_r2(y1)))
+        y1 = F.relu(self.bn_r1(self.conv_r1(x)))
+        y2 = self.bn_r2(self.conv_r2(y1))
         y3 = x + y2
         z = self.pool_r2(y3)
         return z
 
 
 class NeuSomaticNet(nn.Module):
-
     def __init__(self, num_channels):
         super(NeuSomaticNet, self).__init__()
         dim = 64
-        self.conv1 = nn.Conv2d(num_channels, dim, kernel_size=(
-            1, 3), padding=(0, 1), stride=1)
+        self.conv1 = nn.Conv2d(
+            num_channels, dim, kernel_size=(1, 3), padding=(0, 1), stride=1
+        )
         self.bn1 = nn.BatchNorm2d(dim)
         self.pool1 = nn.MaxPool2d((1, 3), padding=(0, 1), stride=(1, 1))
         self.nsblocks = [

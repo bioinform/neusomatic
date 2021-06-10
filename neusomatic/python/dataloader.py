@@ -1,7 +1,7 @@
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 # dataloader.py
 # Data loader used by NeuSomatic network for datasets created by 'generate_dataset.py'
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 import multiprocessing
 import pickle
 import zlib
@@ -18,13 +18,12 @@ import resource
 from utils import skip_empty
 from defaults import TYPE_CLASS_DICT, VARTYPE_CLASSES, MAT_DTYPES
 
-FORMAT = '%(levelname)s %(asctime)-15s %(name)-20s %(message)s'
+FORMAT = "%(levelname)s %(asctime)-15s %(name)-20s %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 logger = logging.getLogger(__name__)
 
 
-class matrix_transform():
-
+class matrix_transform:
     def __init__(self, mean, std):
         self.mean = mean
         self.std = std
@@ -38,12 +37,17 @@ class matrix_transform():
 
 def extract_zlib(zlib_compressed_im, matrix_dtype):
     if matrix_dtype == "uint8":
-        return np.fromstring(zlib.decompress(zlib_compressed_im), dtype="uint8").reshape((5, 32, 23))
+        return np.fromstring(
+            zlib.decompress(zlib_compressed_im), dtype="uint8"
+        ).reshape((5, 32, 23))
     elif matrix_dtype == "uint16":
-        return np.fromstring(zlib.decompress(zlib_compressed_im), dtype="uint16").reshape((5, 32, 23))
+        return np.fromstring(
+            zlib.decompress(zlib_compressed_im), dtype="uint16"
+        ).reshape((5, 32, 23))
     else:
         logger.info(
-            "Wrong matrix_dtype {}. Choices are {}".format(matrix_dtype, MAT_DTYPES))
+            "Wrong matrix_dtype {}. Choices are {}".format(matrix_dtype, MAT_DTYPES)
+        )
         raise Exception
 
 
@@ -69,13 +73,16 @@ def candidate_loader_tsv(tsv, open_tsv, idx, i, matrix_dtype):
 def extract_info_tsv(record):
     i_b, tsv, idx, L, max_load_candidates, nclasses_t, nclasses_l, matrix_dtype = record
     thread_logger = logging.getLogger(
-        "{} ({})".format(extract_info_tsv.__name__, multiprocessing.current_process().name))
+        "{} ({})".format(
+            extract_info_tsv.__name__, multiprocessing.current_process().name
+        )
+    )
     try:
         n_none = 0
         with open(tsv, "r") as i_f:
             for line in skip_empty(i_f):
                 tag = line.strip().split()[2]
-                n_none += (1 if "NONE" in tag else 0)
+                n_none += 1 if "NONE" in tag else 0
         n_var = L - n_none
 
         max_load_candidates_var = min(n_var, max_load_candidates)
@@ -107,9 +114,9 @@ def extract_info_tsv(record):
                 count_class_t[TYPE_CLASS_DICT[vartype]] += 1
                 count_class_l[min(int(length), 3)] += 1
                 if ((cnt_var < max_load_candidates_var) and ("NONE" not in tag)) or (
-                        (cnt_none < max_load_candidates_none) and ("NONE" in tag)):
-                    im = extract_zlib(base64.b64decode(
-                        fields[3]), matrix_dtype)
+                    (cnt_none < max_load_candidates_none) and ("NONE" in tag)
+                ):
+                    im = extract_zlib(base64.b64decode(fields[3]), matrix_dtype)
                     label = TYPE_CLASS_DICT[tag.split(".")[4]]
                     if len(fields) > 4:
                         anns = list(map(float, fields[4:]))
@@ -123,8 +130,7 @@ def extract_info_tsv(record):
                 else:
                     data.append([])
             assert i + 1 == L
-        thread_logger.info("Loaded {} candidates for {}".format(
-            len(matrices), tsv))
+        thread_logger.info("Loaded {} candidates for {}".format(len(matrices), tsv))
         return matrices, data, none_ids, var_ids, count_class_t, count_class_l
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
@@ -133,16 +139,25 @@ def extract_info_tsv(record):
 
 
 class NeuSomaticDataset(torch.utils.data.Dataset):
-
-    def __init__(self, roots, max_load_candidates, transform=None,
-                 loader=candidate_loader_tsv, is_test=False,
-                 num_threads=1, disable_ensemble=False, data_augmentation=False,
-                 nclasses_t=4, nclasses_l=4, coverage_thr=100,
-                 max_cov=None,
-                 normalize_channels=False,
-                 zero_ann_cols=[],
-                 matrix_dtype="uint8",
-                 max_opended_tsv=-1):
+    def __init__(
+        self,
+        roots,
+        max_load_candidates,
+        transform=None,
+        loader=candidate_loader_tsv,
+        is_test=False,
+        num_threads=1,
+        disable_ensemble=False,
+        data_augmentation=False,
+        nclasses_t=4,
+        nclasses_l=4,
+        coverage_thr=100,
+        max_cov=None,
+        normalize_channels=False,
+        zero_ann_cols=[],
+        matrix_dtype="uint8",
+        max_opended_tsv=-1,
+    ):
 
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         logger.info(resource.getrlimit(resource.RLIMIT_NOFILE))
@@ -186,8 +201,11 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         new_batch = []
         for i_b, L in enumerate(self.Ls):
             new_batch.append([i_b, L])
-            if sum(map(lambda x: x[1], new_batch)) > 200000 or i_b == len(self.Ls) - 1 \
-                    or len(new_batch) > num_threads:
+            if (
+                sum(map(lambda x: x[1], new_batch)) > 200000
+                or i_b == len(self.Ls) - 1
+                or len(new_batch) > num_threads
+            ):
                 batches.append(new_batch)
                 new_batch = []
 
@@ -197,10 +215,21 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             Ls_ = []
             for i_b, _ in batch:
                 tsv = self.tsvs[i_b]
-                max_load_ = self.Ls[i_b] * max_load_candidates // \
-                    total_L if total_L > 0 else 0
-                map_args.append([i_b, tsv, self.idxs[i_b], self.Ls[i_b],
-                                 max_load_, nclasses_t, nclasses_l, self.matrix_dtype])
+                max_load_ = (
+                    self.Ls[i_b] * max_load_candidates // total_L if total_L > 0 else 0
+                )
+                map_args.append(
+                    [
+                        i_b,
+                        tsv,
+                        self.idxs[i_b],
+                        self.Ls[i_b],
+                        max_load_,
+                        nclasses_t,
+                        nclasses_l,
+                        self.matrix_dtype,
+                    ]
+                )
                 Ls_.append(self.Ls[i_b])
             logger.info("Len's of tsv files in this batch: {}".format(Ls_))
             if len(map_args) == 1:
@@ -213,8 +242,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                 else:
                     pool = multiprocessing.Pool(num_threads)
                     try:
-                        records_ = pool.map_async(
-                            extract_info_tsv, map_args).get()
+                        records_ = pool.map_async(extract_info_tsv, map_args).get()
                         pool.close()
                     except Exception as inst:
                         pool.close()
@@ -230,7 +258,14 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
 
         j = 0
         for records_ in records_done:
-            for matrices, data, none_ids, var_ids, count_class_t, count_class_l in records_:
+            for (
+                matrices,
+                data,
+                none_ids,
+                var_ids,
+                count_class_t,
+                count_class_l,
+            ) in records_:
                 self.matrices += matrices
                 self.data += data
                 self.none_ids += list(map(lambda x: x + j, none_ids))
@@ -266,18 +301,24 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         if len(self.data[index]) == 0:
             i_b, i = self.matrices[index]
             if multiprocessing.current_process()._identity:
-                path, matrix, anns, label = candidate_loader_tsv(self.tsvs[i_b],
-                                                                 self.open_tsvs[
-                    int(multiprocessing.current_process()._identity[0]
-                        ) % self.num_threads][i_b],
-                    self.idxs[i_b], i, self.matrix_dtype)
+                path, matrix, anns, label = candidate_loader_tsv(
+                    self.tsvs[i_b],
+                    self.open_tsvs[
+                        int(multiprocessing.current_process()._identity[0])
+                        % self.num_threads
+                    ][i_b],
+                    self.idxs[i_b],
+                    i,
+                    self.matrix_dtype,
+                )
             else:
-                path, matrix, anns, label = candidate_loader_tsv(self.tsvs[i_b],
-                                                                 self.open_tsvs[
-                                                                     0][i_b],
-                                                                 self.idxs[
-                                                                     i_b], i,
-                                                                 self.matrix_dtype)
+                path, matrix, anns, label = candidate_loader_tsv(
+                    self.tsvs[i_b],
+                    self.open_tsvs[0][i_b],
+                    self.idxs[i_b],
+                    i,
+                    self.matrix_dtype,
+                )
 
         else:
             path, matrix, anns, label = self.data[index]
@@ -291,8 +332,7 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             anns = anns.tolist()
 
         tag = path.split("/")[-1]
-        _, _, _, _, vartype, center, length, tumor_cov, normal_cov = tag.split(
-            ".")
+        _, _, _, _, vartype, center, length, tumor_cov, normal_cov = tag.split(".")
         tumor_cov = int(tumor_cov)
         normal_cov = int(normal_cov)
         if self.max_cov is not None:
@@ -307,13 +347,17 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
 
         h, w, _ = matrix.shape
         far_center = False
-        if (((center - 2) * 2 / 3) >= (center - 2)) or (((w - center - 2) * 2 / 3)
-                                                        >= (w - center - 2)):
+        if (((center - 2) * 2 / 3) >= (center - 2)) or (
+            ((w - center - 2) * 2 / 3) >= (w - center - 2)
+        ):
             far_center = True
 
         # Data augmentaion by shifting left or right
-        if self.data_augmentation and (not self.is_test) and (random.rand() < self.da_shift_p
-                                                              and (not far_center)):
+        if (
+            self.data_augmentation
+            and (not self.is_test)
+            and (random.rand() < self.da_shift_p and (not far_center))
+        ):
             h, w, c = matrix.shape
             r = random.rand()
             if r < 0.6:
@@ -321,22 +365,25 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             else:
                 x_left = 0
             if r > 0.4:
-                x_right = random.randint(
-                    (w - center - 2) * 2 // 3, w - center - 2)
+                x_right = random.randint((w - center - 2) * 2 // 3, w - center - 2)
             else:
                 x_right = 0
             if x_left > 0:
-                matrix[:, 0:w - x_left, :] = matrix[:, x_left:, :]
+                matrix[:, 0 : w - x_left, :] = matrix[:, x_left:, :]
                 matrix[:, -x_left:, :] = -1
                 center -= x_left
             if x_right > 0:
-                matrix[:, x_right:, :] = matrix[:, 0:w - x_right, :]
+                matrix[:, x_right:, :] = matrix[:, 0 : w - x_right, :]
                 matrix[:, 0:x_right, :] = -1
                 center += x_right
 
         # Data augmentaion by switch bases
-        if self.data_augmentation and (not self.is_test) and random.rand() < self.da_base_p \
-                and (vartype != "NONE"):
+        if (
+            self.data_augmentation
+            and (not self.is_test)
+            and random.rand() < self.da_base_p
+            and (vartype != "NONE")
+        ):
             [i, j] = random.permutation(range(1, 5))[0:2]
             a = matrix[i, :, :]
             matrix[i, :, :] = matrix[j, :, :]
@@ -346,8 +393,12 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         try:
             nt_matrix = matrix.copy()
             nt_center = int(center)
-            if self.data_augmentation and (not self.is_test) and random.rand() < self.da_rev_p \
-                    and (vartype not in ["DEL"]):
+            if (
+                self.data_augmentation
+                and (not self.is_test)
+                and random.rand() < self.da_rev_p
+                and (vartype not in ["DEL"])
+            ):
                 h, w, c = matrix.shape
                 refbase = np.nonzero(matrix[:, center, 0])[0]
                 if len(refbase) > 1:
@@ -387,25 +438,31 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
                                     h += 1
                                 else:
                                     mx_1 = np.max(matrix[:, i, 1])
-                                    if matrix[0, i, 1] < mx_1 and matrix[hp_base, i, 1] < mx_1:
+                                    if (
+                                        matrix[0, i, 1] < mx_1
+                                        and matrix[hp_base, i, 1] < mx_1
+                                    ):
                                         e = center + 1
                                         break
                                 e += 1
                         if h == 1:
                             e = center + 1
                     if (e - b) > 1:
-                        matrix[:, b:e, :] = matrix[:, e - 1:b - 1:-1, :].copy()
+                        matrix[:, b:e, :] = matrix[:, e - 1 : b - 1 : -1, :].copy()
                         center = e - 1 - (center - b)
                 matrix = matrix[:, ::-1, :].copy()
                 center = w - center - 1
         except:
-            logger.warning(
-                "Failed random flip center={} tag={}".format(center, tag))
+            logger.warning("Failed random flip center={} tag={}".format(center, tag))
             matrix = nt_matrix
             center = nt_center
 
         # Data augmentaion by changing coverage
-        if self.data_augmentation and (not self.is_test) and random.rand() < self.da_cov_p:
+        if (
+            self.data_augmentation
+            and (not self.is_test)
+            and random.rand() < self.da_cov_p
+        ):
             r_cov = (1 - self.da_cov_e) + (random.rand() * 2 * self.da_cov_e)
             tumor_cov *= r_cov
             normal_cov *= r_cov
@@ -416,26 +473,30 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
             max_norm = 65535.0
         else:
             logger.info(
-                "Wrong matrix_dtype {}. Choices are {}".format(self.matrix_dtype, MAT_DTYPES))
+                "Wrong matrix_dtype {}. Choices are {}".format(
+                    self.matrix_dtype, MAT_DTYPES
+                )
+            )
 
         # add COV channel
         matrix_ = np.zeros((matrix.shape[0], matrix.shape[1], 26 + len(anns)))
         matrix_[:, :, 0:23] = matrix
         if self.normalize_channels:
-            matrix_[:, :, 3:23:2] *= (matrix_[:, :, 1:2] / max_norm)
-            matrix_[:, :, 4:23:2] *= (matrix_[:, :, 2:3] / max_norm)
+            matrix_[:, :, 3:23:2] *= matrix_[:, :, 1:2] / max_norm
+            matrix_[:, :, 4:23:2] *= matrix_[:, :, 2:3] / max_norm
         matrix = matrix_
         matrix[:, center, 23] = np.max(matrix[:, :, 0])
-        matrix[:, :, 24] = (min(tumor_cov, self.coverage_thr) /
-                            float(self.coverage_thr)) * max_norm
+        matrix[:, :, 24] = (
+            min(tumor_cov, self.coverage_thr) / float(self.coverage_thr)
+        ) * max_norm
         matrix[:, :, 25] = (
-            min(normal_cov, self.coverage_thr) / float(self.coverage_thr)) * max_norm
+            min(normal_cov, self.coverage_thr) / float(self.coverage_thr)
+        ) * max_norm
         for i, a in enumerate(anns):
             matrix[:, :, 26 + i] = a * max_norm
 
         if self.is_test:
-            orig_matrix_ = np.zeros(
-                (orig_matrix.shape[0], orig_matrix.shape[1], 3))
+            orig_matrix_ = np.zeros((orig_matrix.shape[0], orig_matrix.shape[1], 3))
             orig_matrix_[:, :, 0:2] = orig_matrix[:, :, 0:2]
             orig_matrix_[:, orig_center, 2] = np.max(orig_matrix[:, :, 0])
             orig_matrix = orig_matrix_
@@ -453,7 +514,10 @@ class NeuSomaticDataset(torch.utils.data.Dataset):
         var_pos = torch.Tensor(var_pos)
         varlen_label = min(length, 3)
 
-        return (matrix, label, var_pos, varlen_label, non_transformed_matrix), [path, label]
+        return (
+            (matrix, label, var_pos, varlen_label, non_transformed_matrix),
+            [path, label],
+        )
 
     def __len__(self):
         return len(self.matrices)
