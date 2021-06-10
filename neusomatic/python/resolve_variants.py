@@ -478,16 +478,14 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
             out_variants_list = []
             i = 0
             while i < len(map_args):
-                pool = multiprocessing.Pool(num_threads)
                 batch_i_s = i
                 batch_i_e = min(i + n_per_bacth, len(map_args))
-                out_variants_list.extend(pool.map_async(
-                    find_resolved_variants, map_args[batch_i_s:batch_i_e]).get())
+                with multiprocessing.Pool(num_threads) as pool:
+                    out_variants_list.extend(pool.map_async(
+                        find_resolved_variants, map_args[batch_i_s:batch_i_e]).get())
                 i = batch_i_e
-                pool.close()
         except Exception as inst:
             logger.error(inst)
-            pool.close()
             traceback.print_exc()
             raise Exception
     else:
