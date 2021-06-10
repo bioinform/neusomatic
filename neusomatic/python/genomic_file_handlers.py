@@ -10,55 +10,110 @@ import math
 # The regular expression pattern for "chrXX 1234567" in both VarScan2
 # Output and VCF files:
 pattern_major_chr_position = re.compile(
-    r'^(?:chr)?(?:[1-9]|1[0-9]|2[0-2]|[XY]|MT?)\t[0-9]+\b')
+    r"^(?:chr)?(?:[1-9]|1[0-9]|2[0-2]|[XY]|MT?)\t[0-9]+\b"
+)
 
 # More lenient pattern:
-pattern_chr_position = re.compile(r'[^\t]+\t[0-9]+\b')
-pattern_chrom = re.compile(r'(?:chr)?([1-9]|1[0-9]|2[0-2]|[XY]|MT?)\W')
+pattern_chr_position = re.compile(r"[^\t]+\t[0-9]+\b")
+pattern_chrom = re.compile(r"(?:chr)?([1-9]|1[0-9]|2[0-2]|[XY]|MT?)\W")
 
 
 # Valid Phred+33 quality strings:
 valid_q = set()
 [valid_q.add(chr(33 + i)) for i in range(42)]
 
-nan = float('nan')
-inf = float('inf')
+nan = float("nan")
+inf = float("inf")
 
-AA_3to1 = {"Ala": "A", "Arg": "R", "Asn": "N", "Asp": "D", "Cys": "C", "Glu": "E", "Gln": "Q", "Gly": "G", "His": "H", "Ile": "I",
-           "Leu": "L", "Lys": "K", "Met": "M", "Phe": "F", "Pro": "P", "Ser": "S", "Thr": "T", "Trp": "W", "Tyr": "Y", "Val": "V"}
-AA_1to3 = {"A": "Ala", "R": "Arg", "N": "Asn", "D": "Asp", "C": "Cys", "E": "Glu", "Q": "Gln", "G": "Gly", "H": "His", "I": "Ile",
-           "L": "Leu", "K": "Lys", "M": "Met", "F": "Phe", "P": "Pro", "S": "Ser", "T": "Thr", "W": "Trp", "Y": "Tyr", "V": "Val"}
+AA_3to1 = {
+    "Ala": "A",
+    "Arg": "R",
+    "Asn": "N",
+    "Asp": "D",
+    "Cys": "C",
+    "Glu": "E",
+    "Gln": "Q",
+    "Gly": "G",
+    "His": "H",
+    "Ile": "I",
+    "Leu": "L",
+    "Lys": "K",
+    "Met": "M",
+    "Phe": "F",
+    "Pro": "P",
+    "Ser": "S",
+    "Thr": "T",
+    "Trp": "W",
+    "Tyr": "Y",
+    "Val": "V",
+}
+AA_1to3 = {
+    "A": "Ala",
+    "R": "Arg",
+    "N": "Asn",
+    "D": "Asp",
+    "C": "Cys",
+    "E": "Glu",
+    "Q": "Gln",
+    "G": "Gly",
+    "H": "His",
+    "I": "Ile",
+    "L": "Leu",
+    "K": "Lys",
+    "M": "Met",
+    "F": "Phe",
+    "P": "Pro",
+    "S": "Ser",
+    "T": "Thr",
+    "W": "Trp",
+    "Y": "Tyr",
+    "V": "Val",
+}
 
 
 ### ### ### ### ### MAJOR CLASSES ### ### ### ### ###
 class Vcf_line:
-    '''Each instance of this object is a line from the vcf file (no header).'''
+    """Each instance of this object is a line from the vcf file (no header)."""
 
     def __init__(self, vcf_line):
-        '''Argument is a line in pileup file.'''
-        self.vcf_line = vcf_line.rstrip('\n')
+        """Argument is a line in pileup file."""
+        self.vcf_line = vcf_line.rstrip("\n")
 
         try:
-            self.chromosome, self.position, self.identifier, self.refbase, self.altbase, self.qual, self.filters, self.info, * \
-                self.has_samples = vcf_line.rstrip('\n').split('\t')
+            (
+                self.chromosome,
+                self.position,
+                self.identifier,
+                self.refbase,
+                self.altbase,
+                self.qual,
+                self.filters,
+                self.info,
+                *self.has_samples,
+            ) = vcf_line.rstrip("\n").split("\t")
             self.position = int(self.position)
 
             try:
                 self.field, *self.samples = self.has_samples
             except ValueError:
-                self.field = self.samples = ''
+                self.field = self.samples = ""
 
         except ValueError:
-            self.chromosome = self.identifier = self.refbase = self.altbase = self.qual = self.filters = self.info = self.field = self.samples = ''
+            self.chromosome = (
+                self.identifier
+            ) = (
+                self.refbase
+            ) = (
+                self.altbase
+            ) = self.qual = self.filters = self.info = self.field = self.samples = ""
             self.position = None
 
     def get_info_items(self):
-        return self.info.split(';')
+        return self.info.split(";")
 
     def get_info_value(self, variable):
 
-        key_item = re.search(
-            r'\b{}=([^;\s]+)([;\W]|$)'.format(variable), self.vcf_line)
+        key_item = re.search(r"\b{}=([^;\s]+)([;\W]|$)".format(variable), self.vcf_line)
 
         # The key has a value attached to it, e.g., VAR=1,2,3
         if key_item:
@@ -66,24 +121,23 @@ class Vcf_line:
 
         # Perhaps it's simply a flag without "="
         else:
-            key_item = self.info.split(';')
+            key_item = self.info.split(";")
             return True if variable in key_item else False
 
     def get_sample_variable(self):
-        return self.field.split(':')
+        return self.field.split(":")
 
-    def get_sample_item(self, idx=0, out_type='d'):
-        '''d to output a dictionary. l to output a tuple of lists'''
+    def get_sample_item(self, idx=0, out_type="d"):
+        """d to output a dictionary. l to output a tuple of lists"""
 
-        if out_type.lower() == 'd':
-            return dict(zip(self.get_sample_variable(), self.samples[idx].split(':')))
-        elif out_type.lower() == 'l':
-            return (self.get_sample_variable(), self.samples[idx].split(':'))
+        if out_type.lower() == "d":
+            return dict(zip(self.get_sample_variable(), self.samples[idx].split(":")))
+        elif out_type.lower() == "l":
+            return (self.get_sample_variable(), self.samples[idx].split(":"))
 
     def get_sample_value(self, variable, idx=0):
 
-        var2value = dict(zip(self.field.split(
-            ':'), self.samples[idx].split(':')))
+        var2value = dict(zip(self.field.split(":"), self.samples[idx].split(":")))
 
         try:
             return var2value[variable]
@@ -92,10 +146,10 @@ class Vcf_line:
 
 
 class pysam_header:
-    '''
+    """
     Extract BAM header using pysam.
     Only sample name (SM) so far.
-    '''
+    """
 
     def __init__(self, bam_file):
 
@@ -103,12 +157,12 @@ class pysam_header:
         self.bam_header = bam.header
 
     def SM(self):
-        '''Sample Name'''
+        """Sample Name"""
 
         sample_name = set()
 
-        for header_i in self.bam_header['RG']:
-            sample_name.add(header_i['SM'])
+        for header_i in self.bam_header["RG"]:
+            sample_name.add(header_i["SM"])
         sample_name = tuple(sample_name)
 
         return sample_name
@@ -119,35 +173,36 @@ class pysam_header:
 
 ### ### ### ### ### FUNCTIONS OF CONVENIENCE ### ### ### ### ###
 
+
 def skip_vcf_header(opened_file):
 
     line_i = opened_file.readline().rstrip()
-    while line_i.startswith('#'):
+    while line_i.startswith("#"):
         line_i = opened_file.readline().rstrip()
 
     return line_i
 
 
 def faiordict2contigorder(file_name, file_format):
-    '''Takes either a .fai or .dict file, and return a contig order dictionary, i.e., chrom_seq['chr1'] == 0'''
+    """Takes either a .fai or .dict file, and return a contig order dictionary, i.e., chrom_seq['chr1'] == 0"""
 
-    assert file_format in ('fai', 'dict')
+    assert file_format in ("fai", "dict")
 
     contig_sequence = []
     with open(file_name) as gfile:
 
         for line_i in gfile:
 
-            if file_format == 'fai':
-                contig_match = re.match(r'([^\t]+)\t', line_i)
+            if file_format == "fai":
+                contig_match = re.match(r"([^\t]+)\t", line_i)
 
-            elif file_format == 'dict':
-                if line_i.startswith('@SQ'):
-                    contig_match = re.match(r'@SQ\tSN:([^\t]+)\tLN:', line_i)
+            elif file_format == "dict":
+                if line_i.startswith("@SQ"):
+                    contig_match = re.match(r"@SQ\tSN:([^\t]+)\tLN:", line_i)
 
             if contig_match:
                 # some .fai files have space after the contig for descriptions.
-                contig_i = contig_match.groups()[0].split(' ')[0]
+                contig_i = contig_match.groups()[0].split(" ")[0]
                 contig_sequence.append(contig_i)
 
     chrom_seq = {}
@@ -160,8 +215,8 @@ def faiordict2contigorder(file_name, file_format):
 def open_textfile(file_name):
 
     # See if the input file is a .gz file:
-    if file_name.lower().endswith('.gz'):
-        return gzip.open(file_name, 'rt')
+    if file_name.lower().endswith(".gz"):
+        return gzip.open(file_name, "rt")
 
     else:
         return open(file_name)
@@ -170,23 +225,23 @@ def open_textfile(file_name):
 def open_bam_file(file_name):
 
     try:
-        return AlignmentFile(file_name, 'rb')
+        return AlignmentFile(file_name, "rb")
     except ValueError:
         return open(file_name)
 
 
 def ascii2phred33(x):
-    '''Put in an ASCII string, return a Phred+33 score.'''
+    """Put in an ASCII string, return a Phred+33 score."""
     return ord(x) - 33
 
 
 def phred33toascii(x):
-    '''Put in a Phred33 score, return the character.'''
+    """Put in a Phred33 score, return the character."""
     return chr(x + 33)
 
 
 def p2phred(p, max_phred=inf):
-    '''Convert p-value to Phred-scale quality score.'''
+    """Convert p-value to Phred-scale quality score."""
 
     if p == 0:
         Q = max_phred
@@ -209,27 +264,26 @@ def p2phred(p, max_phred=inf):
 
 
 def phred2p(phred):
-    '''Convert Phred-scale quality score to p-value.'''
-    return 10**(-phred / 10)
+    """Convert Phred-scale quality score to p-value."""
+    return 10 ** (-phred / 10)
 
 
 def findall_index(mylist, tolookfor):
-    '''Find all instances in a list that matches exactly thestring.'''
+    """Find all instances in a list that matches exactly thestring."""
     all_indices = [i for i, item in enumerate(mylist) if item == tolookfor]
     return all_indices
 
 
 def findall_index_regex(mylist, pattern):
-    '''Find all instances in a list that matches a regex pattern.'''
-    all_indices = [i for i, item in enumerate(
-        mylist) if re.search(pattern, item)]
+    """Find all instances in a list that matches a regex pattern."""
+    all_indices = [i for i, item in enumerate(mylist) if re.search(pattern, item)]
     return all_indices
 
 
 def count_repeating_bases(sequence):
-    '''For a string, count the number of characters that appears in a row.
+    """For a string, count the number of characters that appears in a row.
     E.g., for string "ABBCCCDDDDAAAAAAA", the function returns 1, 2, 3, 4, 7, because there is 1 A, 2 B's, 3 C's, 4 D's, and then 7 A's.
-    '''
+    """
     counters = []
     previous_base = None
 
@@ -260,9 +314,9 @@ def numeric_id(chr_i, pos_i, contig_seq):
 
 # Define which chromosome coordinate is ahead for the following function:
 chrom_sequence = [str(i) for i in range(1, 23)]
-chrom_sequence.append('X')
-chrom_sequence.append('Y')
-chrom_sequence.append('M')
+chrom_sequence.append("X")
+chrom_sequence.append("Y")
+chrom_sequence.append("M")
 
 chrom_seq = {}
 for n, contig_i in enumerate(chrom_sequence):
@@ -270,17 +324,17 @@ for n, contig_i in enumerate(chrom_sequence):
 
 
 def whoisbehind(coord_0, coord_1, chrom_sequence):
-    '''
+    """
     coord_0 and coord_1 are two strings or two lists, specifying the chromosome, a (typically) tab, and then the location.
     Return the index where the coordinate is behind. Return 10 if they are the same position.
-    '''
+    """
 
     end_of_0 = end_of_1 = False
 
-    if coord_0 == '' or coord_0 == ['', ''] or coord_0 == ('', '') or not coord_0:
+    if coord_0 == "" or coord_0 == ["", ""] or coord_0 == ("", "") or not coord_0:
         end_of_0 = True
 
-    if coord_1 == '' or coord_1 == ['', ''] or coord_1 == ('', '') or not coord_1:
+    if coord_1 == "" or coord_1 == ["", ""] or coord_1 == ("", "") or not coord_1:
         end_of_1 = True
 
     if end_of_0 and end_of_1:
@@ -312,10 +366,10 @@ def whoisbehind(coord_0, coord_1, chrom_sequence):
             chrom1_position = chrom_sequence.index(chrom1)
 
         if chrom0_position < chrom1_position:
-            return 0   # 1st coordinate is ahead
+            return 0  # 1st coordinate is ahead
 
         elif chrom0_position > chrom1_position:
-            return 1   # 1st coordinate is ahead
+            return 1  # 1st coordinate is ahead
 
         # Must be in the same chromosome
         else:
@@ -334,9 +388,9 @@ def whoisbehind(coord_0, coord_1, chrom_sequence):
                 return 10
 
 
-def vcf_header_modifier(infile_handle, addons=[], getlost=' '):
-    '''addons = A list of INFO, FORMAT, ID, or Filter lines you want to add.
-    getlost = a regex expression for the ID of INFO/FORMAT/FILTER that you want to get rid of.'''
+def vcf_header_modifier(infile_handle, addons=[], getlost=" "):
+    """addons = A list of INFO, FORMAT, ID, or Filter lines you want to add.
+    getlost = a regex expression for the ID of INFO/FORMAT/FILTER that you want to get rid of."""
 
     line_i = infile_handle.readline().rstrip()
 
@@ -347,17 +401,17 @@ def vcf_header_modifier(infile_handle, addons=[], getlost=' '):
     for additions in addons:
         vcfheader_info_format_filter.append(additions)
 
-    while line_i.startswith('##'):
+    while line_i.startswith("##"):
 
-        if re.match(r'##fileformat=', line_i):
+        if re.match(r"##fileformat=", line_i):
             vcffileformat = line_i
 
-        elif re.match(r'##(INFO|FORMAT|FILTER)', line_i):
+        elif re.match(r"##(INFO|FORMAT|FILTER)", line_i):
 
-            if not re.match(r'##(INFO|FORMAT|FILTER)=<ID={},'.format(getlost), line_i):
+            if not re.match(r"##(INFO|FORMAT|FILTER)=<ID={},".format(getlost), line_i):
                 vcfheader_info_format_filter.append(line_i)
 
-        elif re.match(r'##', line_i):
+        elif re.match(r"##", line_i):
             vcfheader_misc.append(line_i)
 
         # Continue:
@@ -371,18 +425,18 @@ def vcf_header_modifier(infile_handle, addons=[], getlost=' '):
 
 
 def catchup(coordinate_i, line_j, filehandle_j, chrom_sequence):
-    '''
+    """
     Keep reading the j_th vcf file until it hits (or goes past) the i_th coordinate, at which time the function stops reading and you can do stuff.
     Returns (True, Vcf_line_j)  if the j_th vcf file contains an entry that matches the i_th coordinate.
     Returns (False, Vcf_line_j) if the j_th vcf file does not contain such an entry, and therefore the function has run past the i_th coordinate, by which time the programmer can decide to move into the next i_th coordiate.
-    '''
+    """
 
     coordinate_j = re.match(pattern_chr_position, line_j)
 
     if coordinate_j:
         coordinate_j = coordinate_j.group()
     else:
-        coordinate_j = ''
+        coordinate_j = ""
 
     # Which coordinate is behind?
     is_behind = whoisbehind(coordinate_i, coordinate_j, chrom_sequence)
@@ -409,7 +463,7 @@ def catchup(coordinate_i, line_j, filehandle_j, chrom_sequence):
             if next_coord:
                 coordinate_j = next_coord.group()
             else:
-                coordinate_j = ''
+                coordinate_j = ""
 
             is_behind = whoisbehind(coordinate_i, coordinate_j, chrom_sequence)
 
@@ -425,7 +479,7 @@ def catchup(coordinate_i, line_j, filehandle_j, chrom_sequence):
 
 
 def catchup_multilines(coordinate_i, line_j, filehandle_j, chrom_sequence):
-    '''
+    """
     Keep reading the j_th vcf file until it hits (or goes past) the i_th coordinate, then
         1) Create a list to store information for this coordinate in the j_th vcf file
         2) Keep reading the j_th vcf file and store all lines with the same coordinate, until the coordinate goes to the next coordiate at which time the function stops reading and you can do stuff with the list created above.
@@ -433,14 +487,14 @@ def catchup_multilines(coordinate_i, line_j, filehandle_j, chrom_sequence):
 
     Returns (True, [Vcf_lines], line_j) if the j_th vcf file contains an entry that matches the i_th coordinate.
     Returns (False, []        , line_j) if the j_th vcf file does not contain such an entry, and therefore the function has run past the i_th coordinate, by which time the programmer can decide to move into the next i_th coordiate.
-    '''
+    """
 
     coordinate_j = re.match(pattern_chr_position, line_j)
 
     if coordinate_j:
         coordinate_j = coordinate_j.group()
     else:
-        coordinate_j = ''
+        coordinate_j = ""
 
     # Which coordinate is behind?
     is_behind = whoisbehind(coordinate_i, coordinate_j, chrom_sequence)
@@ -463,7 +517,7 @@ def catchup_multilines(coordinate_i, line_j, filehandle_j, chrom_sequence):
             if next_coord:
                 coordinate_j = next_coord.group()
             else:
-                coordinate_j = ''
+                coordinate_j = ""
 
             is_behind = whoisbehind(coordinate_i, coordinate_j, chrom_sequence)
 
@@ -488,11 +542,14 @@ def catchup_multilines(coordinate_i, line_j, filehandle_j, chrom_sequence):
             if next_coord:
                 if whoisbehind(coordinate_j, next_coord.group(), chrom_sequence) == 1:
                     raise Exception(
-                        '{} does not seem to be properly sorted'.format(filehandle_j.name))
+                        "{} does not seem to be properly sorted".format(
+                            filehandle_j.name
+                        )
+                    )
 
                 coordinate_j = next_coord.group()
             else:
-                coordinate_j = ''
+                coordinate_j = ""
 
             is_behind = whoisbehind(coordinate_i, coordinate_j, chrom_sequence)
 
@@ -509,10 +566,9 @@ def catchup_multilines(coordinate_i, line_j, filehandle_j, chrom_sequence):
                 if next_coord:
                     coordinate_j = next_coord.group()
                 else:
-                    coordinate_j = ''
+                    coordinate_j = ""
 
-                is_behind = whoisbehind(
-                    coordinate_i, coordinate_j, chrom_sequence)
+                is_behind = whoisbehind(coordinate_i, coordinate_j, chrom_sequence)
 
                 # If the next line (still) has the same coordinate:
                 if is_behind == 10:
@@ -528,12 +584,13 @@ def catchup_multilines(coordinate_i, line_j, filehandle_j, chrom_sequence):
 
 
 def find_vcf_at_coordinate(my_coordinate, latest_vcf_line, vcf_file_handle, chrom_seq):
-    '''Best used in conjunction with catchup_multilines.
+    """Best used in conjunction with catchup_multilines.
     Given the current coordinate, the latest vcf_line from a vcf file, and the vcf file handle, it will return all the VCF variants (as VCF objects) at the given coordinate as a dictionary, where the key is the ( (contig, position), ref_base_i, alt_base_i ).
     If there are two ALT bases in a given VCF line, the output dictionary will include two copies of this VCF object, with two different keys, each representing a different ALT base.
-    '''
+    """
     latest_vcf_run = catchup_multilines(
-        my_coordinate, latest_vcf_line, vcf_file_handle, chrom_seq)
+        my_coordinate, latest_vcf_line, vcf_file_handle, chrom_seq
+    )
     latest_vcf_here = latest_vcf_run[1]
 
     vcf_variants = {}
@@ -544,10 +601,11 @@ def find_vcf_at_coordinate(my_coordinate, latest_vcf_line, vcf_file_handle, chro
             vcf_i = Vcf_line(vcf_line_i)
 
             # Some VCF files wrongly uses "/" to separate different ALT's
-            altbases = re.split(r'[,/]', vcf_i.altbase)
+            altbases = re.split(r"[,/]", vcf_i.altbase)
             for alt_i in altbases:
-                vcf_variants[((vcf_i.chromosome, vcf_i.position),
-                              vcf_i.refbase, alt_i)] = vcf_i
+                vcf_variants[
+                    ((vcf_i.chromosome, vcf_i.position), vcf_i.refbase, alt_i)
+                ] = vcf_i
 
             assert my_coordinate[1] == vcf_i.position
 
@@ -559,19 +617,19 @@ def find_vcf_at_coordinate(my_coordinate, latest_vcf_line, vcf_file_handle, chro
 # Read the 2nd file (i.e., filehandle_j) one line down if it's behind the
 # i_th coordinate:
 def catchup_one_line_at_a_time(coordinate_i, line_j, filehandle_j, chrom_sequence):
-    '''
+    """
     A sister program of catch_up, the difference is that the j_th file will be read only once if the coordinate is behind i, so that it allows the programmer a chance to do something for coordinates that only occurs in j, whereas the catch_up function will keep reading until it gets to to gets past i, so the programmer has no chance to do anything for coordinates that occur only in j.
     Return (0, Vcf_line_j)  if the coordinate_j matches coordinate_i.
     Return (1, Vcf_line_j)  if the coordinate_j is ahead coordinate_i.
     Return (-1, Vcf_line_j) if the coordinate_j is behind of coordinate_i.
-    '''
+    """
 
     coordinate_j = re.match(pattern_chr_position, line_j)
 
     if coordinate_j:
         coordinate_j = coordinate_j.group()
     else:
-        coordinate_j = ''
+        coordinate_j = ""
 
     # Which coordinate is behind?
     is_behind = whoisbehind(coordinate_i, coordinate_j, chrom_sequence)
