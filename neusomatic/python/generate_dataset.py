@@ -1988,7 +1988,7 @@ def parallel_generation(inputs):
             del tumor_tabix_records, normal_tabix_records
             # thread_logger.info(["ffff-3",time.time()-t2])
 
-        thread_logger.info(["Gener-8",len(map_args)])
+        # thread_logger.info(["Gener-8",len(map_args)])
 
         records_done=[]
         for w in map_args:
