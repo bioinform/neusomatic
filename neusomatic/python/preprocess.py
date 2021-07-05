@@ -22,21 +22,6 @@ from scan_alignments import scan_alignments
 from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty, vcf_2_bed
 
 
-def split_dbsnp(record):
-    restart, dbsnp, region_bed, dbsnp_region_vcf = record
-    thread_logger = logging.getLogger(
-        "{} ({})".format(split_dbsnp.__name__, multiprocessing.current_process().name))
-    try:
-        if restart or not os.path.exists(dbsnp_region_vcf):
-            bedtools_intersect(
-                dbsnp, region_bed, args=" -u",  output_fn=dbsnp_region_vcf, run_logger=thread_logger)
-        return dbsnp_region_vcf
-    except Exception as ex:
-        thread_logger.error(traceback.format_exc())
-        thread_logger.error(ex)
-        return None
-
-
 def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp,
                          scan_window_size, scan_maf, min_mapq,
                          filtered_candidates_vcf, min_dp, max_dp,
@@ -44,7 +29,7 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
                          good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
                          ins_min_af, del_min_af, del_merge_min_af,
                          ins_merge_min_af, merge_r,
-                         scan_alignments_binary, restart, num_threads, calc_qual, regions=[], dbsnp_regions=[]):
+                         scan_alignments_binary, restart, num_threads, calc_qual, regions=[]):
 
     logger = logging.getLogger(process_split_region.__name__)
     logger.info("Scan bam.")
@@ -55,36 +40,12 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
     if filtered_candidates_vcf:
         logger.info("Filter candidates.")
         if restart or not os.path.exists(filtered_candidates_vcf):
-            if dbsnp and not dbsnp_regions:
-                map_args = []
-                for raw_vcf, count_bed, split_region_bed in scan_outputs:
-                    dbsnp_region_vcf = os.path.join(os.path.dirname(
-                        os.path.realpath(raw_vcf)), "dbsnp_region.vcf")
-                    map_args.append(
-                        (restart, dbsnp, split_region_bed, dbsnp_region_vcf))
-                pool = multiprocessing.Pool(num_threads)
-                try:
-                    dbsnp_regions = pool.map_async(split_dbsnp, map_args).get()
-                    pool.close()
-                except Exception as inst:
-                    logger.error(inst)
-                    pool.close()
-                    traceback.print_exc()
-                    raise Exception
-
-                for o in dbsnp_regions:
-                    if o is None:
-                        raise Exception("split_dbsnp failed!")
-
             pool = multiprocessing.Pool(num_threads)
             map_args = []
             for i, (raw_vcf, count_bed, split_region_bed) in enumerate(scan_outputs):
                 filtered_vcf = os.path.join(os.path.dirname(
                     os.path.realpath(raw_vcf)), "filtered_candidates.vcf")
-                dbsnp_region_vcf = None
-                if dbsnp:
-                    dbsnp_region_vcf = dbsnp_regions[i]
-                map_args.append((raw_vcf, filtered_vcf, reference, dbsnp_region_vcf, min_dp, max_dp, good_ao,
+                map_args.append((raw_vcf, filtered_vcf, reference, dbsnp, min_dp, max_dp, good_ao,
                                  min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af, del_merge_min_af,
                                  ins_merge_min_af, merge_r))
             try:
@@ -110,15 +71,9 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam, dbsnp
                 filtered_vcf = os.path.join(os.path.dirname(
                     os.path.realpath(raw_vcf)), "filtered_candidates.vcf")
                 filtered_candidates_vcfs.append(filtered_vcf)
-            if dbsnp and not dbsnp_regions:
-                dbsnp_regions = []
-                for raw_vcf, _, _ in scan_outputs:
-                    dbsnp_region_vcf = os.path.join(os.path.dirname(
-                        os.path.realpath(raw_vcf)), "dbsnp_region.vcf")
-                    dbsnp_regions.append(dbsnp_region_vcf)
     else:
         filtered_candidates_vcfs = None
-    return list(map(lambda x: x[1], scan_outputs)), list(map(lambda x: x[2], scan_outputs)), filtered_candidates_vcfs, dbsnp_regions
+    return list(map(lambda x: x[1], scan_outputs)), list(map(lambda x: x[2], scan_outputs)), filtered_candidates_vcfs
 
 
 def generate_dataset_region(work, truth_vcf, mode, filtered_candidates_vcf, region, tumor_count_bed, normal_count_bed, reference,
@@ -266,6 +221,16 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         raise Exception(
             "No normal .bai index file {}".format(normal_bam + ".bai"))
 
+    if dbsnp:
+        if dbsnp[-6:] != "vcf.gz":
+            logger.error("Aborting!")
+            raise Exception(
+                "The dbSNP file should be a tabix indexed file with .vcf.gz format")
+        if not os.path.exists(dbsnp + ".tbi"):
+            logger.error("Aborting!")
+            raise Exception(
+                "The dbSNP file should be a tabix indexed file with .vcf.gz format. No {}.tbi file exists.".format(dbsnp))
+
     ensemble_bed = None
     if ensemble_tsv:
         ensemble_bed = os.path.join(work, "ensemble.bed")
@@ -275,7 +240,6 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
 
     merge_d_for_short_read = 100
     candidates_split_regions = []
-    dbsnp_regions_q = []
     ensemble_beds = []
     if not long_read and first_do_without_qual:
         logger.info("Scan tumor bam (first without quality scores).")
@@ -294,8 +258,8 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                                        ins_min_af, del_min_af, del_merge_min_af,
                                                        ins_merge_min_af, merge_r,
                                                        scan_alignments_binary, restart, num_threads,
-                                                       calc_qual=False, dbsnp_regions=[])
-        tumor_counts_without_q, split_regions, filtered_candidates_vcfs_without_q, dbsnp_regions_q = tumor_outputs_without_q
+                                                       calc_qual=False)
+        tumor_counts_without_q, split_regions, filtered_candidates_vcfs_without_q = tumor_outputs_without_q
 
         if ensemble_tsv:
             ensemble_beds = get_ensemble_beds(
@@ -320,9 +284,8 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                          ins_merge_min_af, merge_r,
                                          scan_alignments_binary, restart, num_threads,
                                          calc_qual=True,
-                                         regions=candidates_split_regions,
-                                         dbsnp_regions=dbsnp_regions_q)
-    tumor_counts, split_regions, filtered_candidates_vcfs, _ = tumor_outputs
+                                         regions=candidates_split_regions)
+    tumor_counts, split_regions, filtered_candidates_vcfs = tumor_outputs
 
     if ensemble_tsv and not ensemble_beds:
         ensemble_beds = get_ensemble_beds(
@@ -339,17 +302,16 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     if restart or not os.path.exists(work_normal):
         os.mkdir(work_normal)
     logger.info("Scan normal bam (and extracting quality scores).")
-    normal_counts, _, _, _ = process_split_region("normal", work_normal, region_bed, reference, mode, normal_bam,
-                                                  None, scan_window_size, 0.2, min_mapq,
-                                                  None, min_dp, max_dp,
-                                                  filter_duplicate,
-                                                  good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
-                                                  ins_min_af, del_min_af, del_merge_min_af,
-                                                  ins_merge_min_af, merge_r,
-                                                  scan_alignments_binary, restart, num_threads,
-                                                  calc_qual=True,
-                                                  regions=candidates_split_regions,
-                                                  dbsnp_regions=[])
+    normal_counts, _, _ = process_split_region("normal", work_normal, region_bed, reference, mode, normal_bam,
+                                               None, scan_window_size, 0.2, min_mapq,
+                                               None, min_dp, max_dp,
+                                               filter_duplicate,
+                                               good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
+                                               ins_min_af, del_min_af, del_merge_min_af,
+                                               ins_merge_min_af, merge_r,
+                                               scan_alignments_binary, restart, num_threads,
+                                               calc_qual=True,
+                                               regions=candidates_split_regions)
 
     work_dataset = os.path.join(work, "dataset")
     if restart or not os.path.exists(work_dataset):
@@ -393,7 +355,7 @@ if __name__ == '__main__':
     parser.add_argument('--work', type=str,
                         help='work directory', required=True)
     parser.add_argument('--dbsnp_to_filter', type=str,
-                        help='dbsnp vcf (will be used to filter candidate variants)', default=None)
+                        help='dbsnp vcf.gz (will be used to filter candidate variants)', default=None)
     parser.add_argument('--scan_window_size', type=int,
                         help='window size to scan the variants', default=2000)
     parser.add_argument('--scan_maf', type=float,

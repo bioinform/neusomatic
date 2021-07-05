@@ -17,7 +17,7 @@ import tempfile
 
 import numpy as np
 import pysam
-from scipy.misc import imresize
+from PIL import Image
 
 from split_bed import split_region
 from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty
@@ -513,39 +513,43 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
     else:
         col_pos_map = {i: int(round(v / float(ncols) * matrix_width))
                        for i, v in col_pos_map.items()}
-        tumor_count_matrix = imresize(
-            tumor_matrix, (5, matrix_width)).astype(int)
-        bq_tumor_count_matrix = imresize(
-            bq_tumor_matrix, (5, matrix_width)).astype(int)
-        mq_tumor_count_matrix = imresize(
-            mq_tumor_matrix, (5, matrix_width)).astype(int)
-        st_tumor_count_matrix = imresize(
-            st_tumor_matrix, (5, matrix_width)).astype(int)
-        lsc_tumor_count_matrix = imresize(
-            lsc_tumor_matrix, (5, matrix_width)).astype(int)
-        rsc_tumor_count_matrix = imresize(
-            rsc_tumor_matrix, (5, matrix_width)).astype(int)
+        tumor_count_matrix = np.array(Image.fromarray(
+            tumor_matrix).resize((matrix_width, 5), 2)).astype(int)
+        bq_tumor_count_matrix = np.array(Image.fromarray(
+            bq_tumor_matrix).resize((matrix_width, 5), 2)).astype(int)
+        mq_tumor_count_matrix = np.array(Image.fromarray(
+            mq_tumor_matrix).resize((matrix_width, 5), 2)).astype(int)
+        st_tumor_count_matrix = np.array(Image.fromarray(
+            st_tumor_matrix).resize((matrix_width, 5), 2)).astype(int)
+        lsc_tumor_count_matrix = np.array(Image.fromarray(
+            lsc_tumor_matrix).resize((matrix_width, 5), 2)).astype(int)
+        rsc_tumor_count_matrix = np.array(Image.fromarray(
+            rsc_tumor_matrix).resize((matrix_width, 5), 2)).astype(int)
+
         tag_tumor_count_matrices = []
         for iii in range(len(tag_tumor_matrices)):
             tag_tumor_count_matrices.append(
-                imresize(tag_tumor_matrices[iii], (5, matrix_width)).astype(int))
-        normal_count_matrix = imresize(
-            normal_matrix, (5, matrix_width)).astype(int)
-        bq_normal_count_matrix = imresize(
-            bq_normal_matrix, (5, matrix_width)).astype(int)
-        mq_normal_count_matrix = imresize(
-            mq_normal_matrix, (5, matrix_width)).astype(int)
-        st_normal_count_matrix = imresize(
-            st_normal_matrix, (5, matrix_width)).astype(int)
-        lsc_normal_count_matrix = imresize(
-            lsc_normal_matrix, (5, matrix_width)).astype(int)
-        rsc_normal_count_matrix = imresize(
-            rsc_normal_matrix, (5, matrix_width)).astype(int)
+                np.array(Image.fromarray(tag_tumor_matrices[iii]).resize((matrix_width, 5), 2)).astype(int))
+
+        normal_count_matrix = np.array(Image.fromarray(
+            normal_matrix).resize((matrix_width, 5), 2)).astype(int)
+        bq_normal_count_matrix = np.array(Image.fromarray(
+            bq_normal_matrix).resize((matrix_width, 5), 2)).astype(int)
+        mq_normal_count_matrix = np.array(Image.fromarray(
+            mq_normal_matrix).resize((matrix_width, 5), 2)).astype(int)
+        st_normal_count_matrix = np.array(Image.fromarray(
+            st_normal_matrix).resize((matrix_width, 5), 2)).astype(int)
+        lsc_normal_count_matrix = np.array(Image.fromarray(
+            lsc_normal_matrix).resize((matrix_width, 5), 2)).astype(int)
+        rsc_normal_count_matrix = np.array(Image.fromarray(
+            rsc_normal_matrix).resize((matrix_width, 5), 2)).astype(int)
+
         tag_normal_count_matrices = []
         for iii in range(len(tag_normal_matrices)):
             tag_normal_count_matrices.append(
-                imresize(tag_normal_matrices[iii], (5, matrix_width)).astype(int))
-        ref_count_matrix = imresize(ref_matrix, (5, matrix_width)).astype(int)
+                np.array(Image.fromarray(tag_normal_matrices[iii]).resize((matrix_width, 5), 2)).astype(int))
+        ref_count_matrix = np.array(Image.fromarray(
+            ref_matrix).resize((matrix_width, 5), 2)).astype(int)
 
     if int(pos) + rcenter[0] not in col_pos_map:
         center = min(col_pos_map.values()) + rcenter[0] - 1 + rcenter[1]
@@ -873,6 +877,7 @@ def find_records(input_record):
         records = []
         i = 0
         anns = {}
+        fasta_file = pysam.Fastafile(ref_file)
         if ensemble_bed:
             with open(not_in_ensemble_bed) as ni_f:
                 for line in skip_empty(ni_f):
@@ -1033,8 +1038,16 @@ def find_records(input_record):
         with open(split_truth_vcf_file, 'r') as vcf_reader:
             for line in skip_empty(vcf_reader):
                 record = line.strip().split()
+                pos = int(record[1])
+                if len(record[3]) != len(record[4]) and min(len(record[3]), len(record[4])) > 0 and record[3][0] != record[4][0]:
+                    if pos > 1:
+                        l_base = fasta_file.fetch(
+                            record[0], pos - 2, pos - 1).upper()
+                        record[3] = l_base + record[3]
+                        record[4] = l_base + record[4]
+                        pos -= 1
                 truth_records.append(
-                    [record[0], int(record[1]), record[3], record[4], str(i)])
+                    [record[0], pos, record[3], record[4], str(i)])
                 i += 1
 
         truth_bed = get_tmp_file()
@@ -1071,7 +1084,6 @@ def find_records(input_record):
         record_center = {}
 
         chroms_order = get_chromosomes_order(reference=ref_file)
-        fasta_file = pysam.Fastafile(ref_file)
 
         good_records = {"INS": [], "DEL": [], "SNP": []}
         vtype = {}
@@ -1299,7 +1311,6 @@ def find_records(input_record):
         records_r = [records[x] for k, w in good_records.items() for x in w]
 
         N_none = len(none_records_ids)
-        thread_logger.info("N_none: {} ".format(N_none))
         none_records = list(map(lambda x: records[x], none_records_ids))
         none_records = sorted(none_records, key=lambda x: [x[0], int(x[1])])
 

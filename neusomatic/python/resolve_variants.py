@@ -71,7 +71,7 @@ def extract_ins(record):
 
 
 def find_resolved_variants(input_record):
-    chrom, start, end, variants, input_bam, reference = input_record
+    chrom, start, end, variants, input_bam, filter_duplicate, reference = input_record
     thread_logger = logging.getLogger(
         "{} ({})".format(find_resolved_variants.__name__, multiprocessing.current_process().name))
     try:
@@ -83,7 +83,7 @@ def find_resolved_variants(input_record):
         scores = list(map(lambda x: x[5], variants))
         if len(set(vartypes)) > 1:
             out_variants.extend(
-                list(map(lambda x: [x[0], int(x[1]), x[3], x[4], x[10], x[5]], variants)))
+                list(map(lambda x: [x[0], int(x[1]), x[3], x[4], x[9].split(":")[0], x[5]], variants)))
         else:
             vartype = vartypes[0]
             score = max(scores)
@@ -91,8 +91,9 @@ def find_resolved_variants(input_record):
                 dels = []
                 with pysam.AlignmentFile(input_bam) as samfile:
                     for record in samfile.fetch(chrom, start, end):
-                        if record.cigarstring and "D" in record.cigarstring:
-                            dels.extend(extract_del(record))
+                        if not record.is_duplicate or not filter_duplicate:
+                            if record.cigarstring and "D" in record.cigarstring:
+                                dels.extend(extract_del(record))
                 dels = list(filter(lambda x: (
                     start <= x[1] <= end) or start <= x[2] <= end, dels))
                 if dels:
@@ -113,20 +114,20 @@ def find_resolved_variants(input_record):
                             f_o.write(
                                 "\t".join(map(str, x + [".", "."])) + "\n")
                     new_bed = bedtools_sort(new_bed, run_logger=thread_logger)
-
                     new_bed = bedtools_merge(
                         new_bed, args=" -c 1 -o count", run_logger=thread_logger)
                     vs = read_tsv_file(new_bed, fields=range(4))
                     vs = list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
-                        x[1]) - 1, int(x[2])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])), "0/1", score], vs))
+                        x[1]) - 1, int(x[2])).upper(), ref.fetch(x[0], int(x[1]) - 1, int(x[1])).upper(), "0/1", score], vs))
                     out_variants.extend(vs)
             elif vartype == "INS":
                 intervals = []
                 inss = []
                 with pysam.AlignmentFile(input_bam) as samfile:
                     for record in samfile.fetch(chrom, start, end):
-                        if record.cigarstring and "I" in record.cigarstring:
-                            inss.extend(extract_ins(record))
+                        if not record.is_duplicate or not filter_duplicate:
+                            if record.cigarstring and "I" in record.cigarstring:
+                                inss.extend(extract_ins(record))
                 inss = list(filter(lambda x: (
                     start <= x[1] <= end) or start <= x[2] <= end, inss))
                 if inss:
@@ -152,7 +153,7 @@ def find_resolved_variants(input_record):
                     new_bed = bedtools_sort(new_bed, run_logger=thread_logger)
                     vs = read_tsv_file(new_bed, fields=range(4))
                     vs = list(map(lambda x: [x[0], int(x[1]), ref.fetch(x[0], int(
-                        x[1]) - 1, int(x[1])), ref.fetch(x[0], int(x[1]) - 1, int(x[1])) + x[3], "0/1", score], vs))
+                        x[1]) - 1, int(x[1])).upper(), ref.fetch(x[0], int(x[1]) - 1, int(x[1])).upper() + x[3], "0/1", score], vs))
                     out_variants.extend(vs)
         return out_variants
     except Exception as ex:
@@ -162,7 +163,7 @@ def find_resolved_variants(input_record):
 
 
 def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
-                     target_bed_file, num_threads):
+                     target_bed_file, filter_duplicate, num_threads):
     logger = logging.getLogger(resolve_variants.__name__)
 
     logger.info("-------Resolve variants (e.g. exact INDEL sequences)-------")
@@ -188,7 +189,7 @@ def resolve_variants(input_bam, resolved_vcf, reference, target_vcf_file,
             chrom, start, end, id_ = tb[0:4]
             id_ = int(id_)
             map_args.append([chrom, start, end, variants[id_],
-                             input_bam, reference])
+                             input_bam, filter_duplicate, reference])
 
     pool = multiprocessing.Pool(num_threads)
     try:
@@ -241,6 +242,9 @@ if __name__ == '__main__':
                         help='resolve target bed', required=True)
     parser.add_argument('--reference', type=str,
                         help='reference fasta filename', required=True)
+    parser.add_argument('--filter_duplicate',
+                        help='filter duplicate reads in analysis',
+                        action="store_true")
     parser.add_argument('--num_threads', type=int,
                         help='number of threads', default=1)
     args = parser.parse_args()
@@ -248,7 +252,8 @@ if __name__ == '__main__':
     try:
         resolve_variants(args.input_bam, args.resolved_vcf,
                          args.reference, args.target_vcf,
-                         args.target_bed, args.num_threads)
+                         args.target_bed, args.filter_duplicate,
+                         args.num_threads)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")

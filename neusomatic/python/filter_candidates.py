@@ -3,6 +3,7 @@
 # filter_candidates.py
 # filter raw candidates extracted by 'scan_alignments.py' using min_af and other cut-offs
 #-------------------------------------------------------------------------
+import os
 import argparse
 import traceback
 import logging
@@ -24,6 +25,16 @@ def filter_candidates(candidate_record):
     try:
         thread_logger.info(
             "---------------------Filter Candidates---------------------")
+
+        if dbsnp:
+            if not dbsnp.endswith("vcf.gz"):
+                thread_logger.error("Aborting!")
+                raise Exception(
+                    "The dbSNP file should be a tabix indexed file with .vcf.gz format")
+            if not os.path.exists(dbsnp + ".tbi"):
+                thread_logger.error("Aborting!")
+                raise Exception(
+                    "The dbSNP file should be a tabix indexed file with .vcf.gz format. No {}.tbi file exists.".format(dbsnp))
 
         records = {}
         with open(candidates_vcf) as v_f:
@@ -257,47 +268,25 @@ def filter_candidates(candidate_record):
                 final_records.append([chrom, pos - 1, ref, alt, line])
         final_records = sorted(final_records, key=lambda x: x[0:2])
         if dbsnp:
-            filtered_bed = get_tmp_file()
-            intervals = []
-            for x in enumerate(final_records):
-                intervals.append([x[1][0], int(x[1][1]), int(
-                    x[1][1]) + 1, x[1][2], x[1][3], str(x[0])])
-            write_tsv_file(filtered_bed, intervals)
-            filtered_bed = bedtools_sort(
-                filtered_bed, run_logger=thread_logger)
-
-            dbsnp_tmp = get_tmp_file()
-            vcf_2_bed(dbsnp, dbsnp_tmp)
-            bedtools_sort(dbsnp_tmp, output_fn=dbsnp, run_logger=thread_logger)
-            non_in_dbsnp_1 = bedtools_window(
-                filtered_bed, dbsnp, args=" -w 0 -v", run_logger=thread_logger)
-            non_in_dbsnp_2 = bedtools_window(
-                filtered_bed, dbsnp, args=" -w 0", run_logger=thread_logger)
-
-            tmp_ = get_tmp_file()
-            with open(non_in_dbsnp_2) as i_f, open(tmp_, "w") as o_f:
-                for line in skip_empty(i_f):
-                    x = line.strip().split()
-                    if x[1]!=x[7] or x[3]!=x[9] or x[4]!=x[10]:
-                        o_f.write(line)
-            non_in_dbsnp_2 = tmp_
-
-            non_in_dbsnp_ids = []
-            with open(non_in_dbsnp_1) as i_f:
-                for line in skip_empty(i_f):
-                    x = line.strip().split("\t")
-                    non_in_dbsnp_ids.append(int(x[5]))
-            with open(non_in_dbsnp_2) as i_f:
-                for line in skip_empty(i_f):
-                    x = line.strip().split("\t")
-                    non_in_dbsnp_ids.append(int(x[5]))
-            final_records = list(map(lambda x: x[1], filter(
-                lambda x: x[0] in non_in_dbsnp_ids, enumerate(final_records))))
+            dbsnp_tb = pysam.TabixFile(dbsnp)
         with open(filtered_candidates_vcf, "w") as o_f:
             o_f.write("{}\n".format(VCF_HEADER))
             o_f.write(
                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
             for record in final_records:
+                if dbsnp:
+                    chrom, pos, ref, alt = record[0:4]
+                    var_id = "-".join(map(str,[chrom, pos, ref, alt]))
+                    region = "{}:{}-{}".format(chrom, pos, pos + 1)
+                    dbsnp_vars = []
+                    for x in dbsnp_tb.fetch(region=region):
+                        chrom_, pos_, _, ref_, alts_ = x.strip().split("\t")[
+                            0:5]
+                        for alt_ in alts_.split(","):
+                            dbsnp_var_id = "-".join(map(str,[chrom_, pos_, ref_, alt_]))
+                            dbsnp_vars.append(dbsnp_var_id)
+                    if var_id in dbsnp_vars:
+                        continue
                 o_f.write(record[-1] + "\n")
         return filtered_candidates_vcf
 
@@ -320,7 +309,7 @@ if __name__ == '__main__':
     parser.add_argument('--reference', type=str, help='reference fasta filename',
                         required=True)
     parser.add_argument('--dbsnp_to_filter', type=str,
-                        help='dbsnp vcf (will be used to filter candidate variants)', default=None)
+                        help='dbsnp vcf.gz (will be used to filter candidate variants)', default=None)
     parser.add_argument('--good_ao', type=float, help='good alternate count (ignores maf)',
                         default=10)
     parser.add_argument('--min_ao', type=float,

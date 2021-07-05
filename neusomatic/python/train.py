@@ -8,6 +8,7 @@ import traceback
 import argparse
 import datetime
 import logging
+import copy
 
 import numpy as np
 import torch
@@ -86,6 +87,10 @@ def test(net, epoch, validation_loader, use_cuda):
     falses = []
     for data in validation_loader:
         (matrices, labels, _, var_len_s, _), (paths) = data
+
+        paths_ = copy.deepcopy(paths)
+        del paths 
+        paths = paths_
 
         matrices = Variable(matrices)
         if use_cuda:
@@ -382,7 +387,7 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
 
     net.train()
     len_train_set = sum(none_counts) + sum(var_counts)
-    logger.info("Number of candidater per epoch: {}".format(len_train_set))
+    logger.info("Number of candidates per epoch: {}".format(len_train_set))
     print_freq = max(1, int(len_train_set / float(batch_size) / 4.0))
     curr_epoch = prev_epochs
     torch.save({"state_dict": net.state_dict(),
