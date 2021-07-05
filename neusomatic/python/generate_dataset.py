@@ -21,9 +21,10 @@ from PIL import Image
 
 from split_bed import split_region
 from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty
-from defaults import NUM_ENS_FEATURES, VCF_HEADER
+from defaults import NUM_ENS_FEATURES, VCF_HEADER, MAT_DTYPES
 
 NUC_to_NUM_tabix = {"A": 1, "C": 2, "G": 3, "T": 4, "-": 0}
+
 
 def get_type(ref, alt):
     logger = logging.getLogger(get_type.__name__)
@@ -570,7 +571,7 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
 def prep_data_single_tabix(input_record):
 
     ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order, \
-        matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths = input_record
+        matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths, matrix_dtype = input_record
 
     thread_logger = logging.getLogger(
         "{} ({})".format(prep_data_single_tabix.__name__, multiprocessing.current_process().name))
@@ -614,40 +615,56 @@ def prep_data_single_tabix(input_record):
         tumor_cov = int(round(max(np.sum(tumor_count_matrix, 0))))
         normal_cov = int(round(max(np.sum(normal_count_matrix, 0))))
 
+        if matrix_dtype == "uint8":
+            max_norm = 255.0
+        elif matrix_dtype == "uint16":
+            max_norm = 65535.0
+        else:
+            logger.info(
+                "Wrong matrix_dtype {}. Choices are {}".format(matrix_dtype, MAT_DTYPES))
+
         candidate_mat[:, :, 0] = candidate_mat[
-            :, :, 0] / (max(np.max(ref_count_matrix), np.max(tumor_count_matrix)) + 0.00001) * 255
+            :, :, 0] / (max(np.max(ref_count_matrix), np.max(tumor_count_matrix)) + 0.00001) * max_norm
         candidate_mat[:, :, 1] = candidate_mat[:, :, 1] / \
-            (np.max(tumor_count_matrix) + 0.00001) * 255
+            (np.max(tumor_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 2] = candidate_mat[:, :, 2] / \
-            (np.max(normal_count_matrix) + 0.00001) * 255
+            (np.max(normal_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 3] = candidate_mat[:, :, 3] / \
-            (max(np.max(bq_tumor_count_matrix), 41.0)) * 255
+            (max(np.max(bq_tumor_count_matrix), 41.0)) * max_norm
         candidate_mat[:, :, 4] = candidate_mat[:, :, 4] / \
-            (max(np.max(bq_normal_count_matrix), 41.0)) * 255
+            (max(np.max(bq_normal_count_matrix), 41.0)) * max_norm
         candidate_mat[:, :, 5] = candidate_mat[:, :, 5] / \
-            (max(np.max(mq_tumor_count_matrix), 70.0)) * 255
+            (max(np.max(mq_tumor_count_matrix), 70.0)) * max_norm
         candidate_mat[:, :, 6] = candidate_mat[:, :, 6] / \
-            (max(np.max(mq_normal_count_matrix), 70.0)) * 255
+            (max(np.max(mq_normal_count_matrix), 70.0)) * max_norm
         candidate_mat[:, :, 7] = candidate_mat[:, :, 7] / \
-            (np.max(tumor_count_matrix) + 0.00001) * 255
+            (np.max(tumor_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 8] = candidate_mat[:, :, 8] / \
-            (np.max(normal_count_matrix) + 0.00001) * 255
+            (np.max(normal_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 9] = candidate_mat[:, :, 9] / \
-            (np.max(tumor_count_matrix) + 0.00001) * 255
+            (np.max(tumor_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 10] = candidate_mat[:, :, 10] / \
-            (np.max(normal_count_matrix) + 0.00001) * 255
+            (np.max(normal_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 11] = candidate_mat[:, :, 11] / \
-            (np.max(tumor_count_matrix) + 0.00001) * 255
+            (np.max(tumor_count_matrix) + 0.00001) * max_norm
         candidate_mat[:, :, 12] = candidate_mat[:, :, 12] / \
-            (np.max(normal_count_matrix) + 0.00001) * 255
+            (np.max(normal_count_matrix) + 0.00001) * max_norm
         for iii in range(len(tag_tumor_count_matrices)):
             candidate_mat[:, :, 13 + (iii * 2)] = candidate_mat[:, :, 13 + (iii * 2)] / (
-                max(np.max(tag_tumor_count_matrices[iii]), 100.0)) * 255
+                max(np.max(tag_tumor_count_matrices[iii]), 100.0)) * max_norm
             candidate_mat[:, :, 13 + (iii * 2) + 1] = candidate_mat[:, :, 13 + (
-                iii * 2) + 1] / (max(np.max(tag_normal_count_matrices[iii]), 100.0)) * 255
+                iii * 2) + 1] / (max(np.max(tag_normal_count_matrices[iii]), 100.0)) * max_norm
 
-        candidate_mat = np.maximum(0, np.minimum(
-            candidate_mat, 255)).astype(np.uint8)
+        if matrix_dtype == "uint8":
+            candidate_mat = np.maximum(0, np.minimum(
+                candidate_mat, max_norm)).astype(np.uint8)
+        elif matrix_dtype == "uint16":
+            candidate_mat = np.maximum(0, np.minimum(
+                candidate_mat, max_norm)).astype(np.uint16)
+        else:
+            logger.info(
+                "Wrong matrix_dtype {}. Choices are {}".format(matrix_dtype, MAT_DTYPES))
+            raise Exception
         tag = "{}.{}.{}.{}.{}.{}.{}.{}.{}".format(ch_order, pos, ref[0:55], alt[
                                                   0:55], vartype, center, rlen, tumor_cov, normal_cov)
         candidate_mat = base64.b64encode(
@@ -727,6 +744,36 @@ def push_lr(fasta_file, record, left_right_both):
     return record, eqs
 
 
+def push_left(fasta_file, record):
+    logger = logging.getLogger(push_lr.__name__)
+    record[0] = str(record[0])
+    if "," not in record[3]:
+        if record[2] != record[3]:
+            chrom, pos, ref, alt = record[0:4]
+            new_pos = pos
+            new_ref = ref
+            new_alt = alt
+            while(new_pos > 1):
+                l_base = fasta_file.fetch(
+                    (chrom), new_pos - 2, new_pos - 1).upper()
+                new_ref = l_base + new_ref
+                new_alt = l_base + new_alt
+                new_pos -= 1
+                while(len(new_alt) > 1 and len(new_ref) > 1):
+                    if new_alt[-1] == new_ref[-1]:
+                        new_alt = new_alt[:-1]
+                        new_ref = new_ref[:-1]
+                    else:
+                        break
+                if len(new_alt) > len(alt):
+                    new_ref = new_ref[1:]
+                    new_alt = new_alt[1:]
+                    new_pos += 1
+                    break
+            record = [chrom, new_pos, new_ref, new_alt] + record[4:]
+    return record
+
+
 def merge_records(fasta_file, records):
     logger = logging.getLogger(merge_records.__name__)
     if len(set(map(lambda x: x[0], records))) != 1:
@@ -785,10 +832,10 @@ def is_part_of(record1, record2):
         return False
     vartype1 = get_type(ref1, alt1)
     vartype2 = get_type(ref2, alt2)
-    if vartype1 == "SNP" and vartype2 == "DEL":
+    if (vartype1 == "SNP" and vartype2 == "DEL"):
         if pos2 < pos1 < pos2 + len(ref2):
             return True
-    elif vartype2 == "SNP" and vartype1 == "DEL":
+    elif (vartype2 == "SNP" and vartype1 == "DEL"):
         if pos1 < pos2 < pos1 + len(ref1):
             return True
     elif vartype1 == vartype2:
@@ -824,8 +871,43 @@ def find_len(ref, alt):
     return max(len(ref_), len(alt_))
 
 
+def keep_in_region(input_file, region_bed,
+                   output_fn):
+    logger = logging.getLogger(keep_in_region.__name__)
+    i = 0
+    tmp_ = get_tmp_file()
+    with open(input_file) as i_f, open(tmp_, "w") as o_f:
+        for line in skip_empty(i_f):
+            fields = line.strip().split()
+            chrom, start, end = fields[0:3]
+            o_f.write(
+                "\t".join([chrom, start, str(int(start) + 1), str(i)]) + "\n")
+            i += 1
+
+    good_i = set([])
+    tmp_ = bedtools_window(
+        tmp_, region_bed, args=" -w 1", run_logger=logger)
+    with open(tmp_) as i_f:
+        for line in skip_empty(i_f):
+            fields = line.strip().split()
+            chrom, start, end, i_, chrom_, start_, end_ = fields[0:7]
+            assert(chrom == chrom_)
+            if int(start_) <= int(start) <= int(end_):
+                good_i.add(int(i_))
+    i = 0
+    with open(input_file) as i_f, open(output_fn, "w") as o_f:
+        for line in skip_empty(i_f, skip_header=False):
+            if line.startswith("#"):
+                o_f.write(line)
+                continue
+            fields = line.strip().split()
+            if i in good_i:
+                o_f.write(line)
+            i += 1
+
+
 def find_records(input_record):
-    work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, work_index = input_record
+    work, split_region_file, truth_vcf_file, pred_vcf_file, ref_file, ensemble_bed, num_ens_features, strict_labeling, work_index = input_record
     thread_logger = logging.getLogger(
         "{} ({})".format(find_records.__name__, multiprocessing.current_process().name))
     try:
@@ -849,11 +931,17 @@ def find_records(input_record):
 
         bedtools_intersect(
             truth_vcf_file, split_bed, args=" -u", output_fn=split_truth_vcf_file, run_logger=thread_logger)
+        tmp_ = get_tmp_file()
         bedtools_intersect(
-            pred_vcf_file, split_bed, args=" -u", output_fn=split_pred_vcf_file, run_logger=thread_logger)
+            pred_vcf_file, split_bed, args=" -u", output_fn=tmp_, run_logger=thread_logger)
+        keep_in_region(input_file=tmp_, region_bed=split_region_file,
+                       output_fn=split_pred_vcf_file)
         if ensemble_bed:
+            tmp_ = get_tmp_file()
             bedtools_intersect(
-                ensemble_bed, split_bed, args=" -u", output_fn=split_ensemble_bed_file, run_logger=thread_logger)
+                ensemble_bed, split_bed, args=" -u", output_fn=tmp_, run_logger=thread_logger)
+            keep_in_region(input_file=tmp_, region_bed=split_region_file,
+                           output_fn=split_ensemble_bed_file)
             tmp_ = bedtools_window(
                 split_ensemble_bed_file, split_pred_vcf_file, args=" -w 5 -v", run_logger=thread_logger)
 
@@ -862,11 +950,12 @@ def find_records(input_record):
             concatenate_vcfs(
                 [split_pred_vcf_file, split_missed_ensemble_bed_file], split_pred_with_missed_file)
 
-            tmp_=get_tmp_file()
-            with open(split_pred_with_missed_file) as i_f, open(tmp_,"w") as o_f:
+            tmp_ = get_tmp_file()
+            with open(split_pred_with_missed_file) as i_f, open(tmp_, "w") as o_f:
                 for line in skip_empty(i_f):
                     x = line.strip().split("\t")
-                    o_f.write("\t".join(list(map(str,[x[0],x[1],".",x[3],x[4],".",".",".",".","."])))+"\n")
+                    o_f.write("\t".join(
+                        list(map(str, [x[0], x[1], ".", x[3], x[4], ".", ".", ".", ".", "."]))) + "\n")
             bedtools_sort(tmp_, output_fn=split_pred_with_missed_file,
                           run_logger=thread_logger)
             not_in_ensemble_bed = bedtools_window(
@@ -895,7 +984,7 @@ def find_records(input_record):
                         r_ = [[chrom, pos, ref, alt]]
                     for rr in r_:
                         records.append(rr + [str(i)])
-                        anns[i] = [0] * NUM_ENS_FEATURES
+                        anns[i] = [0] * num_ens_features
                         i += 1
 
             curren_pos_records = []
@@ -931,10 +1020,12 @@ def find_records(input_record):
                                 else:
                                     r_ = [[chrom, pos, ref, alt]]
 
-                                ann = [0] * NUM_ENS_FEATURES
+                                ann = [0] * num_ens_features
+                                var_match = False
                                 if pos == ens_pos:
                                     if ref == ens_ref and alt == ens_alt:
                                         ann = record_[15:]
+                                        var_match = True
                                     elif (len(ref) > len(alt) and len(ens_ref) > len(ens_alt) and
                                             (alt) == (ens_alt)):
                                         if ((len(ref) > len(ens_ref) and ref[0:len(ens_ref)] == ens_ref) or (
@@ -947,14 +1038,18 @@ def find_records(input_record):
                                             ann = record_[15:]
                                 if ann:
                                     ann = list(map(float, ann))
-                                rrs.append([r_, ann])
+                                rrs.append([r_, ann, var_match])
+                            has_var_match = sum(map(lambda x: x[2], rrs))
+                            if has_var_match:
+                                rrs = list(
+                                    filter(lambda x: x[2], rrs))[0:1]
                             max_ann = max(map(lambda x: sum(x[1]), rrs))
                             if max_ann > 0:
                                 rrs = list(
                                     filter(lambda x: sum(x[1]) > 0, rrs))
                             elif max_ann == 0:
                                 rrs = rrs[0:1]
-                            for r_, ann in rrs:
+                            for r_, ann, _ in rrs:
                                 for rr in r_:
                                     records.append(rr + [str(i)])
                                     anns[i] = ann
@@ -979,10 +1074,12 @@ def find_records(input_record):
                         else:
                             r_ = [[chrom, pos, ref, alt]]
 
-                        ann = [0] * NUM_ENS_FEATURES
+                        ann = [0] * num_ens_features
+                        var_match = False
                         if pos == ens_pos:
                             if ref == ens_ref and alt == ens_alt:
                                 ann = record_[15:]
+                                var_match = True
                             elif (len(ref) > len(alt) and len(ens_ref) > len(ens_alt) and
                                     (alt) == (ens_alt)):
                                 if ((len(ref) > len(ens_ref) and ref[0:len(ens_ref)] == ens_ref) or (
@@ -995,13 +1092,17 @@ def find_records(input_record):
                                     ann = record_[15:]
                         if ann:
                             ann = list(map(float, ann))
-                        rrs.append([r_, ann])
+                        rrs.append([r_, ann, var_match])
+                    has_var_match = sum(map(lambda x: x[2], rrs))
+                    if has_var_match:
+                        rrs = list(
+                            filter(lambda x: x[2], rrs))[0:1]
                     max_ann = max(map(lambda x: sum(x[1]), rrs))
                     if max_ann > 0:
                         rrs = list(filter(lambda x: sum(x[1]) > 0, rrs))
                     elif max_ann == 0:
                         rrs = rrs[0:1]
-                    for r_, ann in rrs:
+                    for r_, ann, _ in rrs:
                         for rr in r_:
                             records.append(rr + [str(i)])
                             anns[i] = ann
@@ -1046,8 +1147,10 @@ def find_records(input_record):
                         record[3] = l_base + record[3]
                         record[4] = l_base + record[4]
                         pos -= 1
-                truth_records.append(
-                    [record[0], pos, record[3], record[4], str(i)])
+                tr = [record[0], pos, record[3], record[4], str(i)]
+                if strict_labeling:
+                    tr = push_left(fasta_file, tr)
+                truth_records.append(tr)
                 i += 1
 
         truth_bed = get_tmp_file()
@@ -1088,6 +1191,7 @@ def find_records(input_record):
         good_records = {"INS": [], "DEL": [], "SNP": []}
         vtype = {}
         record_len = {}
+        perfect_t_idx = set([])
         for i, js in map_truth_2_pred.items():
             truth_record = truth_records[i]
             for j in js:
@@ -1101,6 +1205,7 @@ def find_records(input_record):
                         record_len[j] = find_len(ref, alt)
                         good_records[vartype].append(j)
                         vtype[j] = vartype
+                        perfect_t_idx.add(i)
 
         good_records_idx = [i for w in list(good_records.values()) for i in w]
         remained_idx = sorted(set(range(len(records))) -
@@ -1148,6 +1253,7 @@ def find_records(input_record):
                                             record_len[j] = find_len(ref, alt)
                                             good_records[vartype].append(j)
                                             vtype[j] = vartype
+                                            perfect_t_idx |= set(t_i)
                                             done_js.append(j)
                                             done_js_.append(j)
                                         done_is_.extend(t_i)
@@ -1164,8 +1270,13 @@ def find_records(input_record):
             i_s = map_pred_2_truth[j]
             done = False
             for i in i_s:
+                if strict_labeling and (i not in perfect_t_idx):
+                    continue
                 truth_record = truth_records[i]
-                tr, eqs = push_lr(fasta_file, truth_record, 2)
+                if not strict_labeling:
+                    tr, eqs = push_lr(fasta_file, truth_record, 2)
+                else:
+                    tr, eqs = push_lr(fasta_file, truth_record, 0)
                 for eq in eqs:
                     if is_part_of(eq, record):
                         ref_t, alt_t = truth_record[2:4]
@@ -1183,7 +1294,10 @@ def find_records(input_record):
                     perfect_idx)
                 for p in p_s:
                     ref_p, alt_p = records[p][2:4]
-                    tr, eqs = push_lr(fasta_file, records[p], 2)
+                    if not strict_labeling:
+                        tr, eqs = push_lr(fasta_file, records[p], 2)
+                    else:
+                        tr, eqs = push_lr(fasta_file, records[p], 0)
                     for eq in eqs:
                         if is_part_of(eq, record):
                             vartype = vtype[p]
@@ -1234,7 +1348,7 @@ def find_records(input_record):
                 vartype = get_type(record[2], record[3])
                 pos, ref, alt = record[1:4]
                 rc = find_i_center(ref, alt)
-                if vartype_t == vartype and pos_t == pos:
+                if vartype_t == vartype and pos_t == pos and ((not strict_labeling) or vartype_t != "SNP"):
                     good_records[vartype_t].append(j)
                     vtype[j] = vartype_t
                     record_len[j] = find_len(ref_t, alt_t)
@@ -1243,50 +1357,55 @@ def find_records(input_record):
         good_records_idx = [i for w in list(good_records.values()) for i in w]
         remained_idx = sorted(set(range(len(records))) -
                               (set(good_records_idx) | set(none_records_ids)))
-        for i, js in map_truth_2_pred.items():
-            truth_record = truth_records[i]
+        if not strict_labeling:
+            for i, js in map_truth_2_pred.items():
+                truth_record = truth_records[i]
 
-            if set(js) & set(good_records_idx):
-                continue
-            pos_t, ref_t, alt_t = truth_record[1:4]
-            vartype_t = get_type(ref_t, alt_t)
-            rct = find_i_center(ref_t, alt_t)
-            for j in js:
-                if j not in remained_idx:
+                if set(js) & set(good_records_idx):
                     continue
-                record = records[j]
-                vartype = get_type(record[2], record[3])
-                pos, ref, alt = record[1:4]
-                rc = find_i_center(ref, alt)
-                if pos_t + rct[0] + rct[1] == pos + rc[0] + rc[1]:
-                    if (vartype_t == "INS" and vartype == "SNP") or (vartype == "INS" and vartype_t == "SNP"):
+                pos_t, ref_t, alt_t = truth_record[1:4]
+                vartype_t = get_type(ref_t, alt_t)
+                rct = find_i_center(ref_t, alt_t)
+                for j in js:
+                    if j not in remained_idx:
+                        continue
+                    record = records[j]
+                    vartype = get_type(record[2], record[3])
+                    pos, ref, alt = record[1:4]
+                    rc = find_i_center(ref, alt)
+                    if pos_t + rct[0] + rct[1] == pos + rc[0] + rc[1]:
+                        if (vartype_t == "INS" and vartype == "SNP") or (vartype == "INS" and vartype_t == "SNP"):
+                            good_records[vartype_t].append(j)
+                            vtype[j] = vartype_t
+                            record_len[j] = find_len(ref_t, alt_t)
+                            record_center[j] = rc
+
+            good_records_idx = [i for w in list(
+                good_records.values()) for i in w]
+            remained_idx = sorted(set(range(len(records))) -
+                                  (set(good_records_idx) | set(none_records_ids)))
+
+        if not strict_labeling:
+            for i, js in map_truth_2_pred.items():
+                truth_record = truth_records[i]
+                if set(js) & set(good_records_idx):
+                    continue
+                pos_t, ref_t, alt_t = truth_record[1:4]
+                vartype_t = get_type(ref_t, alt_t)
+                for j in js:
+                    record = records[j]
+                    pos, ref, alt = record[1:4]
+                    vartype = get_type(record[2], record[3])
+                    if (vartype == vartype_t) and vartype_t != "SNP" and abs(pos - pos_t) < 2:
                         good_records[vartype_t].append(j)
                         vtype[j] = vartype_t
+                        record_center[j] = find_i_center(ref, alt)
                         record_len[j] = find_len(ref_t, alt_t)
-                        record_center[j] = rc
 
-        good_records_idx = [i for w in list(good_records.values()) for i in w]
-        remained_idx = sorted(set(range(len(records))) -
-                              (set(good_records_idx) | set(none_records_ids)))
-        for i, js in map_truth_2_pred.items():
-            truth_record = truth_records[i]
-            if set(js) & set(good_records_idx):
-                continue
-            pos_t, ref_t, alt_t = truth_record[1:4]
-            vartype_t = get_type(ref_t, alt_t)
-            for j in js:
-                record = records[j]
-                pos, ref, alt = record[1:4]
-                vartype = get_type(record[2], record[3])
-                if (vartype == vartype_t) and vartype_t != "SNP" and abs(pos - pos_t) < 2:
-                    good_records[vartype_t].append(j)
-                    vtype[j] = vartype_t
-                    record_center[j] = find_i_center(ref, alt)
-                    record_len[j] = find_len(ref_t, alt_t)
-
-        good_records_idx = [i for w in list(good_records.values()) for i in w]
-        remained_idx = sorted(set(range(len(records))) -
-                              (set(good_records_idx) | set(none_records_ids)))
+            good_records_idx = [i for w in list(
+                good_records.values()) for i in w]
+            remained_idx = sorted(set(range(len(records))) -
+                                  (set(good_records_idx) | set(none_records_ids)))
         for i, js in map_truth_2_pred.items():
             truth_record = truth_records[i]
 
@@ -1321,7 +1440,10 @@ def find_records(input_record):
         return None
 
 
-def extract_ensemble(work, ensemble_tsv):
+def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_header,
+                     custom_header,
+                     zero_vscore,
+                     is_extend):
     logger = logging.getLogger(extract_ensemble.__name__)
     ensemble_data = []
     ensemble_pos = []
@@ -1333,133 +1455,186 @@ def extract_ensemble(work, ensemble_tsv):
                          "if_SomaticSniper", "if_VarDict", "MuSE_Tier", "if_LoFreq", "if_Scalpel", "if_Strelka",
                          "if_TNscope", "Strelka_Score", "Strelka_QSS", "Strelka_TQSS", "VarScan2_Score", "SNVMix2_Score",
                          "Sniper_Score", "VarDict_Score", "if_dbsnp", "COMMON", "if_COSMIC", "COSMIC_CNT",
-                         "Consistent_Mates", "Inconsistent_Mates", "N_DP", "nBAM_REF_MQ", "nBAM_ALT_MQ",
-                         "nBAM_Z_Ranksums_MQ", "nBAM_REF_BQ", "nBAM_ALT_BQ", "nBAM_Z_Ranksums_BQ", "nBAM_REF_NM",
-                         "nBAM_ALT_NM", "nBAM_NM_Diff", "nBAM_REF_Concordant", "nBAM_REF_Discordant",
-                         "nBAM_ALT_Concordant", "nBAM_ALT_Discordant", "nBAM_Concordance_FET", "N_REF_FOR", "N_REF_REV",
-                         "N_ALT_FOR", "N_ALT_REV", "nBAM_StrandBias_FET", "nBAM_Z_Ranksums_EndPos",
-                         "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads", "nBAM_Clipping_FET", "nBAM_MQ0",
-                         "nBAM_Other_Reads", "nBAM_Poor_Reads", "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp",
-                         "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp", "nBAM_ALT_InDel_1bp",
-                         "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "SOR", "MSI", "MSILEN", "SHIFT3",
-                         "MaxHomopolymer_Length", "SiteHomopolymer_Length", "T_DP", "tBAM_REF_MQ", "tBAM_ALT_MQ",
-                         "tBAM_Z_Ranksums_MQ", "tBAM_REF_BQ", "tBAM_ALT_BQ", "tBAM_Z_Ranksums_BQ", "tBAM_REF_NM",
-                         "tBAM_ALT_NM", "tBAM_NM_Diff", "tBAM_REF_Concordant", "tBAM_REF_Discordant",
-                         "tBAM_ALT_Concordant", "tBAM_ALT_Discordant", "tBAM_Concordance_FET", "T_REF_FOR",
-                         "T_REF_REV", "T_ALT_FOR", "T_ALT_REV", "tBAM_StrandBias_FET", "tBAM_Z_Ranksums_EndPos",
-                         "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads", "tBAM_Clipping_FET", "tBAM_MQ0",
-                         "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
-                         "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
-                         "InDel_Length"]
-    with open(ensemble_tsv) as s_f:
-        for line in skip_empty(s_f):
-            if line.startswith("CHROM"):
-                header_pos = line.strip().split()[0:5]
-                header = line.strip().split()[5:105]
-                header_en = list(filter(
-                    lambda x: x[1] in expected_features, enumerate(line.strip().split()[5:])))
-                header = list(map(lambda x: x[1], header_en))
-                if set(expected_features) - set(header):
-                    logger.error("The following features are missing from ensemble file: {}".format(
-                                 list(set(expected_features) - set(header))))
-                    raise Exception
-                order_header = []
-                for f in expected_features:
-                    order_header.append(header_en[header.index(f)][0])
-                continue
-            fields = line.strip().split()
-            fields[2] = str(int(fields[1]) + len(fields[3]))
-            ensemble_pos.append(fields[0:5])
-            ensemble_data.append(list(map(lambda x: float(
-                x.replace("False", "0").replace("True", "1")), fields[5:])))
-    ensemble_data = np.array(ensemble_data)[:, order_header]
+                         "Consistent_Mates", "Inconsistent_Mates"]
+    if not no_seq_complexity:
+        expected_features += ["Seq_Complexity_Span", "Seq_Complexity_Adj"]
 
-    cov_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
-        "Consistent_Mates", "Inconsistent_Mates", "N_DP",
-        "nBAM_REF_NM", "nBAM_ALT_NM", "nBAM_REF_Concordant", "nBAM_REF_Discordant", "nBAM_ALT_Concordant", "nBAM_ALT_Discordant",
-        "N_REF_FOR", "N_REF_REV", "N_ALT_FOR", "N_ALT_REV", "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads",  "nBAM_MQ0", "nBAM_Other_Reads", "nBAM_Poor_Reads",
-        "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp", "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp",
-        "nBAM_ALT_InDel_1bp",
-        "T_DP", "tBAM_REF_NM", "tBAM_ALT_NM", "tBAM_REF_Concordant", "tBAM_REF_Discordant", "tBAM_ALT_Concordant", "tBAM_ALT_Discordant",
-        "T_REF_FOR", "T_REF_REV", "T_ALT_FOR", "T_ALT_REV",
-        "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads",
-        "tBAM_MQ0", "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
-        "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
-    ], enumerate(header))))
-    mq_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
-        "nBAM_REF_MQ", "nBAM_ALT_MQ", "tBAM_REF_MQ", "tBAM_ALT_MQ"], enumerate(header))))
-    bq_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
-        "nBAM_REF_BQ", "nBAM_ALT_BQ", "tBAM_REF_BQ", "tBAM_ALT_BQ"], enumerate(header))))
-    nm_diff_features = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["nBAM_NM_Diff", "tBAM_NM_Diff"], enumerate(header))))
-    ranksum_features = list(map(lambda x: x[0], filter(lambda x: x[1] in ["nBAM_Z_Ranksums_MQ", "nBAM_Z_Ranksums_BQ",
-                                                                          "nBAM_Z_Ranksums_EndPos", "tBAM_Z_Ranksums_BQ",  "tBAM_Z_Ranksums_MQ", "tBAM_Z_Ranksums_EndPos", ], enumerate(header))))
-    zero_to_one_features = list(map(lambda x: x[0], filter(lambda x: x[1] in ["if_MuTect", "if_VarScan2", "if_SomaticSniper", "if_VarDict",
-                                                                              "MuSE_Tier", "if_Strelka"] + ["nBAM_Concordance_FET", "nBAM_StrandBias_FET", "nBAM_Clipping_FET",
-                                                                                                            "tBAM_Concordance_FET", "tBAM_StrandBias_FET", "tBAM_Clipping_FET"] + ["if_dbsnp", "COMMON"] + ["M2_STR"], enumerate(header))))
-    stralka_scor = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Strelka_Score"], enumerate(header))))
-    stralka_qss = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Strelka_QSS"], enumerate(header))))
-    stralka_tqss = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Strelka_TQSS"], enumerate(header))))
-    varscan2_score = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["VarScan2_Score"], enumerate(header))))
-    vardict_score = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["VarDict_Score"], enumerate(header))))
-    m2_lod = list(map(lambda x: x[0], filter(lambda x: x[1] in [
-        "M2_NLOD", "M2_TLOD"], enumerate(header))))
-    sniper_score = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["Sniper_Score"], enumerate(header))))
-    m2_ecent = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["M2_ECNT"], enumerate(header))))
-    sor = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["SOR"], enumerate(header))))
-    msi = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["MSI"], enumerate(header))))
-    msilen = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["MSILEN"], enumerate(header))))
-    shift3 = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["SHIFT3"], enumerate(header))))
-    MaxHomopolymer_Length = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["MaxHomopolymer_Length"], enumerate(header))))
-    SiteHomopolymer_Length = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["SiteHomopolymer_Length"], enumerate(header))))
-    InDel_Length = list(map(lambda x: x[0], filter(
-        lambda x: x[1] in ["InDel_Length"], enumerate(header))))
+    expected_features += ["N_DP", "nBAM_REF_MQ", "nBAM_ALT_MQ",
+                          "nBAM_Z_Ranksums_MQ", "nBAM_REF_BQ", "nBAM_ALT_BQ", "nBAM_Z_Ranksums_BQ", "nBAM_REF_NM",
+                          "nBAM_ALT_NM", "nBAM_NM_Diff", "nBAM_REF_Concordant", "nBAM_REF_Discordant",
+                          "nBAM_ALT_Concordant", "nBAM_ALT_Discordant", "nBAM_Concordance_FET", "N_REF_FOR", "N_REF_REV",
+                          "N_ALT_FOR", "N_ALT_REV", "nBAM_StrandBias_FET", "nBAM_Z_Ranksums_EndPos",
+                          "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads", "nBAM_Clipping_FET", "nBAM_MQ0",
+                          "nBAM_Other_Reads", "nBAM_Poor_Reads", "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp",
+                          "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp", "nBAM_ALT_InDel_1bp",
+                          "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "SOR", "MSI", "MSILEN", "SHIFT3",
+                          "MaxHomopolymer_Length", "SiteHomopolymer_Length", "T_DP", "tBAM_REF_MQ", "tBAM_ALT_MQ",
+                          "tBAM_Z_Ranksums_MQ", "tBAM_REF_BQ", "tBAM_ALT_BQ", "tBAM_Z_Ranksums_BQ", "tBAM_REF_NM",
+                          "tBAM_ALT_NM", "tBAM_NM_Diff", "tBAM_REF_Concordant", "tBAM_REF_Discordant",
+                          "tBAM_ALT_Concordant", "tBAM_ALT_Discordant", "tBAM_Concordance_FET", "T_REF_FOR",
+                          "T_REF_REV", "T_ALT_FOR", "T_ALT_REV", "tBAM_StrandBias_FET", "tBAM_Z_Ranksums_EndPos",
+                          "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads", "tBAM_Clipping_FET", "tBAM_MQ0",
+                          "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
+                          "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
+                          "InDel_Length"]
+    callers_features = ["if_MuTect", "if_VarScan2", "if_JointSNVMix2", "if_SomaticSniper", "if_VarDict", "MuSE_Tier",
+                        "if_LoFreq", "if_Scalpel", "if_Strelka", "if_TNscope", "Strelka_Score", "Strelka_QSS",
+                        "Strelka_TQSS", "SNVMix2_Score", "Sniper_Score", "VarDict_Score",
+                        "M2_NLOD", "M2_TLOD", "M2_STR", "M2_ECNT", "MSI", "MSILEN", "SHIFT3"]
 
-    min_max_features = [[cov_features, 0, 2 * COV],
-                        [mq_features, 0, 70],
-                        [bq_features, 0, 41],
-                        [nm_diff_features, -2 * COV, 2 * COV],
-                        [zero_to_one_features, 0, 1],
-                        [ranksum_features, -30, 30],
-                        [stralka_scor, 0, 40],
-                        [stralka_qss, 0, 200],
-                        [stralka_tqss, 0, 4],
-                        [varscan2_score, 0, 60],
-                        [vardict_score, 0, 120],
-                        [m2_lod, 0, 100],
-                        [sniper_score, 0, 120],
-                        [m2_ecent, 0, 40],
-                        [sor, 0, 100],
-                        [msi, 0, 100],
-                        [msilen, 0, 10],
-                        [shift3, 0, 100],
-                        [MaxHomopolymer_Length, 0, 50],
-                        [SiteHomopolymer_Length, 0, 50],
-                        [InDel_Length, -30, 30],
-                        ]
-    selected_features = sorted([i for f in min_max_features for i in f[0]])
-    selected_features_tags = list(map(lambda x: header[x], selected_features))
-    for i_s, mn, mx in min_max_features:
-        s = ensemble_data[:, np.array(i_s)]
-        s = np.maximum(np.minimum(s, mx), mn)
-        s = (s - mn) / (mx - mn)
-        ensemble_data[:, np.array(i_s)] = s
-    ensemble_data = ensemble_data[:, selected_features]
-    ensemble_data = ensemble_data.tolist()
-    ensemble_bed = os.path.join(work, "ensemble.bed")
+    if is_extend and custom_header:
+        expected_features = list(
+            filter(lambda x: x not in callers_features, expected_features))
+    n_vars = 0
+    all_headers = set([])
+    for ensemble_tsv in ensemble_tsvs:
+        with open(ensemble_tsv) as s_f:
+            for line in skip_empty(s_f):
+                if line.startswith("CHROM"):
+                    all_headers.add(line)
+                    header_pos = line.strip().split()[0:5]
+                    header_ = line.strip().split()[5:]
+                    if custom_header and not is_extend:
+                        order_header = range(len(header_))
+                    else:
+                        if is_extend and not custom_header:
+                            header_ += callers_features
+                        header_en = list(filter(
+                            lambda x: x[1] in expected_features, enumerate(header_)))
+                        header = list(map(lambda x: x[1], header_en))
+                        if not enforce_header:
+                            expected_features = header
+
+                        if set(expected_features) - set(header):
+                            logger.error("The following features are missing from ensemble file {}: {}".format(
+                                ensemble_tsv,
+                                list(set(expected_features) - set(header))))
+                            raise Exception
+                        order_header = []
+                        for f in expected_features:
+                            order_header.append(header_en[header.index(f)][0])
+                    continue
+                fields = line.strip().split()
+                fields[2] = str(int(fields[1]) + len(fields[3]))
+                ensemble_pos.append(fields[0:5])
+                features = fields[5:]
+                if is_extend and not custom_header:
+                    features += ["0"] * len(callers_features)
+                features = list(map(lambda x: float(
+                    x.replace("False", "0").replace("True", "1")), features))
+                if custom_header and not is_extend:
+                    if min(features) < 0 or max(features) > 1:
+                        logger.info(
+                            "In --ensemble_custom_header mode, feature values in ensemble.tsv should be normalized in [0,1]")
+                        raise Exception
+                ensemble_data.append(features)
+                n_vars += 1
+    if len(set(all_headers)) != 1:
+        raise(RuntimeError("inconsistent headers in {}".format(ensemble_tsvs)))
+    if n_vars > 0:
+        ensemble_data = np.array(ensemble_data)[:, order_header]
+    header = np.array(header_)[order_header].tolist()
+
+    if not custom_header or is_extend:
+        cov_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
+            "Consistent_Mates", "Inconsistent_Mates", "N_DP",
+            "nBAM_REF_NM", "nBAM_ALT_NM", "nBAM_REF_Concordant", "nBAM_REF_Discordant", "nBAM_ALT_Concordant", "nBAM_ALT_Discordant",
+            "N_REF_FOR", "N_REF_REV", "N_ALT_FOR", "N_ALT_REV", "nBAM_REF_Clipped_Reads", "nBAM_ALT_Clipped_Reads",  "nBAM_MQ0", "nBAM_Other_Reads", "nBAM_Poor_Reads",
+            "nBAM_REF_InDel_3bp", "nBAM_REF_InDel_2bp", "nBAM_REF_InDel_1bp", "nBAM_ALT_InDel_3bp", "nBAM_ALT_InDel_2bp",
+            "nBAM_ALT_InDel_1bp",
+            "T_DP", "tBAM_REF_NM", "tBAM_ALT_NM", "tBAM_REF_Concordant", "tBAM_REF_Discordant", "tBAM_ALT_Concordant", "tBAM_ALT_Discordant",
+            "T_REF_FOR", "T_REF_REV", "T_ALT_FOR", "T_ALT_REV",
+            "tBAM_REF_Clipped_Reads", "tBAM_ALT_Clipped_Reads",
+            "tBAM_MQ0", "tBAM_Other_Reads", "tBAM_Poor_Reads", "tBAM_REF_InDel_3bp", "tBAM_REF_InDel_2bp",
+            "tBAM_REF_InDel_1bp", "tBAM_ALT_InDel_3bp", "tBAM_ALT_InDel_2bp", "tBAM_ALT_InDel_1bp",
+        ], enumerate(header))))
+        mq_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
+            "nBAM_REF_MQ", "nBAM_ALT_MQ", "tBAM_REF_MQ", "tBAM_ALT_MQ"], enumerate(header))))
+        bq_features = list(map(lambda x: x[0], filter(lambda x: x[1] in [
+            "nBAM_REF_BQ", "nBAM_ALT_BQ", "tBAM_REF_BQ", "tBAM_ALT_BQ"], enumerate(header))))
+        nm_diff_features = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["nBAM_NM_Diff", "tBAM_NM_Diff"], enumerate(header))))
+        ranksum_features = list(map(lambda x: x[0], filter(lambda x: x[1] in ["nBAM_Z_Ranksums_MQ", "nBAM_Z_Ranksums_BQ",
+                                                                              "nBAM_Z_Ranksums_EndPos", "tBAM_Z_Ranksums_BQ",  "tBAM_Z_Ranksums_MQ", "tBAM_Z_Ranksums_EndPos", ], enumerate(header))))
+        zero_to_one_features = list(map(lambda x: x[0], filter(lambda x: x[1] in ["if_MuTect", "if_VarScan2", "if_SomaticSniper", "if_VarDict",
+                                                                                  "MuSE_Tier", "if_Strelka"] + ["nBAM_Concordance_FET", "nBAM_StrandBias_FET", "nBAM_Clipping_FET",
+                                                                                                                "tBAM_Concordance_FET", "tBAM_StrandBias_FET", "tBAM_Clipping_FET"] + ["if_dbsnp", "COMMON"] + ["M2_STR"], enumerate(header))))
+        stralka_scor = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["Strelka_Score"], enumerate(header))))
+        stralka_qss = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["Strelka_QSS"], enumerate(header))))
+        stralka_tqss = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["Strelka_TQSS"], enumerate(header))))
+        varscan2_score = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["VarScan2_Score"], enumerate(header))))
+        vardict_score = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["VarDict_Score"], enumerate(header))))
+        m2_lod = list(map(lambda x: x[0], filter(lambda x: x[1] in [
+            "M2_NLOD", "M2_TLOD"], enumerate(header))))
+        sniper_score = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["Sniper_Score"], enumerate(header))))
+        m2_ecent = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["M2_ECNT"], enumerate(header))))
+        sor = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["SOR"], enumerate(header))))
+        msi = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["MSI"], enumerate(header))))
+        msilen = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["MSILEN"], enumerate(header))))
+        shift3 = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["SHIFT3"], enumerate(header))))
+        MaxHomopolymer_Length = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["MaxHomopolymer_Length"], enumerate(header))))
+        SiteHomopolymer_Length = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["SiteHomopolymer_Length"], enumerate(header))))
+        InDel_Length = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["InDel_Length"], enumerate(header))))
+        Seq_Complexity_ = list(map(lambda x: x[0], filter(
+            lambda x: x[1] in ["Seq_Complexity_Span", "Seq_Complexity_Adj"], enumerate(header))))
+
+        min_max_features = [[cov_features, 0, 2 * COV],
+                            [mq_features, 0, 70],
+                            [bq_features, 0, 41],
+                            [nm_diff_features, -2 * COV, 2 * COV],
+                            [zero_to_one_features, 0, 1],
+                            [ranksum_features, -30, 30],
+                            [stralka_scor, 0, 40],
+                            [stralka_qss, 0, 200],
+                            [stralka_tqss, 0, 4],
+                            [varscan2_score, 0, 60],
+                            [vardict_score, 0, 120],
+                            [m2_lod, 0, 100],
+                            [sniper_score, 0, 120],
+                            [m2_ecent, 0, 40],
+                            [sor, 0, 100],
+                            [msi, 0, 100],
+                            [msilen, 0, 10],
+                            [shift3, 0, 100],
+                            [MaxHomopolymer_Length, 0, 50],
+                            [SiteHomopolymer_Length, 0, 50],
+                            [InDel_Length, -30, 30],
+                            ]
+        if not no_seq_complexity:
+            min_max_features.append([Seq_Complexity_, 0, 40])
+
+        if zero_vscore and n_vars > 0:
+            ensemble_data[:, np.array(varscan2_score)] = 0
+
+        selected_features = sorted([i for f in min_max_features for i in f[0]])
+        selected_features_tags = list(
+            map(lambda x: header[x], selected_features))
+        if n_vars > 0:
+            for i_s, mn, mx in min_max_features:
+                if i_s:
+                    s = ensemble_data[:, np.array(i_s)]
+                    s = np.maximum(np.minimum(s, mx), mn)
+                    s = np.round((s - mn) / (mx - mn), 6)
+                    ensemble_data[:, np.array(i_s)] = s
+            ensemble_data = ensemble_data[:, selected_features]
+            ensemble_data = ensemble_data.tolist()
+    else:
+        ensemble_data = ensemble_data.tolist()
+        selected_features_tags = header_
     with open(ensemble_bed, "w")as f_:
         f_.write(
             "#" + "\t".join(map(str, header_pos + selected_features_tags)) + "\n")
@@ -1470,7 +1645,13 @@ def extract_ensemble(work, ensemble_tsv):
 
 def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
-                     ensemble_bed, tsv_batch_size):
+                     ensemble_bed,
+                     ensemble_custom_header,
+                     no_seq_complexity, enforce_header,
+                     zero_vscore,
+                     matrix_dtype,
+                     strict_labeling,
+                     tsv_batch_size):
     logger = logging.getLogger(generate_dataset.__name__)
 
     logger.info("---------------------Generate Dataset----------------------")
@@ -1496,7 +1677,12 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
 
     split_batch_size = 10000
     if ensemble_tsv and not ensemble_bed:
-        ensemble_bed = extract_ensemble(work, ensemble_tsv)
+        ensemble_bed = os.path.join(work, "ensemble.bed")
+        extract_ensemble(ensemble_tsvs=[ensemble_tsv], ensemble_bed=ensemble_bed,
+                         no_seq_complexity=no_seq_complexity, enforce_header=enforce_header,
+                         custom_header=ensemble_custom_header,
+                         zero_vscore=zero_vscore,
+                         is_extend=False)
 
     tmp_ = bedtools_intersect(
         tumor_pred_vcf_file, region_bed_file, args=" -u", run_logger=logger)
@@ -1519,11 +1705,22 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     fasta_file = pysam.Fastafile(ref_file)
     chrom_lengths = dict(zip(fasta_file.references, fasta_file.lengths))
 
+    if not ensemble_custom_header:
+        num_ens_features = NUM_ENS_FEATURES
+        if not no_seq_complexity:
+            num_ens_features += 2
+    else:
+        num_ens_features = 0
+        with open(ensemble_bed) as i_f:
+            x = i_f.readline().strip().split()
+            if x:
+                num_ens_features = len(x) - 5
+
     pool = multiprocessing.Pool(num_threads)
     map_args = []
     for i, split_region_file in enumerate(split_region_files):
         map_args.append((work, split_region_file, truth_vcf_file,
-                         tumor_pred_vcf_file, ref_file, ensemble_bed, i))
+                         tumor_pred_vcf_file, ref_file, ensemble_bed, num_ens_features, strict_labeling, i))
     try:
         records_data = pool.map_async(find_records, map_args).get()
         pool.close()
@@ -1576,10 +1773,10 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                             rlen = record_len[int(record[-1])]
                             rcenter = record_center[int(record[-1])]
                             ch_order = chroms_order[record[0]]
-                            ann = anns[
-                                int(record[-1])] if ensemble_bed else []
+                            ann = list(anns[int(record[-1])]
+                                       ) if ensemble_bed else []
                             map_args_records.append((ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order,
-                                                     matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths))
+                                                     matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths, matrix_dtype))
                         if cnt >= is_end:
                             break
                     if cnt >= is_end:
@@ -1595,11 +1792,11 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                         if is_current <= cnt < is_end:
                             rcenter = record_center[int(record[-1])]
                             ch_order = chroms_order[record[0]]
-                            ann = anns[
-                                int(record[-1])] if ensemble_bed else []
+                            ann = list(anns[int(record[-1])]
+                                       ) if ensemble_bed else []
                             map_args_nones.append((ref_file, tumor_count_bed, normal_count_bed, record, "NONE",
                                                    0, rcenter, ch_order,
-                                                   matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths))
+                                                   matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths, matrix_dtype))
                         if cnt >= is_end:
                             break
                     if cnt >= is_end:
@@ -1708,6 +1905,24 @@ if __name__ == '__main__':
                         help='Ensemble annotation tsv file (only for short read)', default=None)
     parser.add_argument('--ensemble_bed', type=str,
                         help='Ensemble annotation bed file (only for short read)', default=None)
+    parser.add_argument('--ensemble_custom_header',
+                        help='Allow ensemble tsv to have custom header fields',
+                        action="store_true")
+    parser.add_argument('--no_seq_complexity',
+                        help='Dont compute linguistic sequence complexity features',
+                        action="store_true")
+    parser.add_argument('--enforce_header',
+                        help='Enforce header match for ensemble_tsv',
+                        action="store_true")
+    parser.add_argument('--zero_vscore',
+                        help='set VarScan2_Score to zero',
+                        action="store_true")
+    parser.add_argument('--matrix_dtype', type=str,
+                        help='matrix_dtype to be used to store matrix', default="uint8",
+                        choices=MAT_DTYPES)
+    parser.add_argument('--strict_labeling',
+                        help='strict labeling in train mode',
+                        action="store_true")
     args = parser.parse_args()
     logger.info(args)
 
@@ -1726,12 +1941,23 @@ if __name__ == '__main__':
     num_threads = args.num_threads
     ensemble_tsv = args.ensemble_tsv
     ensemble_bed = args.ensemble_bed
+    no_seq_complexity = args.no_seq_complexity
     tsv_batch_size = args.tsv_batch_size
-
+    ensemble_custom_header = args.ensemble_custom_header
+    enforce_header = args.enforce_header
+    zero_vscore = args.zero_vscore
+    matrix_dtype = args.matrix_dtype
+    strict_labeling = args.strict_labeling
     try:
         generate_dataset(work, truth_vcf_file, mode, tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                          matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
-                         ensemble_bed, tsv_batch_size)
+                         ensemble_bed,
+                         ensemble_custom_header,
+                         no_seq_complexity, enforce_header,
+                         zero_vscore,
+                         matrix_dtype,
+                         strict_labeling,
+                         tsv_batch_size)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")

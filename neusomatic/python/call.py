@@ -15,7 +15,6 @@ import copy
 
 import pysam
 import numpy as np
-from imageio import imwrite, imread
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
@@ -25,9 +24,9 @@ import torchvision
 
 from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset, matrix_transform
-from utils import get_chromosomes_order, prob2phred
+from utils import get_chromosomes_order, prob2phred, skip_empty
 from merge_tsvs import merge_tsvs
-from defaults import VARTYPE_CLASSES
+from defaults import VARTYPE_CLASSES, NUM_ENS_FEATURES, NUM_ST_FEATURES, MAT_DTYPES
 
 import torch._utils
 try:
@@ -53,17 +52,24 @@ def get_type(ref, alt):
         return "SNP"
 
 
-def call_variants(net, call_loader, out_dir, model_tag, use_cuda):
+def call_variants(net, call_loader, out_dir, model_tag, run_i, matrix_dtype, use_cuda):
     logger = logging.getLogger(call_variants.__name__)
     net.eval()
     nclasses = len(VARTYPE_CLASSES)
     final_preds = {}
     none_preds = {}
-    true_path = {}
 
     final_preds = {}
     none_preds = {}
     loader_ = call_loader
+
+    if matrix_dtype == "uint8":
+        max_norm = 255.0
+    elif matrix_dtype == "uint16":
+        max_norm = 65535.0
+    else:
+        logger.info(
+            "Wrong matrix_dtype {}. Choices are {}".format(matrix_dtype, MAT_DTYPES))
 
     iii = 0
     j = 0
@@ -94,12 +100,6 @@ def call_variants(net, call_loader, out_dir, model_tag, use_cuda):
             path = path_.split("/")[-1]
             preds[i] = [VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i]]
             if VARTYPE_CLASSES[predicted[i]] != "NONE":
-                file_name = "{}/matrices_{}/{}.png".format(
-                    out_dir, model_tag, path)
-                if not os.path.exists(file_name):
-                    imwrite(file_name, np.array(
-                        non_transformed_matrices[i, :, :, 0:3]))
-                true_path[path] = file_name
                 final_preds[path] = [VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i],
                                      list(map(lambda x: round(x, 4), F.softmax(
                                          outputs1[i, :], 0).data.cpu().numpy())),
@@ -108,7 +108,8 @@ def call_variants(net, call_loader, out_dir, model_tag, use_cuda):
                                      list(map(lambda x: round(x, 4),
                                               outputs1.data.cpu()[i].numpy())),
                                      list(map(lambda x: round(x, 4),
-                                              outputs3.data.cpu()[i].numpy()))]
+                                              outputs3.data.cpu()[i].numpy())),
+                                     np.array(non_transformed_matrices[i, :, :, 0:3]) / max_norm]
             else:
                 none_preds[path] = [VARTYPE_CLASSES[predicted[i]], pos_pred[i], len_pred[i],
                                     list(map(lambda x: round(x, 4), F.softmax(
@@ -122,17 +123,17 @@ def call_variants(net, call_loader, out_dir, model_tag, use_cuda):
         if (iii % 10 == 0):
             logger.info("Called {} candidates in this batch.".format(j))
     logger.info("Called {} candidates in this batch.".format(j))
-    return final_preds, none_preds, true_path
+    return final_preds, none_preds
 
 
 def pred_vcf_records_path(record):
-    path, true_path_, pred_all, chroms, ref_file = record
+    path, pred_all, chroms, ref_file = record
     thread_logger = logging.getLogger(
         "{} ({})".format(pred_vcf_records_path.__name__, multiprocessing.current_process().name))
     try:
         fasta_file = pysam.FastaFile(ref_file)
         ACGT = "ACGT"
-        I = imread(true_path_) / 255.0
+        I = pred_all[-1]
         vcf_record = []
         Ih, Iw, _ = I.shape
         zref_pos = np.where((np.argmax(I[:, :, 0], 0) == 0) & (
@@ -146,6 +147,7 @@ def pred_vcf_records_path(record):
 
         chrom, pos, ref, alt, _, center, _, _, _ = path.split(
             ".")
+        ref, alt = ref.upper(), alt.upper()
         center = int(center)
         pos = int(pos)
 
@@ -212,61 +214,88 @@ def pred_vcf_records_path(record):
         for i in nzref_pos:
             col_2_pos[i] = cnt
             cnt += 1
+        if vartype_candidate == "INS" and anchor[1] == 0 and 0 not in col_2_pos:
+            col_2_pos[0] = -1
+            nzref_pos = np.array([0] + list(nzref_pos))
         if anchor[1] not in col_2_pos:
-            # print "NNN",path,pred
-            return vcf_record
+            if I[0, anchor[1], 0] > 0 and vartype_candidate == "INS" and type_pred == "INS":
+                ins_no_zref_pos = True
+            else:
+                # thread_logger.info(["NNN", path, pred])
+                return vcf_record
+        if not ins_no_zref_pos:
+            b = (anchor[0] - col_2_pos[anchor[1]])
+            for i in nzref_pos:
+                col_2_pos[i] += b
+            pos_2_col = {v: k for k, v in col_2_pos.items()}
 
-        b = (anchor[0] - col_2_pos[anchor[1]])
-        for i in nzref_pos:
-            col_2_pos[i] += b
-        pos_2_col = {v: k for k, v in col_2_pos.items()}
+        if type_pred == "SNP" and len(ref) - len(alt) > 1 and abs(center_pred - center) < center_dist_roundback:
+            thread_logger.info(["TBC", path, nzref_pos])
 
         if abs(center_pred - center) < too_far_center:
             if type_pred == "SNP":
-                pos_ = col_2_pos[center_]
-                ref_ = ""
-                alt_ = ""
-                for i in range(len_pred):
-                    nzp = nzref_pos[nzref_pos >= (center_ + i)]
-                    if len(nzp) > 0:
-                        center__ = nzp[np.argmin(abs(nzp - (center_ + i)))]
-                        rb = np.argmax(I[1:, center__, 0])
-                        ref_ += ACGT[rb]
-                        II = I.copy()
-                        II[rb + 1, center__, 1] = 0
-                        alt_ += ACGT[np.argmax(II[1:, center__, 1])]
-                        if sum(I[1:, center__, 1]) == 0:
-                            break
-                if not ref_:
-                    # print "SSS",path,pred
-                    return vcf_record
+                if abs(center_pred - center) < center_dist_roundback and len_pred == 1 and len(ref) == 1 and len(alt) == 1:
+                    pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
+                else:
+                    pos_ = col_2_pos[center_]
+                    ref_ = ""
+                    alt_ = ""
+                    for i in range(len_pred):
+                        nzp = nzref_pos[nzref_pos >= (center_ + i)]
+                        if len(nzp) > 0:
+                            center__ = nzp[np.argmin(abs(nzp - (center_ + i)))]
+                            rb = np.argmax(I[1:, center__, 0])
+                            ref_ += ACGT[rb]
+                            II = I.copy()
+                            II[rb + 1, center__, 1] = 0
+                            if max(II[1:, center__, 1]) == 0:
+                                if abs(center_pred - center) < center_dist_roundback * 3 and len_pred == 1:
+                                    pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
+                                    break
+                                else:
+                                    ref_ = ""
+                                    alt_ = ""
+                                    break
+                            else:
+                                alt_ += ACGT[np.argmax(II[1:, center__, 1])]
+                            if sum(I[1:, center__, 1]) == 0:
+                                break
+                    if not ref_:
+                        # thread_logger.info(["SSS", path, pred])
+                        return vcf_record
             elif type_pred == "INS":
                 if ins_no_zref_pos:
                     pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
                 else:
-                    pos_ = -1
+                    pos_ = -2
                     i_ = center_ - 1
-                    for i_ in range(center_ - 1, 0, -1):
+                    for i_ in range(center_ - 1, -2, -1):
                         if i_ in nzref_pos:
                             pos_ = col_2_pos[i_]
                             break
-                    if pos_ == -1:
+                    if pos_ == -2:
                         # print "PPP-1",path,pred
                         return vcf_record
-                    if (sum(I[1:, i_, 1]) == 0):
-                        # path,pred,i_,nzref_pos,col_2_pos,I[1:,i_,1],true_path[path]
-                        return vcf_record
-                    ref_ = ACGT[np.argmax(I[1:, i_, 0])]
-                    alt_ = ref_
+                    len_pred_ = len_pred
                     if len_pred == 3:
                         len_pred = max(len(alt) - len(ref), len_pred)
-                    for i in range(i_ + 1, Iw):
-                        if i in zref_pos:
-                            alt_ += ACGT[np.argmax(I[1:, i, 1])]
-                        else:
-                            break
-                        if (len(alt_) - len(ref_)) >= len_pred:
-                            break
+                    if (sum(I[1:, i_, 1]) == 0):
+                        # thread_logger.info(["PPP-2", path, pred])
+                        return vcf_record
+                    if len_pred == len(alt) - len(ref) and pos_ == pos:
+                        pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
+                    else:
+                        ref_ = ACGT[np.argmax(I[1:, i_, 0])]
+                        alt_ = ref_
+                        for i in range(i_ + 1, Iw):
+                            if i in zref_pos:
+                                alt_ += ACGT[np.argmax(I[1:, i, 1])]
+                            else:
+                                break
+                            if (len(alt_) - len(ref_)) >= len_pred:
+                                break
+                        if len_pred_ == 3 and (len(alt_) - len(ref_)) < len_pred and pos_ == pos:
+                            pos_, ref_, alt_ = pos, ref.upper(), alt.upper()
             elif type_pred == "DEL":
                 pos_ = col_2_pos[center_] - 1
                 if pos_ not in pos_2_col:
@@ -312,24 +341,30 @@ def pred_vcf_records_path(record):
         return None
 
 
-def pred_vcf_records(ref_file, final_preds, true_path, chroms, num_threads):
+def pred_vcf_records(ref_file, final_preds, chroms, num_threads):
     logger = logging.getLogger(pred_vcf_records.__name__)
     logger.info(
         "Prepare VCF records for predicted somatic variants in this batch.")
     map_args = []
     for path in final_preds.keys():
-        map_args.append([path, true_path[path], final_preds[path],
+        map_args.append([path, final_preds[path],
                          chroms, ref_file])
 
-    pool = multiprocessing.Pool(num_threads)
-    try:
-        all_vcf_records = pool.map_async(pred_vcf_records_path, map_args).get()
-        pool.close()
-    except Exception as inst:
-        logger.error(inst)
-        pool.close()
-        traceback.print_exc()
-        raise Exception
+    if num_threads == 1:
+        all_vcf_records = []
+        for w in map_args:
+            all_vcf_records.append(pred_vcf_records_path(w))
+    else:
+        pool = multiprocessing.Pool(num_threads)
+        try:
+            all_vcf_records = pool.map_async(
+                pred_vcf_records_path, map_args).get()
+            pool.close()
+        except Exception as inst:
+            logger.error(inst)
+            pool.close()
+            traceback.print_exc()
+            raise Exception
 
     for o in all_vcf_records:
         if o is None:
@@ -374,7 +409,8 @@ def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_thr
     logger = logging.getLogger(write_vcf.__name__)
     vcf_records = list(filter(lambda x: len(x) > 0, vcf_records))
     vcf_records = sorted(vcf_records, key=lambda x: [chroms_order[x[0]], x[1]])
-    lines = []
+    old_pos = ""
+    lines_old_pos = set([])
     with open(output_vcf, "w") as ov:
         for chrom_, pos_, ref_, alt_, prob in vcf_records:
             if ref_ == alt_:
@@ -389,14 +425,108 @@ def write_vcf(vcf_records, output_vcf, chroms_order, pass_threshold, lowqual_thr
                               filter_, "SCORE={:.4f}".format(
                                   np.round(prob, 4)),
                               "GT", "0/1"]) + "\n"
-            if line not in lines:
+            curr_pos = "-".join([chrom_, str(pos_)])
+            emit = False
+            if old_pos != curr_pos:
+                old_pos = curr_pos
+                lines_old_pos = set([line])
+                emit = True
+            else:
+                if line not in lines_old_pos:
+                    emit = True
+                    lines_old_pos.add(line)
+            if emit:
                 ov.write(line)
-                lines.append(line)
+
+
+def write_merged_vcf(output_vcfs, output_vcf, chroms_order):
+    logger = logging.getLogger(write_merged_vcf.__name__)
+    vcf_records = []
+    for vcf in output_vcfs:
+        with open(vcf) as i_f:
+            for line in skip_empty(i_f):
+                x = line.strip().split()
+                vcf_records.append([x[0], int(x[1]), line])
+    vcf_records = sorted(vcf_records, key=lambda x: [chroms_order[x[0]], x[1]])
+    old_pos = ""
+    lines_old_pos = set([])
+    with open(output_vcf, "w") as ov:
+        for chrom_, pos_, line in vcf_records:
+            curr_pos = "-".join([chrom_, str(pos_)])
+            emit = False
+            if old_pos != curr_pos:
+                old_pos = curr_pos
+                lines_old_pos = set([line])
+                emit = True
+            else:
+                if line not in lines_old_pos:
+                    emit = True
+                    lines_old_pos.add(line)
+            if emit:
+                ov.write(line)
+
+
+def single_thread_call(record):
+    thread_logger = logging.getLogger(
+        "{} ({})".format(single_thread_call.__name__, multiprocessing.current_process().name))
+    try:
+        torch.set_num_threads(1)
+        net, candidate_files, max_load_candidates, data_transform, \
+            coverage_thr, max_cov, normalize_channels, zero_ann_cols, batch_size, \
+            out_dir, model_tag, ref_file, chroms, tmp_preds_dir, chroms_order, \
+            pass_threshold, lowqual_threshold, matrix_dtype, i = record
+
+        call_set = NeuSomaticDataset(roots=candidate_files,
+                                     max_load_candidates=max_load_candidates,
+                                     transform=data_transform, is_test=True,
+                                     num_threads=1,
+                                     coverage_thr=coverage_thr,
+                                     max_cov=max_cov,
+                                     normalize_channels=normalize_channels,
+                                     zero_ann_cols=zero_ann_cols,
+                                     matrix_dtype=matrix_dtype)
+        call_loader = torch.utils.data.DataLoader(call_set,
+                                                  batch_size=batch_size,
+                                                  shuffle=True,  # pin_memory=True,
+                                                  num_workers=0)
+        logger.info("N_dataset: {}".format(len(call_set)))
+        if len(call_set) == 0:
+            logger.warning(
+                "Skip {} with 0 candidates".format(candidate_file))
+            return [], []
+
+        final_preds_, none_preds_ = call_variants(
+            net, call_loader, out_dir, model_tag, i, matrix_dtype, use_cuda)
+        all_vcf_records = pred_vcf_records(
+            ref_file, final_preds_, chroms, 1)
+        all_vcf_records_none = pred_vcf_records_none(none_preds_, chroms)
+
+        all_vcf_records = dict(all_vcf_records)
+        all_vcf_records_none = dict(all_vcf_records_none)
+
+        var_vcf_records = get_vcf_records(all_vcf_records)
+        vcf_records_none = get_vcf_records(all_vcf_records_none)
+
+        output_vcf = "{}/pred_{}.vcf".format(tmp_preds_dir, i)
+        write_vcf(var_vcf_records, output_vcf, chroms_order,
+                  pass_threshold, lowqual_threshold)
+
+        logger.info("Prepare Non-Somatics VCF")
+        output_vcf_none = "{}/none_{}.vcf".format(tmp_preds_dir, i)
+        write_vcf(vcf_records_none, output_vcf_none,
+                  chroms_order, pass_threshold, lowqual_threshold)
+
+        return output_vcf, output_vcf_none
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 
 def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
                     batch_size, max_load_candidates, pass_threshold, lowqual_threshold,
-                    ensemble,
+                    force_zero_ann_cols,
+                    max_cov,
                     use_cuda):
     logger = logging.getLogger(call_neusomatic.__name__)
 
@@ -412,7 +542,88 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
         chroms = rf.references
 
     data_transform = matrix_transform((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    num_channels = 119 if ensemble else 26
+
+    logger.info("Load pretrained model from checkpoint {}".format(checkpoint))
+    pretrained_dict = torch.load(
+        checkpoint, map_location=lambda storage, loc: storage)
+    pretrained_state_dict = pretrained_dict["state_dict"]
+    model_tag = pretrained_dict["tag"]
+    logger.info("tag: {}".format(model_tag))
+    coverage_thr = pretrained_dict["coverage_thr"]
+    if "normalize_channels" in pretrained_dict:
+        normalize_channels = pretrained_dict["normalize_channels"]
+    else:
+        normalize_channels = False
+    if "no_seq_complexity" in pretrained_dict:
+        no_seq_complexity = pretrained_dict["no_seq_complexity"]
+    else:
+        no_seq_complexity = True
+    if "zero_ann_cols" in pretrained_dict:
+        zero_ann_cols = pretrained_dict["zero_ann_cols"]
+    else:
+        zero_ann_cols = []
+    if "ensemble_custom_header" in pretrained_dict:
+        ensemble_custom_header = pretrained_dict["ensemble_custom_header"]
+    else:
+        ensemble_custom_header = False
+    if "matrix_dtype" in pretrained_dict:
+        matrix_dtype = pretrained_dict["matrix_dtype"]
+    else:
+        matrix_dtype = "uint8"
+
+    if force_zero_ann_cols:
+        logger.info(
+            "Override zero_ann_cols from force_zero_ann_cols: {}".format(force_zero_ann_cols))
+        zero_ann_cols = force_zero_ann_cols
+
+    if max_cov is not None:
+        logger.info(
+            "Set max_cov: {}".format(max_cov))
+
+    logger.info("coverage_thr: {}".format(coverage_thr))
+    logger.info("normalize_channels: {}".format(normalize_channels))
+    logger.info("no_seq_complexity: {}".format(no_seq_complexity))
+    logger.info("zero_ann_cols: {}".format(zero_ann_cols))
+    logger.info("ensemble_custom_header: {}".format(ensemble_custom_header))
+    logger.info("matrix_dtype: {}".format(matrix_dtype))
+
+    if not ensemble_custom_header:
+        expected_ens_fields = NUM_ENS_FEATURES
+        if not no_seq_complexity:
+            expected_ens_fields += 2
+
+        logger.info("expected_ens_fields: {}".format(expected_ens_fields))
+
+        expected_st_fields = 4
+
+        logger.info("expected_st_fields: {}".format(expected_st_fields))
+
+        ensemble = False
+        for tsv in candidates_tsv:
+            with open(tsv) as i_f:
+                x = i_f.readline().strip().split()
+                if x:
+                    if len(x) == expected_ens_fields + 4:
+                        ensemble = True
+                        break
+                    elif len(x) == 4:
+                        break
+                    else:
+                        raise Exception(
+                            "Wrong number of fields in {}: {}".format(tsv, len(x)))
+
+        num_channels = expected_ens_fields + \
+            NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
+    else:
+        num_channels = 0
+        for tsv in candidates_tsv:
+            with open(tsv) as i_f:
+                x = i_f.readline().strip().split()
+                if x:
+                    num_channels = len(x) - 4 + NUM_ST_FEATURES
+                    break
+
+    logger.info("Number of channels: {}".format(num_channels))
     net = NeuSomaticNet(num_channels)
     if use_cuda:
         logger.info("GPU calling!")
@@ -423,26 +634,6 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     if torch.cuda.device_count() > 1:
         logger.info("We use {} GPUs!".format(torch.cuda.device_count()))
         net = nn.DataParallel(net)
-
-    if not os.path.exists(out_dir):
-        os.mkdir(out_dir)
-    logger.info("Load pretrained model from checkpoint {}".format(checkpoint))
-    pretrained_dict = torch.load(
-        checkpoint, map_location=lambda storage, loc: storage)
-    pretrained_state_dict = pretrained_dict["state_dict"]
-    model_tag = pretrained_dict["tag"]
-    logger.info("tag: {}".format(model_tag))
-
-    matrices_dir = "{}/matrices_{}".format(out_dir, model_tag)
-    if os.path.exists(matrices_dir):
-        logger.warning("Remove matrices directory: {}".format(matrices_dir))
-        shutil.rmtree(matrices_dir)
-    os.mkdir(matrices_dir)
-    coverage_thr = pretrained_dict["coverage_thr"]
-    if "normalize_channels" in pretrained_dict:
-        normalize_channels = pretrained_dict["normalize_channels"]
-    else:
-        normalize_channels = False
 
     model_dict = net.state_dict()
 
@@ -465,6 +656,9 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     # 3. load the new state dict
     net.load_state_dict(pretrained_state_dict)
 
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+
     new_split_tsvs_dir = os.path.join(out_dir, "split_tsvs")
     if os.path.exists(new_split_tsvs_dir):
         logger.warning(
@@ -474,6 +668,13 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     Ls = []
     candidates_tsv_ = []
     split_i = 0
+    total_L = 0
+    for candidate_file in candidates_tsv:
+        total_L += len(pickle.load(open(candidate_file + ".idx", "rb")))
+    logger.info("Total number of candidates: {}".format(total_L))
+    if not use_cuda:
+        max_load_candidates = min(
+            max_load_candidates, 3 * total_L // num_threads)
     for candidate_file in candidates_tsv:
         idx = pickle.load(open(candidate_file + ".idx", "rb"))
         if len(idx) > max_load_candidates / 2:
@@ -507,61 +708,118 @@ def call_neusomatic(candidates_tsv, ref_file, out_dir, checkpoint, num_threads,
     candidate_files = []
     all_vcf_records = []
     all_vcf_records_none = []
-    for i, (candidate_file, L) in enumerate(sorted(zip(candidates_tsv_, Ls), key=lambda x: x[1])):
-        current_L += L
-        candidate_files.append(candidate_file)
-        if current_L > max_load_candidates / 10 or i == len(candidates_tsv_) - 1:
-            logger.info("Run for candidate files: {}".format(candidate_files))
-            call_set = NeuSomaticDataset(roots=candidate_files,
-                                         max_load_candidates=max_load_candidates,
-                                         transform=data_transform, is_test=True,
-                                         num_threads=num_threads,
-                                         coverage_thr=coverage_thr,
-                                         normalize_channels=normalize_channels)
-            call_loader = torch.utils.data.DataLoader(call_set,
-                                                      batch_size=batch_size,
-                                                      shuffle=True, pin_memory=True,
-                                                      num_workers=num_threads)
+    if use_cuda:
+        run_i = -1
+        for i, (candidate_file, L) in enumerate(sorted(zip(candidates_tsv_, Ls), key=lambda x: x[1])):
+            current_L += L
+            candidate_files.append(candidate_file)
+            if current_L > max_load_candidates / 10 or i == len(candidates_tsv_) - 1:
+                logger.info(
+                    "Run for candidate files: {}".format(candidate_files))
+                call_set = NeuSomaticDataset(roots=candidate_files,
+                                             max_load_candidates=max_load_candidates,
+                                             transform=data_transform, is_test=True,
+                                             num_threads=num_threads,
+                                             coverage_thr=coverage_thr,
+                                             max_cov=max_cov,
+                                             normalize_channels=normalize_channels,
+                                             zero_ann_cols=zero_ann_cols,
+                                             matrix_dtype=matrix_dtype)
+                call_loader = torch.utils.data.DataLoader(call_set,
+                                                          batch_size=batch_size,
+                                                          shuffle=True, pin_memory=True,
+                                                          num_workers=num_threads)
 
-            current_L = 0
-            candidate_files = []
+                current_L = 0
+                candidate_files = []
+                run_i += 1
+                logger.info("N_dataset: {}".format(len(call_set)))
+                if len(call_set) == 0:
+                    logger.warning(
+                        "Skip {} with 0 candidates".format(candidate_file))
+                    continue
 
-            logger.info("N_dataset: {}".format(len(call_set)))
-            if len(call_set) == 0:
-                logger.warning(
-                    "Skip {} with 0 candidates".format(candidate_file))
-                continue
+                final_preds_, none_preds_ = call_variants(
+                    net, call_loader, out_dir, model_tag, run_i, matrix_dtype, use_cuda)
+                all_vcf_records.extend(pred_vcf_records(
+                    ref_file, final_preds_, chroms, num_threads))
+                all_vcf_records_none.extend(
+                    pred_vcf_records_none(none_preds_, chroms))
 
-            final_preds_, none_preds_, true_path_ = call_variants(
-                net, call_loader, out_dir, model_tag, use_cuda)
-            all_vcf_records.extend(pred_vcf_records(
-                ref_file, final_preds_, true_path_, chroms, num_threads))
-            all_vcf_records_none.extend(
-                pred_vcf_records_none(none_preds_, chroms))
+        all_vcf_records = dict(all_vcf_records)
+        all_vcf_records_none = dict(all_vcf_records_none)
 
-    all_vcf_records = dict(all_vcf_records)
-    all_vcf_records_none = dict(all_vcf_records_none)
+        logger.info("Prepare Output VCF")
+        output_vcf = "{}/pred.vcf".format(out_dir)
+        var_vcf_records = get_vcf_records(all_vcf_records)
+        write_vcf(var_vcf_records, output_vcf, chroms_order,
+                  pass_threshold, lowqual_threshold)
+
+        logger.info("Prepare Non-Somatics VCF")
+        output_vcf_none = "{}/none.vcf".format(out_dir)
+        vcf_records_none = get_vcf_records(all_vcf_records_none)
+        write_vcf(vcf_records_none, output_vcf_none,
+                  chroms_order, pass_threshold, lowqual_threshold)
+    else:
+        tmp_preds_dir = os.path.join(out_dir, "tmp_preds")
+        if os.path.exists(tmp_preds_dir):
+            logger.warning(
+                "Remove tmp_preds directory: {}".format(tmp_preds_dir))
+            shutil.rmtree(tmp_preds_dir)
+        os.mkdir(tmp_preds_dir)
+
+        map_args = []
+        j = 0
+        for i, (candidate_file, L) in enumerate(sorted(zip(candidates_tsv_, Ls), key=lambda x: x[1])):
+            current_L += L
+            candidate_files.append(candidate_file)
+            if current_L > max_load_candidates / 10 or i == len(candidates_tsv_) - 1:
+                logger.info(
+                    "Run for candidate files: {}".format(candidate_files))
+
+                map_args.append([net, candidate_files, max_load_candidates, data_transform,
+                                 coverage_thr, max_cov, normalize_channels, zero_ann_cols, batch_size,
+                                 out_dir,
+                                 model_tag, ref_file, chroms, tmp_preds_dir, chroms_order,
+                                 pass_threshold, lowqual_threshold, matrix_dtype, j])
+                j += 1
+                current_L = 0
+                candidate_files = []
+
+        pool = multiprocessing.Pool(num_threads)
+        try:
+            all_records = pool.map_async(single_thread_call, map_args).get()
+            pool.close()
+        except Exception as inst:
+            logger.error(inst)
+            pool.close()
+            traceback.print_exc()
+            raise Exception
+
+        for o in all_records:
+            if o is None:
+                raise Exception("single_thread_call failed!")
+
+        output_vcfs = [x[0] for x in all_records]
+        output_vcfs_none = [x[1] for x in all_records]
+
+        logger.info("Prepare Output VCF")
+        output_vcf = "{}/pred.vcf".format(out_dir)
+        write_merged_vcf(output_vcfs, output_vcf, chroms_order)
+
+        logger.info("Prepare Non-Somatics VCF")
+        output_vcf_none = "{}/none.vcf".format(out_dir)
+        write_merged_vcf(output_vcfs_none, output_vcf_none, chroms_order)
+
+        if os.path.exists(tmp_preds_dir):
+            logger.warning(
+                "Remove tmp_preds directory: {}".format(tmp_preds_dir))
+            shutil.rmtree(tmp_preds_dir)
 
     if os.path.exists(new_split_tsvs_dir):
         logger.warning(
             "Remove split candidates directory: {}".format(new_split_tsvs_dir))
         shutil.rmtree(new_split_tsvs_dir)
-
-    logger.info("Prepare Output VCF")
-    output_vcf = "{}/pred.vcf".format(out_dir)
-    var_vcf_records = get_vcf_records(all_vcf_records)
-    write_vcf(var_vcf_records, output_vcf, chroms_order,
-              pass_threshold, lowqual_threshold)
-
-    logger.info("Prepare Non-Somatics VCF")
-    output_vcf_none = "{}/none.vcf".format(out_dir)
-    vcf_records_none = get_vcf_records(all_vcf_records_none)
-    write_vcf(vcf_records_none, output_vcf_none,
-              chroms_order, pass_threshold, lowqual_threshold)
-
-    if os.path.exists(matrices_dir):
-        logger.warning("Remove matrices directory: {}".format(matrices_dir))
-        shutil.rmtree(matrices_dir)
 
     logger.info("Calling is Done.")
 
@@ -597,7 +855,16 @@ if __name__ == '__main__':
     parser.add_argument('--lowqual_threshold', type=float,
                         help='SCORE for LowQual (PASS for lowqual_threshold <= score < pass_threshold)',
                         default=0.4)
+    parser.add_argument('--force_zero_ann_cols', nargs="*", type=int,
+                        help='force columns to be set to zero in the annotations. Higher priority than \
+                              --zero_ann_cols and pretrained setting.\
+                              idx starts from 5th column in candidate.tsv file',
+                        default=[])
+    parser.add_argument('--max_cov', type=int,
+                        help='maximum coverage threshold.', default=None)
     args = parser.parse_args()
+
+    logger.info(args)
 
     use_cuda = torch.cuda.is_available()
     logger.info("use_cuda: {}".format(use_cuda))
@@ -607,7 +874,8 @@ if __name__ == '__main__':
                                      args.checkpoint,
                                      args.num_threads, args.batch_size, args.max_load_candidates,
                                      args.pass_threshold, args.lowqual_threshold,
-                                     args.ensemble,
+                                     args.force_zero_ann_cols,
+                                     args.max_cov,
                                      use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())

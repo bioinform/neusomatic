@@ -36,6 +36,7 @@ python ${neusomatic_dir}/neusomatic/python/preprocess.py \
 	--ins_min_af 0.05 \
 	--del_min_af 0.05 \
 	--num_threads 1 \
+	--no_seq_complexity \
 	--scan_alignments_binary ${neusomatic_dir}/neusomatic/bin/scan_alignments
 
 CUDA_VISIBLE_DEVICES= python ${neusomatic_dir}/neusomatic/python/call.py \
@@ -73,6 +74,7 @@ python ${neusomatic_dir}/neusomatic/python/preprocess.py \
 	--del_min_af 0.05 \
 	--num_threads 1 \
 	--ensemble_tsv ${test_dir}/ensemble.tsv \
+	--no_seq_complexity \
 	--scan_alignments_binary ${neusomatic_dir}/neusomatic/bin/scan_alignments
 
 CUDA_VISIBLE_DEVICES= python ${neusomatic_dir}/neusomatic/python/call.py \

@@ -24,7 +24,7 @@ import pickle
 from network import NeuSomaticNet
 from dataloader import NeuSomaticDataset, matrix_transform
 from merge_tsvs import merge_tsvs
-from defaults import TYPE_CLASS_DICT, VARTYPE_CLASSES
+from defaults import TYPE_CLASS_DICT, VARTYPE_CLASSES, NUM_ENS_FEATURES, NUM_ST_FEATURES, MAT_DTYPES
 
 import torch._utils
 try:
@@ -89,7 +89,7 @@ def test(net, epoch, validation_loader, use_cuda):
         (matrices, labels, _, var_len_s, _), (paths) = data
 
         paths_ = copy.deepcopy(paths)
-        del paths 
+        del paths
         paths = paths_
 
         matrices = Variable(matrices)
@@ -199,10 +199,15 @@ class SubsetNoneSampler(torch.utils.data.sampler.Sampler):
 def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpoint,
                      num_threads, batch_size, max_epochs, learning_rate, lr_drop_epochs,
                      lr_drop_ratio, momentum, boost_none, none_count_scale,
-                     max_load_candidates, coverage_thr, save_freq, ensemble,
+                     max_load_candidates, coverage_thr, save_freq,
                      merged_candidates_per_tsv, merged_max_num_tsvs, overwrite_merged_tsvs,
                      train_split_len,
                      normalize_channels,
+                     no_seq_complexity,
+                     zero_ann_cols,
+                     force_zero_ann_cols,
+                     ensemble_custom_header,
+                     matrix_dtype,
                      use_cuda):
     logger = logging.getLogger(train_neusomatic.__name__)
 
@@ -217,20 +222,6 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         torch.set_num_threads(num_threads)
 
     data_transform = matrix_transform((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    num_channels = 119 if ensemble else 26
-    net = NeuSomaticNet(num_channels)
-    if use_cuda:
-        logger.info("GPU training!")
-        net.cuda()
-    else:
-        logger.info("CPU training!")
-
-    if torch.cuda.device_count() > 1:
-        logger.info("We use {} GPUs!".format(torch.cuda.device_count()))
-        net = nn.DataParallel(net)
-
-    if not os.path.exists("{}/models/".format(out_dir)):
-        os.mkdir("{}/models/".format(out_dir))
 
     if checkpoint:
         logger.info(
@@ -251,7 +242,90 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
             normalize_channels = False
         logger.info(
             "Override normalize_channels from pretrained checkpoint: {}".format(normalize_channels))
-        prev_epochs = sofar_epochs + 1
+        if "no_seq_complexity" in pretrained_dict:
+            no_seq_complexity = pretrained_dict["no_seq_complexity"]
+        else:
+            no_seq_complexity = True
+        logger.info(
+            "Override no_seq_complexity from pretrained checkpoint: {}".format(no_seq_complexity))
+        if "zero_ann_cols" in pretrained_dict:
+            zero_ann_cols = pretrained_dict["zero_ann_cols"]
+        else:
+            zero_ann_cols = []
+        if not force_zero_ann_cols:
+            logger.info(
+                "Override zero_ann_cols from pretrained checkpoint: {}".format(zero_ann_cols))
+        if "ensemble_custom_header" in pretrained_dict:
+            ensemble_custom_header = pretrained_dict["ensemble_custom_header"]
+        else:
+            ensemble_custom_header = False
+        if "matrix_dtype" in pretrained_dict:
+            matrix_dtype = pretrained_dict["matrix_dtype"]
+        else:
+            matrix_dtype = "uint8"
+        prev_epochs = sofar_epochs
+    else:
+        prev_epochs = 0
+        time_now = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+        tag = "neusomatic_{}".format(time_now)
+    logger.info("tag: {}".format(tag))
+
+    if force_zero_ann_cols:
+        zero_ann_cols = force_zero_ann_cols
+        logger.info(
+            "Override zero_ann_cols from force_zero_ann_cols: {}".format(force_zero_ann_cols))
+
+    if not ensemble_custom_header:
+        expected_ens_fields = NUM_ENS_FEATURES
+        if not no_seq_complexity:
+            expected_ens_fields += 2
+
+        logger.info("expected_ens_fields: {}".format(expected_ens_fields))
+
+        expected_st_fields = 4
+
+        logger.info("expected_st_fields: {}".format(expected_st_fields))
+
+        ensemble = False
+        for tsv in candidates_tsv:
+            with open(tsv) as i_f:
+                x = i_f.readline().strip().split()
+                if x:
+                    if len(x) == expected_ens_fields + 4:
+                        ensemble = True
+                        break
+                    elif len(x) == 4:
+                        break
+                    else:
+                        raise Exception(
+                            "Wrong number of fields in {}: {}".format(tsv, len(x)))
+
+        num_channels = expected_ens_fields + \
+            NUM_ST_FEATURES if ensemble else NUM_ST_FEATURES
+    else:
+        num_channels = 0
+        for tsv in candidates_tsv:
+            with open(tsv) as i_f:
+                x = i_f.readline().strip().split()
+                if x:
+                    num_channels = len(x) - 4 + NUM_ST_FEATURES
+                    break
+    logger.info("Number of channels: {}".format(num_channels))
+    net = NeuSomaticNet(num_channels)
+    if use_cuda:
+        logger.info("GPU training!")
+        net.cuda()
+    else:
+        logger.info("CPU training!")
+
+    if torch.cuda.device_count() > 1:
+        logger.info("We use {} GPUs!".format(torch.cuda.device_count()))
+        net = nn.DataParallel(net)
+
+    if not os.path.exists("{}/models/".format(out_dir)):
+        os.mkdir("{}/models/".format(out_dir))
+
+    if checkpoint:
         model_dict = net.state_dict()
         # 1. filter out unnecessary keys
         # pretrained_state_dict = {
@@ -269,11 +343,6 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
         model_dict.update(pretrained_state_dict)
         # 3. load the new state dict
         net.load_state_dict(pretrained_state_dict)
-    else:
-        prev_epochs = 0
-        time_now = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-        tag = "neusomatic_{}".format(time_now)
-    logger.info("tag: {}".format(tag))
 
     shuffle(candidates_tsv)
 
@@ -318,7 +387,9 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                                           max_load_candidates * len(tsvs) / float(len(candidates_tsv))),
                                       transform=data_transform, is_test=False,
                                       num_threads=num_threads, coverage_thr=coverage_thr,
-                                      normalize_channels=normalize_channels)
+                                      normalize_channels=normalize_channels,
+                                      zero_ann_cols=zero_ann_cols,
+                                      matrix_dtype=matrix_dtype)
         train_sets.append(train_set)
         none_indices = train_set.get_none_indices()
         var_indices = train_set.get_var_indices()
@@ -351,7 +422,9 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                                            max_load_candidates=max_load_candidates,
                                            transform=data_transform, is_test=True,
                                            num_threads=num_threads, coverage_thr=coverage_thr,
-                                           normalize_channels=normalize_channels)
+                                           normalize_channels=normalize_channels,
+                                           zero_ann_cols=zero_ann_cols,
+                                           matrix_dtype=matrix_dtype)
         validation_loader = torch.utils.data.DataLoader(validation_set,
                                                         batch_size=batch_size, shuffle=True,
                                                         num_workers=num_threads, pin_memory=True)
@@ -394,8 +467,12 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "tag": tag,
                 "epoch": curr_epoch,
                 "coverage_thr": coverage_thr,
-                "normalize_channels": normalize_channels},
-               '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
+                "normalize_channels": normalize_channels,
+                "no_seq_complexity": no_seq_complexity,
+                "zero_ann_cols": zero_ann_cols,
+                "ensemble_custom_header": ensemble_custom_header,
+                "matrix_dtype": matrix_dtype,
+                }, '{}/models/checkpoint_{}_epoch{}_.pth'.format(out_dir, tag, curr_epoch))
 
     if len(train_sets) == 1:
         train_sets[0].open_candidate_tsvs()
@@ -460,6 +537,10 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                         "epoch": curr_epoch,
                         "coverage_thr": coverage_thr,
                         "normalize_channels": normalize_channels,
+                        "no_seq_complexity": no_seq_complexity,
+                        "zero_ann_cols": zero_ann_cols,
+                        "ensemble_custom_header": ensemble_custom_header,
+                        "matrix_dtype": matrix_dtype,
                         }, '{}/models/checkpoint_{}_epoch{}.pth'.format(out_dir, tag, curr_epoch))
             if validation_candidates_tsv:
                 test(net, curr_epoch, validation_loader, use_cuda)
@@ -478,6 +559,10 @@ def train_neusomatic(candidates_tsv, validation_candidates_tsv, out_dir, checkpo
                 "epoch": curr_epoch,
                 "coverage_thr": coverage_thr,
                 "normalize_channels": normalize_channels,
+                "no_seq_complexity": no_seq_complexity,
+                "zero_ann_cols": zero_ann_cols,
+                "ensemble_custom_header": ensemble_custom_header,
+                "matrix_dtype": matrix_dtype,
                 }, '{}/models/checkpoint_{}_epoch{}.pth'.format(
         out_dir, tag, curr_epoch))
     if validation_candidates_tsv:
@@ -505,11 +590,11 @@ if __name__ == '__main__':
                         help='pretrained network model checkpoint path', default=None)
     parser.add_argument('--validation_candidates_tsv', nargs="*",
                         help=' validation candidate tsv files', default=[])
+    parser.add_argument('--num_threads', type=int,
+                        help='number of threads', default=1)
     parser.add_argument('--ensemble',
                         help='Enable training for ensemble mode',
                         action="store_true")
-    parser.add_argument('--num_threads', type=int,
-                        help='number of threads', default=1)
     parser.add_argument('--batch_size', type=int,
                         help='batch size', default=1000)
     parser.add_argument('--max_epochs', type=int,
@@ -552,6 +637,25 @@ if __name__ == '__main__':
                         help='normalize BQ, MQ, and other bam-info channels by frequency of observed alleles. \
                               Will be overridden if pretrained model is provided',
                         action="store_true")
+    parser.add_argument('--no_seq_complexity',
+                        help='Dont compute linguistic sequence complexity features',
+                        action="store_true")
+    parser.add_argument('--zero_ann_cols', nargs="*", type=int,
+                        help='columns to be set to zero in the annotations \
+                              idx starts from 5th column in candidate.tsv file',
+                        default=[])
+    parser.add_argument('--force_zero_ann_cols', nargs="*", type=int,
+                        help='force columns to be set to zero in the annotations. Higher priority than \
+                              --zero_ann_cols and pretrained setting \
+                              idx starts from 5th column in candidate.tsv file',
+                        default=[])
+    parser.add_argument('--ensemble_custom_header',
+                        help='Allow ensemble tsv to have custom header fields. (Features should be\
+                            normalized between [0,1]',
+                        action="store_true")
+    parser.add_argument('--matrix_dtype', type=str,
+                        help='matrix_dtype to be used to store matrix', default="uint8",
+                        choices=MAT_DTYPES)
     args = parser.parse_args()
 
     logger.info(args)
@@ -566,10 +670,14 @@ if __name__ == '__main__':
                                       args.lr, args.lr_drop_epochs, args.lr_drop_ratio, args.momentum,
                                       args.boost_none, args.none_count_scale,
                                       args.max_load_candidates, args.coverage_thr, args.save_freq,
-                                      args.ensemble,
                                       args.merged_candidates_per_tsv, args.merged_max_num_tsvs,
                                       args.overwrite_merged_tsvs, args.train_split_len,
                                       args.normalize_channels,
+                                      args.no_seq_complexity,
+                                      args.zero_ann_cols,
+                                      args.force_zero_ann_cols,
+                                      args.ensemble_custom_header,
+                                      args.matrix_dtype,
                                       use_cuda)
     except Exception as e:
         logger.error(traceback.format_exc())

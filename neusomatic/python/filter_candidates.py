@@ -17,7 +17,7 @@ from defaults import VCF_HEADER
 
 
 def filter_candidates(candidate_record):
-    candidates_vcf, filtered_candidates_vcf, reference, dbsnp, min_dp, max_dp, good_ao, \
+    candidates_vcf, filtered_candidates_vcf, reference, min_dp, max_dp, good_ao, \
         min_ao, snp_min_af, snp_min_bq, snp_min_ao, ins_min_af, del_min_af,  \
         del_merge_min_af, ins_merge_min_af, merge_r = candidate_record
     thread_logger = logging.getLogger(
@@ -25,16 +25,6 @@ def filter_candidates(candidate_record):
     try:
         thread_logger.info(
             "---------------------Filter Candidates---------------------")
-
-        if dbsnp:
-            if not dbsnp.endswith("vcf.gz"):
-                thread_logger.error("Aborting!")
-                raise Exception(
-                    "The dbSNP file should be a tabix indexed file with .vcf.gz format")
-            if not os.path.exists(dbsnp + ".tbi"):
-                thread_logger.error("Aborting!")
-                raise Exception(
-                    "The dbSNP file should be a tabix indexed file with .vcf.gz format. No {}.tbi file exists.".format(dbsnp))
 
         records = {}
         with open(candidates_vcf) as v_f:
@@ -119,7 +109,7 @@ def filter_candidates(candidate_record):
                 else:
                     ins = [ins[0][:-1]]
             good_records.extend(ins)
-            if dels and (ins or list(filter(lambda x: x[3] != "N" and x[2] != "N", rs))):
+            if dels and (ins or len(list(filter(lambda x: x[3] == "N" and x[2] != "N", rs))) == 0):
                 # emit del
                 if len(dels) == 1:
                     ro = dels[0][5]
@@ -267,26 +257,11 @@ def filter_candidates(candidate_record):
                                   "GT:DP:RO:AO:AF", "0/1:{}:{}:{}:{}".format(dp, ro, ao, af)])
                 final_records.append([chrom, pos - 1, ref, alt, line])
         final_records = sorted(final_records, key=lambda x: x[0:2])
-        if dbsnp:
-            dbsnp_tb = pysam.TabixFile(dbsnp)
         with open(filtered_candidates_vcf, "w") as o_f:
             o_f.write("{}\n".format(VCF_HEADER))
             o_f.write(
                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
             for record in final_records:
-                if dbsnp:
-                    chrom, pos, ref, alt = record[0:4]
-                    var_id = "-".join(map(str,[chrom, pos, ref, alt]))
-                    region = "{}:{}-{}".format(chrom, pos, pos + 1)
-                    dbsnp_vars = []
-                    for x in dbsnp_tb.fetch(region=region):
-                        chrom_, pos_, _, ref_, alts_ = x.strip().split("\t")[
-                            0:5]
-                        for alt_ in alts_.split(","):
-                            dbsnp_var_id = "-".join(map(str,[chrom_, pos_, ref_, alt_]))
-                            dbsnp_vars.append(dbsnp_var_id)
-                    if var_id in dbsnp_vars:
-                        continue
                 o_f.write(record[-1] + "\n")
         return filtered_candidates_vcf
 
@@ -308,8 +283,6 @@ if __name__ == '__main__':
                         required=True)
     parser.add_argument('--reference', type=str, help='reference fasta filename',
                         required=True)
-    parser.add_argument('--dbsnp_to_filter', type=str,
-                        help='dbsnp vcf.gz (will be used to filter candidate variants)', default=None)
     parser.add_argument('--good_ao', type=float, help='good alternate count (ignores maf)',
                         default=10)
     parser.add_argument('--min_ao', type=float,
@@ -340,7 +313,7 @@ if __name__ == '__main__':
 
     try:
         output = filter_candidates((args.candidates_vcf, args.filtered_candidates_vcf,
-                                    args.reference, args.dbsnp_to_filter, args.min_dp, args.max_dp,
+                                    args.reference, args.min_dp, args.max_dp,
                                     args.good_ao, args.min_ao,
                                     args.snp_min_af, args.snp_min_bq, args.snp_min_ao,
                                     args.ins_min_af, args.del_min_af,

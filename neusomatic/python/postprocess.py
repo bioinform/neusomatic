@@ -21,7 +21,7 @@ import numpy as np
 from extract_postprocess_targets import extract_postprocess_targets
 from merge_post_vcfs import merge_post_vcfs
 from resolve_variants import resolve_variants
-from utils import concatenate_files, get_chromosomes_order, bedtools_window, skip_empty, run_bedtools_cmd
+from utils import concatenate_files, get_chromosomes_order, bedtools_window, bedtools_intersect, skip_empty
 from long_read_indelrealign import long_read_indelrealign
 from resolve_scores import resolve_scores
 from _version import __version__
@@ -33,46 +33,59 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
     logger = logging.getLogger(add_vcf_info.__name__)
 
     ensemble_candids_vcf = None
+    use_ensemble_candids = False
     if ensemble_tsv:
         ensemble_candids_vcf = os.path.join(work, "ensemble_candids.vcf")
         with open(ensemble_tsv) as e_f, open(ensemble_candids_vcf, "w") as c_f:
             c_f.write("{}\n".format(VCF_HEADER))
             c_f.write(
                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
+            ensemble_header_found = False
             for line in e_f:
-                if "T_REF_FOR" in line:
+                if "POS" in line:
                     header = line.strip().split()
                     chrom_id = header.index("CHROM")
                     pos_id = header.index("POS")
                     ref_id = header.index("REF")
                     alt_id = header.index("ALT")
-                    dp_id = header.index("T_DP")
-                    ref_fw_id = header.index("T_REF_FOR")
-                    ref_rv_id = header.index("T_REF_REV")
-                    alt_fw_id = header.index("T_ALT_FOR")
-                    alt_rv_id = header.index("T_ALT_REV")
+                    ensemble_header_found = True
+                    if "T_DP" in line:
+                        dp_id = header.index("T_DP")
+                        ref_fw_id = header.index("T_REF_FOR")
+                        ref_rv_id = header.index("T_REF_REV")
+                        alt_fw_id = header.index("T_ALT_FOR")
+                        alt_rv_id = header.index("T_ALT_REV")
+                        use_ensemble_candids = True
+                    else:
+                        dp_id, ref_fw_id, ref_rv_id, alt_fw_id, alt_rv_id = None, None, None, None, None
                     continue
+                assert ensemble_header_found
                 fields = line.strip().split()
                 chrom = fields[chrom_id]
                 pos = fields[pos_id]
                 ref = fields[ref_id]
                 alt = fields[alt_id]
-                dp = int(fields[dp_id])
-                ro_fw = int(fields[ref_fw_id])
-                ro_rv = int(fields[ref_rv_id])
-                ao_fw = int(fields[alt_fw_id])
-                ao_rv = int(fields[alt_rv_id])
-                ro = ro_fw + ro_rv
-                ao = ao_fw + ao_rv
-                af = np.round(ao / float(ao + ro + 0.0001), 4)
-                c_f.write(
-                    "\t".join(map(str, [chrom, pos, ".", ref, alt, ".", ".", ".", "GT:DP:RO:AO:AF", ":".join(map(str, ["0/1", dp, ro, ao, af]))])) + "\n")
+                if dp_id is not None:
+                    dp = int(fields[dp_id])
+                    ro_fw = int(fields[ref_fw_id])
+                    ro_rv = int(fields[ref_rv_id])
+                    ao_fw = int(fields[alt_fw_id])
+                    ao_rv = int(fields[alt_rv_id])
+                    ro = ro_fw + ro_rv
+                    ao = ao_fw + ao_rv
+                    af = np.round(ao / float(ao + ro + 0.0001), 4)
+                    c_f.write(
+                        "\t".join(map(str, [chrom, pos, ".", ref, alt, ".", ".", ".", "GT:DP:RO:AO:AF", ":".join(map(str, ["0/1", dp, ro, ao, af]))])) + "\n")
+                else:
+                    c_f.write(
+                        "\t".join(map(str, [chrom, pos, ".", ref, alt, ".", ".", ".", ".", "."])) + "\n")
+
 
     in_candidates = bedtools_window(
         merged_vcf, candidates_vcf, args=" -w 5", run_logger=logger)
     notin_candidates = bedtools_window(
         merged_vcf, candidates_vcf, args=" -w 5 -v", run_logger=logger)
-    if ensemble_tsv:
+    if ensemble_tsv and use_ensemble_candids:
         in_ensemble = bedtools_window(
             merged_vcf, ensemble_candids_vcf, args=" -w 5", run_logger=logger)
         notin_any = bedtools_window(
@@ -100,13 +113,15 @@ def add_vcf_info(work, reference, merged_vcf, candidates_vcf, ensemble_tsv,
                     dp, ro, ao = list(map(int, info[1:4]))
                     af = float(info[4])
                     is_same = x[1] == x[11] and x[3] == x[13] and x[4] == x[14]
+                    is_same = 0 if is_same else 1
                     is_same_type = np.sign(
                         len(x[3]) - len(x[13])) == np.sign(len(x[4]) - len(x[14]))
+                    is_same_type = 0 if is_same_type else 1
                     dist = abs(int(x[1]) - int(x[11]))
                     len_diff = abs(
                         (len(x[3]) - len(x[13])) - (len(x[4]) - len(x[14])))
                     tags_info[tag].append(
-                        [~is_same, ~is_same_type, dist, len_diff, s_e, dp, ro, ao, af])
+                        [is_same, is_same_type, dist, len_diff, s_e, dp, ro, ao, af])
     fina_info_tag = {}
     for tag, hits in tags_info.items():
         hits = sorted(hits, key=lambda x: x[0:5])
@@ -168,8 +183,9 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
                 lr_pad, lr_chunk_size, lr_chunk_scale,
                 lr_snp_min_af, lr_ins_min_af, lr_del_min_af, lr_match_score, lr_mismatch_penalty,
                 lr_gap_open_penalty, lr_gap_ext_penalty, lr_max_realign_dp, lr_do_split,
-                filter_duplicate,
+                keep_duplicate,
                 pass_threshold, lowqual_threshold,
+                extend_repeats,
                 msa_binary, num_threads):
     logger = logging.getLogger(postprocess.__name__)
 
@@ -177,6 +193,8 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     if not os.path.exists(work):
         os.mkdir(work)
 
+    filter_duplicate = not keep_duplicate
+    
     original_tempdir = tempfile.tempdir
     bed_tempdir = os.path.join(work, "bed_tempdir_postprocess")
     if not os.path.exists(bed_tempdir):
@@ -184,7 +202,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     tempfile.tempdir = bed_tempdir
 
     candidates_preds = os.path.join(work, "candidates_preds.vcf")
-    ensembled_preds = os.path.join(work, "ensembled_preds.vcf")
+    ensembled_preds = os.path.join(work, "ensemble_preds.vcf")
 
     bedtools_window(
         pred_vcf_file, candidates_vcf, args=" -w 5 -v", output_fn=ensembled_preds, run_logger=logger)
@@ -194,7 +212,7 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
     logger.info("Extract targets")
     postprocess_pad = 1 if not long_read else 10
     extract_postprocess_targets(
-        candidates_preds, min_len, postprocess_max_dist, postprocess_pad)
+        reference, candidates_preds, min_len, postprocess_max_dist, extend_repeats, postprocess_pad)
 
     no_resolve = os.path.join(work, "candidates_preds.no_resolve.vcf")
     target_vcf = os.path.join(work, "candidates_preds.resolve_target.vcf")
@@ -215,8 +233,9 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
         os.mkdir(work_lr_indel_realign)
         ra_resolved_vcf = os.path.join(
             work, "candidates_preds.ra_resolved.vcf")
-        not_resolved_bed = os.path.join(work, "candidates_preds.not_ra_resolved.bed")
-        long_read_indelrealign(work_lr_indel_realign, tumor_bam, None, ra_resolved_vcf, 
+        not_resolved_bed = os.path.join(
+            work, "candidates_preds.not_ra_resolved.bed")
+        long_read_indelrealign(work_lr_indel_realign, tumor_bam, None, ra_resolved_vcf,
                                not_resolved_bed, target_bed,
                                reference, num_threads, lr_pad,
                                lr_chunk_size, lr_chunk_scale, lr_snp_min_af,
@@ -227,12 +246,11 @@ def postprocess(work, reference, pred_vcf_file, output_vcf, candidates_vcf, ense
                                msa_binary)
         resolve_scores(tumor_bam, ra_resolved_vcf, target_vcf, resolved_vcf)
 
-        not_resolved_vcf = os.path.join(work, "candidates_preds.not_ra_resolved.vcf")
-        cmd = "bedtools intersect -a {} -b {} -u".format(
-            target_vcf, not_resolved_bed)
-        run_bedtools_cmd(cmd, output_fn=not_resolved_vcf, run_logger=logger)
+        not_resolved_vcf = os.path.join(
+            work, "candidates_preds.not_ra_resolved.vcf")
+        bedtools_intersect(target_vcf, not_resolved_bed, args=" -u ",
+                           output_fn=not_resolved_vcf, run_logger=logger)
 
-        
         all_no_resolve = concatenate_files(
             [no_resolve, ensembled_preds, not_resolved_vcf], os.path.join(work, "no_resolve.vcf"))
 
@@ -309,9 +327,12 @@ if __name__ == '__main__':
     parser.add_argument('--lowqual_threshold', type=float,
                         help='SCORE for LowQual (PASS for lowqual_threshold <= score < pass_threshold)',
                         default=0.4)
-    parser.add_argument('--filter_duplicate',
-                        help='filter duplicate reads in analysis',
+    parser.add_argument('--keep_duplicate',
+                        help='Dont filter duplicate reads in analysis',
                         action="store_true")
+    parser.add_argument('--extend_repeats', 
+                        help='extend resolve regions to repeat boundaries',
+                        action='store_true')
     parser.add_argument('--msa_binary', type=str,
                         help='MSA binary', default="../bin/msa")
     parser.add_argument('--num_threads', type=int,
@@ -332,8 +353,9 @@ if __name__ == '__main__':
                                  args.lr_gap_open_penalty,
                                  args.lr_gap_ext_penalty, args.lr_max_realign_dp,
                                  args.lr_do_split,
-                                 args.filter_duplicate,
+                                 args.keep_duplicate,
                                  args.pass_threshold, args.lowqual_threshold,
+                                 args.extend_repeats,
                                  args.msa_binary, args.num_threads)
 
     except Exception as e:
