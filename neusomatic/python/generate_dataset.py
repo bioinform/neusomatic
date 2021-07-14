@@ -2149,7 +2149,7 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
                 if len(records_r) + len(none_records) + cnt < is_current:
                     cnt += len(records_r)+len(none_records)
                 else:
-                    for is_none, records in [["False", records_r],["True",none_records]]:
+                    for is_none, records in [[False, records_r],[True,none_records]]:
                         for record in records:
                             cnt += 1
                             if is_current <= cnt < is_end:
