@@ -22,7 +22,7 @@ from generate_dataset import generate_dataset, extract_ensemble
 from scan_alignments import scan_alignments, split_my_region
 from extend_features import extend_features
 from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, bedtools_window, get_tmp_file, skip_empty, vcf_2_bed
-from defaults import MAT_DTYPES
+from defaults import MAT_DTYPES, VCF_HEADER
 
 
 def process_split_region(tn, work, region, reference, mode, alignment_bam,
@@ -473,13 +473,12 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                          regions=candidates_split_regions)
     tumor_counts, _, filtered_candidates_vcfs = tumor_outputs
 
-    work_tumor_missed = os.path.join(work, "work_tumor_missed")
-    if restart or not os.path.exists(work_tumor_missed):
-        os.mkdir(work_tumor_missed)
-    filtered_candidates_vcf_missed = os.path.join(
-        work_tumor_missed, "filtered_candidates.vcf")
-
     if ensemble_beds:
+        work_tumor_missed = os.path.join(work, "work_tumor_missed")
+        if restart or not os.path.exists(work_tumor_missed):
+            os.mkdir(work_tumor_missed)
+        filtered_candidates_vcf_missed = os.path.join(
+            work_tumor_missed, "filtered_candidates.vcf")
         missed_ensemble_beds_region = []
         missed_ensemble_beds = []
         for i, (filtered_vcf, ensemble_bed_i) in enumerate(zip(filtered_candidates_vcfs, ensemble_beds)):
@@ -521,6 +520,11 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                                     calc_qual=True,
                                                     regions=missed_ensemble_beds_region)
         tumor_counts_missed, _, filtered_candidates_vcfs_missed = tumor_outputs_missed
+        for filtered_vcf in filtered_candidates_vcfs_missed + [filtered_candidates_vcf_missed]:
+            with open(filtered_vcf, "w") as o_f:
+                o_f.write("{}\n".format(VCF_HEADER))
+                o_f.write(
+                    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n")
 
         tumor_counts += tumor_counts_missed
         filtered_candidates_vcfs += filtered_candidates_vcfs_missed
