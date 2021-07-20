@@ -19,9 +19,9 @@ import numpy as np
 
 from filter_candidates import filter_candidates
 from generate_dataset import generate_dataset, extract_ensemble
-from scan_alignments import scan_alignments
+from scan_alignments import scan_alignments, split_my_region
 from extend_features import extend_features
-from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty, vcf_2_bed
+from utils import concatenate_vcfs, run_bedtools_cmd, bedtools_sort, bedtools_merge, bedtools_intersect, bedtools_slop, bedtools_window, get_tmp_file, skip_empty, vcf_2_bed
 from defaults import MAT_DTYPES
 
 
@@ -40,11 +40,11 @@ def process_split_region(tn, work, region, reference, mode, alignment_bam,
     logger = logging.getLogger(process_split_region.__name__)
     logger.info("Scan bam.")
     scan_outputs = scan_alignments(work, merge_d_for_scan, scan_alignments_binary, alignment_bam,
-                                   region, reference, num_splits, num_threads, scan_window_size, 
+                                   region, reference, num_splits, num_threads, scan_window_size,
                                    snp_min_ao,
                                    snp_min_af, scan_maf, scan_maf,
                                    min_mapq, snp_min_bq, max_dp, min_dp,
-                                   report_all_alleles, report_count_for_all_positions, 
+                                   report_all_alleles, report_count_for_all_positions,
                                    filter_duplicate, restart=restart, split_region_files=regions,
                                    calc_qual=calc_qual)
     if filtered_candidates_vcf:
@@ -157,15 +157,17 @@ def get_ensemble_beds(work, reference, ensemble_bed, split_regions, matrix_base_
 
 
 def extract_candidate_split_regions(
-        work, filtered_candidates_vcfs, split_regions, ensemble_beds,
+        filtered_candidates_vcfs, split_regions, ensemble_beds,
+        tags,
         reference, matrix_base_pad, merge_d_for_short_read):
     logger = logging.getLogger(extract_candidate_split_regions.__name__)
 
     candidates_split_regions = []
-    for i, (filtered_vcf, split_region_) in enumerate(zip(filtered_candidates_vcfs,
-                                                          split_regions)):
+    for i, (filtered_vcf, split_region_, tags_i) in enumerate(zip(filtered_candidates_vcfs,
+                                                                  split_regions, tags)):
+        work = os.path.dirname(filtered_vcf)
         candidates_region_file = os.path.join(
-            work, "candidates_region_{}.bed".format(i))
+            work, "candidates_region_{}.bed".format(tags_i))
 
         is_empty = True
         with open(filtered_vcf) as f_:
@@ -209,34 +211,86 @@ def extract_candidate_split_regions(
 
 def generate_dataset_region_parallel(record):
     work_dataset_split, truth_vcf, mode, filtered_vcf, \
-    candidates_split_region, tumor_count, normal_count, reference, \
-    matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, \
-    ensemble_bed_i, \
-    ensemble_custom_header, \
-    no_seq_complexity, no_feature_recomp_for_ensemble, \
-    zero_vscore, \
-    matrix_dtype, \
-    strict_labeling, \
-    tsv_batch_size = record
+        candidates_split_region, tumor_count, normal_count, reference, \
+        matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, \
+        ensemble_bed_i, \
+        ensemble_custom_header, \
+        no_seq_complexity, no_feature_recomp_for_ensemble, \
+        zero_vscore, \
+        matrix_dtype, \
+        strict_labeling, \
+        tsv_batch_size = record
     thread_logger = logging.getLogger(
         "{} ({})".format(generate_dataset_region_parallel.__name__, multiprocessing.current_process().name))
     try:
         ret = generate_dataset_region(work_dataset_split, truth_vcf, mode, filtered_vcf,
-                                candidates_split_region, tumor_count, normal_count, reference,
-                                matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, 1,
-                                ensemble_bed_i,
-                                ensemble_custom_header,
-                                no_seq_complexity, no_feature_recomp_for_ensemble,
-                                zero_vscore,
-                                matrix_dtype,
-                                strict_labeling,
-                                tsv_batch_size)
+                                      candidates_split_region, tumor_count, normal_count, reference,
+                                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp, 1,
+                                      ensemble_bed_i,
+                                      ensemble_custom_header,
+                                      no_seq_complexity, no_feature_recomp_for_ensemble,
+                                      zero_vscore,
+                                      matrix_dtype,
+                                      strict_labeling,
+                                      tsv_batch_size)
         return ret
 
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
         thread_logger.error(ex)
         return None
+
+
+def process_missed_ensemble_positions(ensemble_bed_i, filtered_vcf, matrix_base_pad, reference):
+    logger = logging.getLogger(process_missed_ensemble_positions.__name__)
+    logger.info([ensemble_bed_i, filtered_vcf])
+    tmp_e = get_tmp_file()
+    header = []
+    with open(ensemble_bed_i) as i_f:
+        with open(tmp_e, "w") as o_f:
+            for line in i_f:
+                if line.startswith("#"):
+                    header.append(line)
+                x = line.strip().split()
+                chrom, st, en = x[0:3]
+                o_f.write("\t".join([chrom, st, en]) + "\t" + line)
+    tmp_e = bedtools_slop(
+        tmp_e, reference + ".fai", args=" -b {}".format(matrix_base_pad), run_logger=logger)
+    tmp_f = get_tmp_file()
+    vcf_2_bed(filtered_vcf, tmp_f,
+              len_ref=True, keep_ref_alt=False)
+    tmp_f = bedtools_sort(tmp_f, run_logger=logger)
+    tmp_f = bedtools_slop(
+        tmp_f, reference + ".fai", args=" -b {}".format(matrix_base_pad),
+        run_logger=logger)
+    tmp_f = bedtools_merge(tmp_f, run_logger=logger)
+    done_e = bedtools_intersect(tmp_e, tmp_f, args="-f 1 -u")
+    missed_e = bedtools_intersect(tmp_e, tmp_f, args="-f 1 -v")
+    with open(ensemble_bed_i, "w") as o_f:
+        with open(done_e) as i_f:
+            for line in header:
+                o_f.write(line)
+            for line in skip_empty(i_f):
+                x = line.strip().split()
+                chrom, st, en = x[0:3]
+                o_f.write("\t".join(x[3:]) + "\n")
+    missed_ensemble_bed_i = ensemble_bed_i + ".missed.bed"
+    with open(missed_ensemble_bed_i, "w") as o_f:
+        with open(missed_e) as i_f:
+            for line in header:
+                o_f.write(line)
+            for line in skip_empty(i_f):
+                x = line.strip().split()
+                chrom, st, en = x[0:3]
+                o_f.write("\t".join(x[3:]) + "\n")
+    tmp_m = bedtools_sort(missed_ensemble_bed_i, run_logger=logger)
+    tmp_m = bedtools_slop(
+        tmp_m, reference + ".fai", args=" -b {}".format(matrix_base_pad + 1),
+        run_logger=logger)
+    missed_ensemble_beds_region_i = ensemble_bed_i + ".missed.region.bed"
+    bedtools_merge(tmp_m, run_logger=logger,
+                   output_fn=missed_ensemble_beds_region_i)
+    return missed_ensemble_beds_region_i, missed_ensemble_bed_i
 
 
 def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
@@ -319,9 +373,18 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                              zero_vscore=zero_vscore,
                              is_extend=False)
 
-    merge_d_for_short_read = 100
-    candidates_split_regions = []
+    split_region_files = split_my_region(work, region_bed, num_threads, num_splits, reference, scan_window_size,
+                                         restart)
+
     ensemble_beds = []
+    if ensemble_tsv and not ensemble_beds:
+        ensemble_beds = get_ensemble_beds(
+            work, reference, ensemble_bed, split_region_files, matrix_base_pad, num_threads)
+
+    tags = ["{}".format(i) for i in range(len(split_region_files))]
+
+    merge_d_for_short_read = 100
+    candidates_split_regions = split_region_files
     if not long_read and first_do_without_qual:
         logger.info("Scan tumor bam (first without quality scores).")
         work_tumor_without_q = os.path.join(work, "work_tumor_without_q")
@@ -330,26 +393,43 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         filtered_candidates_vcf_without_q = os.path.join(
             work_tumor_without_q, "filtered_candidates.vcf")
 
-        tumor_outputs_without_q = process_split_region("tumor", work_tumor_without_q, region_bed, reference, mode,
-                                                       tumor_bam, scan_window_size, scan_maf, min_mapq,
-                                                       filtered_candidates_vcf_without_q, min_dp, max_dp,
-                                                       filter_duplicate,
-                                                       good_ao, min_ao,
-                                                       snp_min_af, -10000, snp_min_ao,
-                                                       ins_min_af, del_min_af, del_merge_min_af,
-                                                       ins_merge_min_af, merge_r,
-                                                       merge_d_for_scan,
-                                                       report_all_alleles,
-                                                       False,
-                                                       scan_alignments_binary, restart, num_splits, num_threads,
-                                                       calc_qual=False)
-        tumor_counts_without_q, split_regions, filtered_candidates_vcfs_without_q = tumor_outputs_without_q
+        tumor_outputs_without_q = process_split_region(tn="tumor",
+                                                       work=work_tumor_without_q,
+                                                       region=region_bed,
+                                                       reference=reference,
+                                                       mode=mode,
+                                                       alignment_bam=tumor_bam,
+                                                       scan_window_size=scan_window_size,
+                                                       scan_maf=scan_maf,
+                                                       min_mapq=min_mapq,
+                                                       filtered_candidates_vcf=filtered_candidates_vcf_without_q,
+                                                       min_dp=min_dp,
+                                                       max_dp=max_dp,
+                                                       filter_duplicate=filter_duplicate,
+                                                       good_ao=good_ao,
+                                                       min_ao=min_ao,
+                                                       snp_min_af=snp_min_af,
+                                                       snp_min_bq=-10000,
+                                                       snp_min_ao=snp_min_ao,
+                                                       ins_min_af=ins_min_af,
+                                                       del_min_af=del_min_af,
+                                                       del_merge_min_af=del_merge_min_af,
+                                                       ins_merge_min_af=ins_merge_min_af,
+                                                       merge_r=merge_r,
+                                                       merge_d_for_scan=merge_d_for_scan,
+                                                       report_all_alleles=report_all_alleles,
+                                                       report_count_for_all_positions=False,
+                                                       scan_alignments_binary=scan_alignments_binary,
+                                                       restart=restart,
+                                                       num_splits=num_splits,
+                                                       num_threads=num_threads,
+                                                       calc_qual=False,
+                                                       regions=split_region_files)
+        tumor_counts_without_q, _, filtered_candidates_vcfs_without_q = tumor_outputs_without_q
 
-        if ensemble_tsv:
-            ensemble_beds = get_ensemble_beds(
-                work, reference, ensemble_bed, split_regions, matrix_base_pad, num_threads)
         candidates_split_regions = extract_candidate_split_regions(
-            work_tumor_without_q, filtered_candidates_vcfs_without_q, split_regions, ensemble_beds,
+            filtered_candidates_vcfs_without_q, split_region_files, ensemble_beds,
+            tags,
             reference, matrix_base_pad, merge_d_for_short_read)
     work_tumor = os.path.join(work, "work_tumor")
     if restart or not os.path.exists(work_tumor):
@@ -358,59 +438,154 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         work_tumor, "filtered_candidates.vcf")
 
     logger.info("Scan tumor bam (and extracting quality scores).")
-    tumor_outputs = process_split_region("tumor", work_tumor, region_bed, reference, mode,
-                                         tumor_bam, scan_window_size, scan_maf, min_mapq,
-                                         filtered_candidates_vcf, min_dp, max_dp,
-                                         filter_duplicate,
-                                         good_ao, min_ao,
-                                         snp_min_af, snp_min_bq, snp_min_ao,
-                                         ins_min_af, del_min_af, del_merge_min_af,
-                                         ins_merge_min_af, merge_r,
-                                         merge_d_for_scan,
-                                         report_all_alleles,
-                                         False,
-                                         scan_alignments_binary, restart, num_splits, num_threads,
+
+    tumor_outputs = process_split_region(tn="tumor",
+                                         work=work_tumor,
+                                         region=region_bed,
+                                         reference=reference,
+                                         mode=mode,
+                                         alignment_bam=tumor_bam,
+                                         scan_window_size=scan_window_size,
+                                         scan_maf=scan_maf,
+                                         min_mapq=min_mapq,
+                                         filtered_candidates_vcf=filtered_candidates_vcf,
+                                         min_dp=min_dp,
+                                         max_dp=max_dp,
+                                         filter_duplicate=filter_duplicate,
+                                         good_ao=good_ao,
+                                         min_ao=min_ao,
+                                         snp_min_af=snp_min_af,
+                                         snp_min_bq=snp_min_bq,
+                                         snp_min_ao=snp_min_ao,
+                                         ins_min_af=ins_min_af,
+                                         del_min_af=del_min_af,
+                                         del_merge_min_af=del_merge_min_af,
+                                         ins_merge_min_af=ins_merge_min_af,
+                                         merge_r=merge_r,
+                                         merge_d_for_scan=merge_d_for_scan,
+                                         report_all_alleles=report_all_alleles,
+                                         report_count_for_all_positions=False,
+                                         scan_alignments_binary=scan_alignments_binary,
+                                         restart=restart,
+                                         num_splits=num_splits,
+                                         num_threads=num_threads,
                                          calc_qual=True,
                                          regions=candidates_split_regions)
-    tumor_counts, split_regions, filtered_candidates_vcfs = tumor_outputs
+    tumor_counts, _, filtered_candidates_vcfs = tumor_outputs
 
-    if ensemble_tsv and not ensemble_beds:
-        ensemble_beds = get_ensemble_beds(
-            work, reference, ensemble_bed, split_regions, matrix_base_pad, num_threads)
+    work_tumor_missed = os.path.join(work, "work_tumor_missed")
+    if restart or not os.path.exists(work_tumor_missed):
+        os.mkdir(work_tumor_missed)
+    filtered_candidates_vcf_missed = os.path.join(
+        work_tumor_missed, "filtered_candidates.vcf")
+
+    if ensemble_beds:
+        missed_ensemble_beds_region = []
+        missed_ensemble_beds = []
+        for i, (filtered_vcf, ensemble_bed_i) in enumerate(zip(filtered_candidates_vcfs, ensemble_beds)):
+            missed_ensemble_beds_region_i, missed_ensemble_beds_i = process_missed_ensemble_positions(
+                ensemble_bed_i, filtered_vcf, matrix_base_pad, reference)
+            missed_ensemble_beds_region.append(missed_ensemble_beds_region_i)
+            missed_ensemble_beds.append(missed_ensemble_beds_i)
+
+        tumor_outputs_missed = process_split_region(tn="tumor",
+                                                    work=work_tumor_missed,
+                                                    region=region_bed,
+                                                    reference=reference,
+                                                    mode=mode,
+                                                    alignment_bam=tumor_bam,
+                                                    scan_window_size=scan_window_size,
+                                                    scan_maf=scan_maf,
+                                                    min_mapq=min_mapq,
+                                                    filtered_candidates_vcf=filtered_candidates_vcf_missed,
+                                                    min_dp=min_dp,
+                                                    max_dp=max_dp,
+                                                    filter_duplicate=filter_duplicate,
+                                                    good_ao=good_ao,
+                                                    min_ao=min_ao,
+                                                    snp_min_af=snp_min_af,
+                                                    snp_min_bq=snp_min_bq,
+                                                    snp_min_ao=snp_min_ao,
+                                                    ins_min_af=ins_min_af,
+                                                    del_min_af=del_min_af,
+                                                    del_merge_min_af=del_merge_min_af,
+                                                    ins_merge_min_af=ins_merge_min_af,
+                                                    merge_r=merge_r,
+                                                    merge_d_for_scan=merge_d_for_scan,
+                                                    report_all_alleles=report_all_alleles,
+                                                    report_count_for_all_positions=True,
+                                                    scan_alignments_binary=scan_alignments_binary,
+                                                    restart=restart,
+                                                    num_splits=num_splits,
+                                                    num_threads=num_threads,
+                                                    calc_qual=True,
+                                                    regions=missed_ensemble_beds_region)
+        tumor_counts_missed, _, filtered_candidates_vcfs_missed = tumor_outputs_missed
+
+        tumor_counts += tumor_counts_missed
+        filtered_candidates_vcfs += filtered_candidates_vcfs_missed
+        ensemble_beds += missed_ensemble_beds
+        ensemble_beds += missed_ensemble_beds
+        split_region_files += missed_ensemble_beds_region
+        tags += ["m.{}".format(i)
+                 for i in range(len(filtered_candidates_vcfs_missed))]
 
     if (not long_read):
         candidates_split_regions = extract_candidate_split_regions(
-            work_tumor, filtered_candidates_vcfs, split_regions, ensemble_beds,
+            filtered_candidates_vcfs, split_region_files, ensemble_beds,
+            tags,
             reference, matrix_base_pad, merge_d_for_short_read)
 
     if not candidates_split_regions:
-        candidates_split_regions = split_regions
+        candidates_split_regions = split_region_files
     work_normal = os.path.join(work, "work_normal")
     if restart or not os.path.exists(work_normal):
         os.mkdir(work_normal)
     logger.info("Scan normal bam (and extracting quality scores).")
-    normal_counts, _, _ = process_split_region("normal", work_normal, region_bed, reference, mode, normal_bam,
-                                               scan_window_size, 0.2, min_mapq,
-                                               None, 1, max_dp,
-                                               filter_duplicate,
-                                               good_ao, min_ao, snp_min_af, snp_min_bq, snp_min_ao,
-                                               ins_min_af, del_min_af, del_merge_min_af,
-                                               ins_merge_min_af, merge_r,
-                                               merge_d_for_scan,
-                                               report_all_alleles,
-                                               True,
-                                               scan_alignments_binary, restart, num_splits, num_threads,
+
+    normal_counts, _, _ = process_split_region(tn="normal",
+                                               work=work_normal,
+                                               region=region_bed,
+                                               reference=reference,
+                                               mode=mode,
+                                               alignment_bam=normal_bam,
+                                               scan_window_size=scan_window_size,
+                                               scan_maf=0.2,
+                                               min_mapq=min_mapq,
+                                               filtered_candidates_vcf=None,
+                                               min_dp=1,
+                                               max_dp=max_dp,
+                                               filter_duplicate=filter_duplicate,
+                                               good_ao=good_ao,
+                                               min_ao=min_ao,
+                                               snp_min_af=snp_min_af,
+                                               snp_min_bq=snp_min_bq,
+                                               snp_min_ao=snp_min_ao,
+                                               ins_min_af=ins_min_af,
+                                               del_min_af=del_min_af,
+                                               del_merge_min_af=del_merge_min_af,
+                                               ins_merge_min_af=ins_merge_min_af,
+                                               merge_r=merge_r,
+                                               merge_d_for_scan=merge_d_for_scan,
+                                               report_all_alleles=report_all_alleles,
+                                               report_count_for_all_positions=True,
+                                               scan_alignments_binary=scan_alignments_binary,
+                                               restart=restart,
+                                               num_splits=num_splits,
+                                               num_threads=num_threads,
                                                calc_qual=True,
                                                regions=candidates_split_regions)
 
     work_dataset = os.path.join(work, "dataset")
     if restart or not os.path.exists(work_dataset):
         os.mkdir(work_dataset)
+
     logger.info("Generate dataset.")
     map_args_gen = []
-    for i, (tumor_count, normal_count, filtered_vcf, candidates_split_region) in enumerate(zip(tumor_counts, normal_counts, filtered_candidates_vcfs, candidates_split_regions)):
+    for i, (tumor_count, normal_count, filtered_vcf, candidates_split_region, tags_i) in enumerate(zip(tumor_counts, normal_counts, filtered_candidates_vcfs, candidates_split_regions, tags)):
         logger.info("Dataset for region {}".format(candidates_split_region))
-        work_dataset_split = os.path.join(work_dataset, "work.{}".format(i))
+        work_dataset_split = os.path.join(
+            work_dataset, "work.{}".format(tags_i))
         if restart or not os.path.exists("{}/done.txt".format(work_dataset_split)):
             if os.path.exists(work_dataset_split):
                 shutil.rmtree(work_dataset_split)
@@ -637,15 +812,15 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                 else:
                     ensemble_bed_i = extra_features_bed
             map_args_gen.append([work_dataset_split, truth_vcf, mode, filtered_vcf,
-                                    candidates_split_region, tumor_count, normal_count, reference,
-                                    matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp,
-                                    ensemble_bed_i,
-                                    ensemble_custom_header,
-                                    no_seq_complexity, no_feature_recomp_for_ensemble,
-                                    zero_vscore,
-                                    matrix_dtype,
-                                    strict_labeling,
-                                    tsv_batch_size])
+                                 candidates_split_region, tumor_count, normal_count, reference,
+                                 matrix_width, matrix_base_pad, min_ev_frac_per_col, min_dp,
+                                 ensemble_bed_i,
+                                 ensemble_custom_header,
+                                 no_seq_complexity, no_feature_recomp_for_ensemble,
+                                 zero_vscore,
+                                 matrix_dtype,
+                                 strict_labeling,
+                                 tsv_batch_size])
 
     pool = multiprocessing.Pool(num_threads)
     try:
@@ -661,7 +836,6 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
     for o in done_gen:
         if o is None:
             raise Exception("Generate dataset failed!")
-
 
     shutil.rmtree(bed_tempdir)
     tempfile.tempdir = original_tempdir
