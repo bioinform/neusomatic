@@ -1225,7 +1225,7 @@ def find_records(input_record):
             keep_in_region(input_file=tmp_, region_bed=split_region_file,
                            output_fn=split_ensemble_bed_file)
             tmp_ = bedtools_window(
-                split_ensemble_bed_file, split_pred_vcf_file, args=" -w 5 -v", run_logger=thread_logger)
+                split_ensemble_bed_file, split_pred_vcf_file, args=" -w 1 -v", run_logger=thread_logger)
 
             vcf_2_bed(tmp_, split_missed_ensemble_bed_file, add_fields=[".",
                                                                         ".", ".", ".", "."])

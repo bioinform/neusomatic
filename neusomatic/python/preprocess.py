@@ -473,6 +473,15 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
                                          regions=candidates_split_regions)
     tumor_counts, _, filtered_candidates_vcfs = tumor_outputs
 
+    if (not long_read):
+        candidates_split_regions = extract_candidate_split_regions(
+            filtered_candidates_vcfs, split_region_files, ensemble_beds,
+            tags,
+            reference, matrix_base_pad, merge_d_for_short_read)
+
+    if not candidates_split_regions:
+        candidates_split_regions = split_region_files
+
     if ensemble_beds:
         work_tumor_missed = os.path.join(work, "work_tumor_missed")
         if restart or not os.path.exists(work_tumor_missed):
@@ -530,18 +539,11 @@ def preprocess(work, mode, reference, region_bed, tumor_bam, normal_bam, dbsnp,
         filtered_candidates_vcfs += filtered_candidates_vcfs_missed
         ensemble_beds += missed_ensemble_beds
         ensemble_beds += missed_ensemble_beds
+        candidates_split_regions += missed_ensemble_beds_region
         split_region_files += missed_ensemble_beds_region
         tags += ["m.{}".format(i)
                  for i in range(len(filtered_candidates_vcfs_missed))]
 
-    if (not long_read):
-        candidates_split_regions = extract_candidate_split_regions(
-            filtered_candidates_vcfs, split_region_files, ensemble_beds,
-            tags,
-            reference, matrix_base_pad, merge_d_for_short_read)
-
-    if not candidates_split_regions:
-        candidates_split_regions = split_region_files
     work_normal = os.path.join(work, "work_normal")
     if restart or not os.path.exists(work_normal):
         os.mkdir(work_normal)
