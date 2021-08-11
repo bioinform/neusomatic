@@ -103,7 +103,7 @@ def push_left_var(ref_fasta, chrom, pos, ref, alt):
     logger = logging.getLogger(push_left_var.__name__)
     pos = int(pos)
     while ref[-1] == alt[-1] and pos > 1:
-        prev_base = ref_fasta.fetch(chrom, pos - 2, pos - 1)
+        prev_base = ref_fasta.fetch(chrom, pos - 2, pos - 1).upper()
         pos -= 1
         ref = prev_base + ref[:-1]
         alt = prev_base + alt[:-1]
