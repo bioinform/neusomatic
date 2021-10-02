@@ -16,13 +16,18 @@ namespace neusomatic {
     {"ref",                             required_argument,      0,        'r'},
     {"calculate_qual_stat",             no_argument,            0,        'c'},
     {"min_mapq",                        required_argument,      0,        'q'},
-    {"min_af",                          required_argument,      0,        'a'},
+    {"snp_min_bq",                        required_argument,      0,        'n'},
+    {"snp_min_af",                          required_argument,      0,        'a'},
+    {"ins_min_af",                          required_argument,      0,        'i'},
+    {"del_min_af",                          required_argument,      0,        'l'},
+    {"snp_min_ao",                          required_argument,      0,        'M'},
     {"out_vcf_file",                    required_argument,      0,        'f'},
     {"out_count_file",                  required_argument,      0,        'o'},
     {"fully_contained",                 no_argument,            0,        'y'},
     {"window_size",                     required_argument,      0,        'w'},
     {"num_threads",                     required_argument,      0,        't'},
     {"max_depth",                       required_argument,      0,        'd'},
+    {"min_depth",                       required_argument,      0,        'h'},
     {"include_secondary",               no_argument,            0,        's'},
     {"filter_duplicate",                no_argument,            0,        'D'},
     {"filter_QCfailed",                 no_argument,            0,        'Q'},
@@ -30,6 +35,7 @@ namespace neusomatic {
     {"filter_mate_unmapped",            no_argument,            0,        'F'},
     {"filter_improper_orientation",     no_argument,            0,        'G'},
     {"report_all_alleles",     no_argument,            0,        'A'},
+    {"report_count_for_all_positions",     no_argument,            0,        'C'},
     {0, 0, 0, 0} // terminator
   };
 
@@ -46,13 +52,18 @@ namespace neusomatic {
     std::cerr<< "-r/--ref,                             reference file path,                                                   required.\n";
     std::cerr<< "-c/--calculate_qual_stat,             calculating base quality and other stats,                              default False.\n";
     std::cerr<< "-q/--min_mapq,                        minimum mapping quality,                                               default 0.\n";
-    std::cerr<< "-a/--min_af,                          minimum allele freq,                                                   default 0.1.\n";
+    std::cerr<< "-n/--snp_min_bq,                        SNP minimum base quality,                                               default 10.\n";
+    std::cerr<< "-a/--snp_min_af,                          SNP minimum allele freq,                                                   default 0.01.\n";
+    std::cerr<< "-i/--ins_min_af,                          INS minimum allele freq,                                                   default 0.01.\n";
+    std::cerr<< "-l/--del_min_af,                          DEL minimum allele freq,                                                   default 0.01.\n";
+    std::cerr<< "-M/--snp_min_ao,                          SNP minimum alternate count for low AF candidates, default 3.\n";
     std::cerr<< "-f/--out_vcf_file,                    output vcf file path,                                                  required.\n";
     std::cerr<< "-o/--out_count_file,                  output count file path,                                                required.\n";
     std::cerr<< "-w/--window_size,                     window size to scan the variants,                                      default is 15.\n";
     std::cerr<< "-y/--fully_contained,                 if this option is on. A read has to be fully contained in the region,  default is False.\n";
     // std::cerr<< "-t/--num_threads,                     number or thread used for building the count matrix,                   default is 4.\n";
     std::cerr<< "-d/--max_depth,                       maximum depth for building the count matrix,                           default is 40,000.\n";
+    std::cerr<< "-h/--min_depth,                       minimum depth for building the count matrix,                           default is 0.\n";
     std::cerr<< "-s/--include_secondary,               consider secondary alignments,                                         default is False.\n";
     std::cerr<< "-D/--filter_duplicate,                filter duplicate reads if the flag is set,                             default is False.\n";
     std::cerr<< "-Q/--filter_QCfailed,                 filter QC failed reads if the flag is set,                             default is False.\n";
@@ -60,6 +71,7 @@ namespace neusomatic {
     std::cerr<< "-F/--filter_mate_unmapped,            filter reads with unmapeed mates if the flag is set,                   default is False.\n";
     std::cerr<< "-G/--filter_improper_orientation,     filter reads with improper orientation (not FR) or different chrom,    default is False.\n";
     std::cerr<< "-A/--report_all_alleles,     report all alleles per column,    default is False.\n";
+    std::cerr<< "-C/--report_count_for_all_positions,     report counts for all positions,    default is False.\n";
   }
 
   int parseInt(const char* optarg, int lower, const char *errmsg, void (*print_help)()) {
@@ -132,11 +144,17 @@ namespace neusomatic {
         case 'q':
           opt.min_mapq() = parseInt(optarg, 0, "-q/--min_mapq must be at least 0", print_help);
           break;
+        case 'n':
+          opt.snp_min_bq() = parseInt(optarg, 0, "-n/--snp_min_bq must be at least 0", print_help);
+          break;
         case 'f':
           opt.vcf_out() = optarg;
           break;
         case 'd':
           opt.max_depth() = parseInt(optarg, 1, "-d/--max_depth must be at least 1", print_help);
+          break;
+        case 'h':
+          opt.min_depth() = parseInt(optarg, 1, "-h/--min_depth must be at least 1", print_help);
           break;
         case 'o':
           opt.count_out() = optarg;
@@ -168,8 +186,20 @@ namespace neusomatic {
         case 'A':
           opt.report_all_alleles() = true;
           break;
+        case 'C':
+          opt.report_count_for_all_positions() = true;
+          break;
         case 'a':
-          opt.min_allele_freq() = parseFloat(optarg, 0.0, 1.0, "-a/--min_af must be between 0 and 1", print_help);
+          opt.snp_min_allele_freq() = parseFloat(optarg, 0.0, 1.0, "-a/--snp_min_af must be between 0 and 1", print_help);
+          break;
+        case 'i':
+          opt.ins_min_allele_freq() = parseFloat(optarg, 0.0, 1.0, "-i/--ins_min_af must be between 0 and 1", print_help);
+          break;
+        case 'l':
+          opt.del_min_allele_freq() = parseFloat(optarg, 0.0, 1.0, "-l/--del_min_af must be between 0 and 1", print_help);
+          break;
+        case 'M':
+          opt.snp_min_ao() = parseInt(optarg, 1, "-M/--snp_min_ao must be at least 1", print_help);
           break;
         case 't':
           //opt.num_threads() = parseInt(optarg, 1, "-t/--num_threads must be at least 1", print_help);
@@ -262,8 +292,16 @@ struct Options {
     return (min_mapq_);
   }
 
+  decltype(auto) snp_min_bq() const {
+    return (snp_min_bq_);
+  }
+
   decltype(auto) min_mapq() { 
     return (min_mapq_);
+  }
+
+  decltype(auto) snp_min_bq() {
+    return (snp_min_bq_);
   }
 
   decltype(auto) calculate_qual_stat() {
@@ -274,8 +312,20 @@ struct Options {
     return (window_size_);
   }
 
-  decltype(auto) min_allele_freq() {
-    return (min_allele_freq_);
+  decltype(auto) snp_min_allele_freq() {
+    return (snp_min_allele_freq_);
+  }
+
+  decltype(auto) ins_min_allele_freq() {
+    return (ins_min_allele_freq_);
+  }
+
+  decltype(auto) del_min_allele_freq() {
+    return (del_min_allele_freq_);
+  }
+
+  decltype(auto) snp_min_ao() {
+    return (snp_min_ao_);
   }
 
   decltype(auto) fully_contained() {
@@ -284,6 +334,10 @@ struct Options {
 
   decltype(auto) max_depth() {
     return (max_depth_);
+  }
+
+  decltype(auto) min_depth() {
+    return (min_depth_);
   }
 
   decltype(auto) include_secondary() {
@@ -342,6 +396,14 @@ struct Options {
     return (report_all_alleles_);
   }
 
+  decltype(auto) report_count_for_all_positions() const {
+    return (report_count_for_all_positions_);
+  }
+
+  decltype(auto) report_count_for_all_positions() {
+    return (report_count_for_all_positions_);
+  }
+
 private:
   unsigned verbosity_ = 0;
   std::string bam_in_;
@@ -352,11 +414,16 @@ private:
   std::string ref_;
   bool calculate_qual_stat_ = false;
   bool fully_contained_ = false;
-  float min_allele_freq_ = 0.01;
+  float snp_min_allele_freq_ = 0.01;
+  float ins_min_allele_freq_ = 0.01;
+  float del_min_allele_freq_ = 0.01;
+  int snp_min_ao_ = 3;
   int min_mapq_ = 0;
+  int snp_min_bq_ = 0;
   int window_size_ = 500;
   int num_threads_ = 1;
   int max_depth_ = 5000000;
+  int min_depth_ = 0;
   bool include_secondary_ = false;
   bool filter_duplicate_ = false;
   bool filter_QCfailed_ = false;
@@ -364,6 +431,7 @@ private:
   bool filter_mate_unmapped_ = false;
   bool filter_improper_orientation_ = false;
   bool report_all_alleles_ = false;
+  bool report_count_for_all_positions_ = false;
 };
 }//namespace neusomatic
 

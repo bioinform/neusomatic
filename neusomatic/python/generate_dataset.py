@@ -18,6 +18,7 @@ import tempfile
 import numpy as np
 import pysam
 from PIL import Image
+from random import shuffle
 
 from split_bed import split_region
 from utils import concatenate_vcfs, get_chromosomes_order, run_bedtools_cmd, vcf_2_bed, bedtools_sort, bedtools_window, bedtools_intersect, bedtools_slop, get_tmp_file, skip_empty
@@ -25,6 +26,8 @@ from defaults import NUM_ENS_FEATURES, VCF_HEADER, MAT_DTYPES
 
 NUC_to_NUM_tabix = {"A": 1, "C": 2, "G": 3, "T": 4, "-": 0}
 
+
+import time
 
 def get_type(ref, alt):
     logger = logging.getLogger(get_type.__name__)
@@ -36,20 +39,28 @@ def get_type(ref, alt):
     else:
         return "SNP"
 
-
-def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad, chrom_lengths):
+def get_variant_matrix_tabix(ref_seq, count_info, record, matrix_base_pad, chrom_lengths):
     logger = logging.getLogger(get_variant_matrix_tabix.__name__)
     chrom, pos, ref, alt = record[0:4]
-    fasta_file = pysam.Fastafile(ref_file)
-    try:
-        tb = pysam.TabixFile(count_bed, parser=pysam.asTuple())
-        tabix_records = tb.fetch(
-            chrom, max(pos - matrix_base_pad, 0), min(pos + matrix_base_pad, chrom_lengths[chrom] - 2))
-    except:
-        logger.warning("No count information at {}:{}-{} for {}".format(chrom,
-                                                                        pos - matrix_base_pad, pos + matrix_base_pad, count_bed))
-        tabix_records = []
+    # logger.info("vvv-1")
+    # fasta_file = pysam.Fastafile(ref_file)
+    # logger.info("vvv-2")
+    # try:
+    #     tb = pysam.TabixFile(count_info, parser=pysam.asTuple())
+    #     tabix_records = tb.fetch(
+    #         chrom, max(pos - matrix_base_pad, 0), min(pos + matrix_base_pad, chrom_lengths[chrom] - 2))
+    # except:
+    #     logger.warning("No count information at {}:{}-{} for {}".format(chrom,
+    #                                                                     pos - matrix_base_pad, pos + matrix_base_pad, count_info))
+    #     tabix_records = []
 
+    t1=time.time()
+
+    tabix_records=[]
+    for pos_ in sorted(count_info.keys()):
+        # print([record[0:4],pos_])
+        tabix_records.extend(count_info[pos_])
+    # logger.info("vvv-3")
     matrix_ = []
     bq_matrix_ = []
     mq_matrix_ = []
@@ -60,19 +71,40 @@ def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad, chrom
     ref_array = []
     col_pos_map = {}
     cnt = 0
-    curr_pos = max(1, pos - matrix_base_pad)
+    s_pos = max(1, pos - matrix_base_pad)
+    curr_pos = s_pos
+
+    # logger.info(["rrr-11",time.time()-t1])
+    t1=time.time()
+    tabix_records=list(tabix_records)
+    # logger.info(["rrr-12",time.time()-t1])
+    # logger.info("vvv-30")
+    t1=time.time()
+    t2=time.time()
+    t0=time.time()
     for rec in tabix_records:
+        # print(rec)
+        # logger.info(["rrr-13",time.time()-t1])
+        t1=time.time()
         pos_ = int(rec[1])
         if pos_ > pos + matrix_base_pad:
+            # logger.info(["rrr-19",time.time()-t0])
+            t0=time.time()
+            t1=time.time()
             continue
         ref_base = rec[3]
         if ref_base.upper() not in "ACGT-":
             ref_base = "-"
         if pos_ in col_pos_map and ref_base != "-":
+            # logger.info(["rrr-19",time.time()-t0])
+            t0=time.time()
+            t1=time.time()
             continue
         if pos_ > (curr_pos):
-            refs = fasta_file.fetch(
-                chrom, curr_pos - 1, pos_ - 1).upper().replace("N", "-")
+            # refs = fasta_file.fetch(
+            #     chrom, curr_pos - 1, pos_ - 1).upper().replace("N", "-")
+            refs = ref_seq[curr_pos-s_pos:pos_-s_pos]
+
             for i in range(curr_pos, pos_):
                 ref_base_ = refs[i - curr_pos]
                 if ref_base_.upper() not in "ACGT-":
@@ -91,9 +123,12 @@ def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad, chrom
                     col_pos_map[i] = cnt
                 cnt += 1
             curr_pos = pos_
+        # logger.info(["rrr-14",time.time()-t1])
+        t1=time.time()
         if pos_ == (curr_pos) and ref_base == "-" and pos_ not in col_pos_map:
-            ref_base_ = fasta_file.fetch(
-                chrom, pos_ - 1, pos_).upper().replace("N", "-")
+            # ref_base_ = fasta_file.fetch(
+            #     chrom, pos_ - 1, pos_).upper().replace("N", "-")
+            ref_base_ = ref_seq[pos_-s_pos:pos_-s_pos+1]
             if ref_base_.upper() not in "ACGT-":
                 ref_base_ = "-"
             matrix_.append([0, 0, 0, 0, 0])
@@ -110,6 +145,10 @@ def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad, chrom
                 col_pos_map[pos_] = cnt
                 cnt += 1
             curr_pos = pos_ + 1
+        # logger.info(["rrr-15",time.time()-t1])
+        # logger.info(["rrr-19",time.time()-t0])
+        t0=time.time()
+        t1=time.time()
         matrix_.append(list(map(int, rec[4].split(":"))))
         bq_matrix_.append(list(map(int, rec[5].split(":"))))
         mq_matrix_.append(list(map(int, rec[6].split(":"))))
@@ -123,12 +162,16 @@ def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad, chrom
             col_pos_map[pos_] = cnt
         cnt += 1
         curr_pos = pos_ + 1
+        # logger.info(["rrr-16",time.time()-t1])
+        t1=time.time()
 
+    # logger.info("vvv-32")
     end_pos = min(pos + matrix_base_pad, chrom_lengths[chrom] - 2)
 
     if curr_pos < pos + matrix_base_pad + 1:
-        refs = fasta_file.fetch(
-            chrom, curr_pos - 1, end_pos).upper().replace("N", "-")
+        # refs = fasta_file.fetch(
+        #     chrom, curr_pos - 1, end_pos).upper().replace("N", "-")
+        refs = ref_seq[curr_pos-s_pos:end_pos-s_pos+1]
         for i in range(curr_pos, end_pos + 1):
             ref_base_ = refs[i - curr_pos]
             if ref_base_.upper() not in "ACGT-":
@@ -148,6 +191,11 @@ def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad, chrom
             cnt += 1
         curr_pos = end_pos + 1
 
+    # logger.info(["rrr-18",time.time()-t2])
+
+    t1=time.time()
+
+
     matrix_ = np.array(matrix_).transpose()
     bq_matrix_ = np.array(bq_matrix_).transpose()
     mq_matrix_ = np.array(mq_matrix_).transpose()
@@ -158,8 +206,210 @@ def get_variant_matrix_tabix(ref_file, count_bed, record, matrix_base_pad, chrom
         tag_matrices_[iii] = np.array(tag_matrices_[iii]).transpose()
 
     ref_array = np.array(ref_array)
+    # logger.info(["vvv-4",matrix_.shape])
+
+    # logger.info(["rrr-17",time.time()-t1])
+
     return matrix_, bq_matrix_, mq_matrix_, st_matrix_, lsc_matrix_, rsc_matrix_, tag_matrices_, ref_array, col_pos_map
 
+
+
+# def get_variant_matrix_tabix(ref_seq, count_info, record, matrix_base_pad, chrom_lengths):
+#     logger = logging.getLogger(get_variant_matrix_tabix.__name__)
+#     chrom, pos, ref, alt = record[0:4]
+#     # logger.info("vvv-1")
+#     # fasta_file = pysam.Fastafile(ref_file)
+#     # logger.info("vvv-2")
+#     # try:
+#     #     tb = pysam.TabixFile(count_info, parser=pysam.asTuple())
+#     #     tabix_records = tb.fetch(
+#     #         chrom, max(pos - matrix_base_pad, 0), min(pos + matrix_base_pad, chrom_lengths[chrom] - 2))
+#     # except:
+#     #     logger.warning("No count information at {}:{}-{} for {}".format(chrom,
+#     #                                                                     pos - matrix_base_pad, pos + matrix_base_pad, count_info))
+#     #     tabix_records = []
+
+#     t1=time.time()
+
+#     tabix_records=[]
+#     for pos_ in sorted(count_info.keys()):
+#         # print([record[0:4],pos_])
+#         tabix_records.extend(count_info[pos_])
+#     # logger.info("vvv-3")
+#     ref_array = []
+#     col_pos_map = {}
+#     cnt = 0
+#     s_pos = max(1, pos - matrix_base_pad)
+#     curr_pos = s_pos
+
+#     # logger.info(["rrr-11",time.time()-t1])
+#     t1=time.time()
+#     tabix_records=list(tabix_records)
+#     # logger.info(["rrr-12",time.time()-t1])
+#     # logger.info("vvv-30")
+#     t1=time.time()
+#     t2=time.time()
+#     t0=time.time()
+#     z_s={}
+#     z_e=0
+#     n_=0
+#     for i_rec, rec in enumerate(tabix_records):
+#         z_s[i_rec]=[0,-1]
+#         # print(rec)
+#         # logger.info(["rrr-13",time.time()-t1])
+#         t1=time.time()
+#         pos_ = int(rec[1])
+#         if pos_ > pos + matrix_base_pad:
+#             # logger.info(["rrr-19",time.time()-t0])
+#             t0=time.time()
+#             t1=time.time()
+#             continue
+#         ref_base = rec[3]
+#         if ref_base.upper() not in "ACGT-":
+#             ref_base = "-"
+#         if pos_ in col_pos_map and ref_base != "-":
+#             # logger.info(["rrr-19",time.time()-t0])
+#             t0=time.time()
+#             t1=time.time()
+#             continue
+#         if pos_ > (curr_pos):
+#             # refs = fasta_file.fetch(
+#             #     chrom, curr_pos - 1, pos_ - 1).upper().replace("N", "-")
+#             refs = ref_seq[curr_pos-s_pos:pos_-s_pos]
+
+#             for i in range(curr_pos, pos_):
+#                 ref_base_ = refs[i - curr_pos]
+#                 if ref_base_.upper() not in "ACGT-":
+#                     ref_base_ = "-"
+#                 # G.append([0, 0, 0, 0, 0])
+#                 # bq_G.append([0, 0, 0, 0, 0])
+#                 # mq_matrix_.append([0, 0, 0, 0, 0])
+#                 # st_matrix_.append([0, 0, 0, 0, 0])
+#                 # lsc_matrix_.append([0, 0, 0, 0, 0])
+#                 # rsc_matrix_.append([0, 0, 0, 0, 0])
+#                 # for iii in range(len(tag_matrices_)):
+#                 #     tag_matrices_[iii].append([0, 0, 0, 0, 0])
+#                 z_s[i_rec][0]+=1
+#                 n_ += 1
+#                 ref_array.append(NUC_to_NUM_tabix[ref_base_])
+#                 # if ref_base_ != "-" and i not in col_pos_map:
+#                 if i not in col_pos_map:
+#                     col_pos_map[i] = cnt
+#                 cnt += 1
+#             curr_pos = pos_
+#         # logger.info(["rrr-14",time.time()-t1])
+#         t1=time.time()
+#         if pos_ == (curr_pos) and ref_base == "-" and pos_ not in col_pos_map:
+#             # ref_base_ = fasta_file.fetch(
+#             #     chrom, pos_ - 1, pos_).upper().replace("N", "-")
+#             ref_base_ = ref_seq[pos_-s_pos:pos_-s_pos+1]
+#             if ref_base_.upper() not in "ACGT-":
+#                 ref_base_ = "-"
+#             # matrix_.append([0, 0, 0, 0, 0])
+#             # bq_matrix_.append([0, 0, 0, 0, 0])
+#             # mq_matrix_.append([0, 0, 0, 0, 0])
+#             # st_matrix_.append([0, 0, 0, 0, 0])
+#             # lsc_matrix_.append([0, 0, 0, 0, 0])
+#             # rsc_matrix_.append([0, 0, 0, 0, 0])
+#             # for iii in range(len(tag_matrices_)):
+#             #     tag_matrices_[iii].append([0, 0, 0, 0, 0])
+#             z_s[i_rec][0]+=1
+#             n_ += 1
+#             ref_array.append(NUC_to_NUM_tabix[ref_base_])
+#             # if ref_base_ != "-" and pos_ not in col_pos_map:
+#             if pos_ not in col_pos_map:
+#                 col_pos_map[pos_] = cnt
+#                 cnt += 1
+#             curr_pos = pos_ + 1
+#         # logger.info(["rrr-15",time.time()-t1])
+#         # logger.info(["rrr-19",time.time()-t0])
+#         t0=time.time()
+#         t1=time.time()
+#         z_s[i_rec][1]=n_  
+#         n_ += 1      
+#         # matrix_.append(list(map(int, rec[4].split(":"))))
+#         # bq_matrix_.append(list(map(int, rec[5].split(":"))))
+#         # mq_matrix_.append(list(map(int, rec[6].split(":"))))
+#         # st_matrix_.append(list(map(int, rec[7].split(":"))))
+#         # lsc_matrix_.append(list(map(int, rec[8].split(":"))))
+#         # rsc_matrix_.append(list(map(int, rec[9].split(":"))))
+#         # for iii in range(len(tag_matrices_)):
+#         #     tag_matrices_[iii].append(list(map(int, rec[10 + iii].split(":"))))
+#         ref_array.append(NUC_to_NUM_tabix[ref_base])
+#         if ref_base != "-" and pos_ not in col_pos_map:
+#             col_pos_map[pos_] = cnt
+#         cnt += 1
+#         curr_pos = pos_ + 1
+#         # logger.info(["rrr-16",time.time()-t1])
+#         t1=time.time()
+
+
+#     # logger.info("vvv-32")
+#     end_pos = min(pos + matrix_base_pad, chrom_lengths[chrom] - 2)
+
+#     if curr_pos < pos + matrix_base_pad + 1:
+#         # refs = fasta_file.fetch(
+#         #     chrom, curr_pos - 1, end_pos).upper().replace("N", "-")
+#         refs = ref_seq[curr_pos-s_pos:end_pos-s_pos+1]
+#         for i in range(curr_pos, end_pos + 1):
+#             ref_base_ = refs[i - curr_pos]
+#             if ref_base_.upper() not in "ACGT-":
+#                 ref_base_ = "-"
+#             # matrix_.append([0, 0, 0, 0, 0])
+#             # bq_matrix_.append([0, 0, 0, 0, 0])
+#             # mq_matrix_.append([0, 0, 0, 0, 0])
+#             # st_matrix_.append([0, 0, 0, 0, 0])
+#             # lsc_matrix_.append([0, 0, 0, 0, 0])
+#             # rsc_matrix_.append([0, 0, 0, 0, 0])
+#             # for iii in range(len(tag_matrices_)):
+#             #     tag_matrices_[iii].append([0, 0, 0, 0, 0])
+#             n_ += 1
+#             z_e += 1
+#             ref_array.append(NUC_to_NUM_tabix[ref_base_])
+#             # if ref_base_ != "-" and i not in col_pos_map:
+#             if i not in col_pos_map:
+#                 col_pos_map[i] = cnt
+#             cnt += 1
+#         curr_pos = end_pos + 1
+
+#     # logger.info(["rrr-18",time.time()-t2])
+#     t1=time.time()
+
+#     matrix_ = np.zeros((5,n_))
+#     bq_matrix_ = np.zeros((5,n_))
+#     mq_matrix_ = np.zeros((5,n_))
+#     st_matrix_ = np.zeros((5,n_))
+#     lsc_matrix_ = np.zeros((5,n_))
+#     rsc_matrix_ = np.zeros((5,n_))
+#     tag_matrices_ = [np.zeros((5,n_)), np.zeros((5,n_)), np.zeros((5,n_)), np.zeros((5,n_)), np.zeros((5,n_))]
+
+#     # logger.info(["rrr-21",time.time()-t1])
+#     t1=time.time()
+
+
+#     for i in sorted(z_s.keys()):
+#         if z_s[i][1]>=0:
+#             rec=tabix_records[i]
+#             matrix_[:,z_s[i][1]]=[int(x) for x in rec[4].split(":")]
+#             bq_matrix_[:,z_s[i][1]]=[int(x) for x in rec[5].split(":")]
+#             mq_matrix_[:,z_s[i][1]]=[int(x) for x in rec[6].split(":")]
+#             st_matrix_[:,z_s[i][1]]=[int(x) for x in rec[7].split(":")]
+#             lsc_matrix_[:,z_s[i][1]]=[int(x) for x in rec[8].split(":")]
+#             rsc_matrix_[:,z_s[i][1]]=[int(x) for x in rec[9].split(":")]
+#             for iii in range(len(tag_matrices_)):
+#                 tag_matrices_[iii][:,z_s[i][1]]=[int(x) for x in rec[10 + iii].split(":")]
+
+#     # logger.info(["rrr-20",time.time()-t1])
+#     t1=time.time()
+
+#     st_matrix_ = (st_matrix_ / 100.0) * matrix_
+
+#     ref_array = np.array(ref_array)
+#     # logger.info(["vvv-4",matrix_.shape])
+
+#     # logger.info(["rrr-17",time.time()-t1])
+
+#     return matrix_, bq_matrix_, mq_matrix_, st_matrix_, lsc_matrix_, rsc_matrix_, tag_matrices_, ref_array, col_pos_map
 
 def align_tumor_normal_matrices(record, tumor_matrix_, bq_tumor_matrix_, mq_tumor_matrix_, st_tumor_matrix_,
                                 lsc_tumor_matrix_, rsc_tumor_matrix_,
@@ -293,21 +543,27 @@ def align_tumor_normal_matrices(record, tumor_matrix_, bq_tumor_matrix_, mq_tumo
             new_tumor_col_pos_map]
 
 
-def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, record, rlen, rcenter,
+def prepare_info_matrices_tabix(ref_seq, tumor_count_info, normal_count_info, record, rlen, rcenter,
                                 matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, chrom_lengths):
     logger = logging.getLogger(prepare_info_matrices_tabix.__name__)
 
     chrom, pos, ref, alt = record[0:4]
 
+    t1=time.time()
+    # logger.info("ttt-1")
     tumor_matrix_, bq_tumor_matrix_, mq_tumor_matrix_, st_tumor_matrix_, lsc_tumor_matrix_, rsc_tumor_matrix_, tag_tumor_matrices_, tumor_ref_array, tumor_col_pos_map = get_variant_matrix_tabix(
-        ref_file, tumor_count_bed, record, matrix_base_pad, chrom_lengths)
+        ref_seq, tumor_count_info, record, matrix_base_pad, chrom_lengths)
     normal_matrix_, bq_normal_matrix_, mq_normal_matrix_, st_normal_matrix_, lsc_normal_matrix_, rsc_normal_matrix_, tag_normal_matrices_, normal_ref_array, normal_col_pos_map = get_variant_matrix_tabix(
-        ref_file, normal_count_bed, record, matrix_base_pad, chrom_lengths)
+        ref_seq, normal_count_info, record, matrix_base_pad, chrom_lengths)
+
+    # logger.info(["rrr-8",time.time()-t1])
+    t1=time.time()
 
     if not tumor_col_pos_map:
         logger.warning("Skip {} for all N reference".format(record))
         return None
 
+    # logger.info("ttt-2")
     bq_tumor_matrix_[0, np.where(tumor_matrix_.sum(0) == 0)[
         0]] = np.max(bq_tumor_matrix_)
     bq_normal_matrix_[0, np.where(normal_matrix_.sum(0) == 0)[
@@ -335,6 +591,7 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
         tag_normal_matrices_[iii][0, np.where(normal_matrix_.sum(0) == 0)[
             0]] = np.max(tag_normal_matrices_[iii])
 
+    # logger.info("ttt-3")
     tumor_matrix_[0, np.where(tumor_matrix_.sum(0) == 0)[
         0]] = max(np.sum(tumor_matrix_, 0))
     normal_matrix_[0, np.where(normal_matrix_.sum(0) == 0)[
@@ -349,6 +606,8 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
         for iii in range(len(tag_normal_matrices_)):
             tag_normal_matrices_[iii][0, :] = np.max(tag_normal_matrices_[iii])
 
+    # logger.info("ttt-4")
+
     tumor_matrix_, bq_tumor_matrix_, mq_tumor_matrix_, st_tumor_matrix_, lsc_tumor_matrix_, rsc_tumor_matrix_, \
         tag_tumor_matrices_, normal_matrix_, bq_normal_matrix_, mq_normal_matrix_, st_normal_matrix_, \
         lsc_normal_matrix_, rsc_normal_matrix_, tag_normal_matrices_, \
@@ -357,6 +616,9 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
             tag_tumor_matrices_, tumor_ref_array, tumor_col_pos_map, normal_matrix_,
             bq_normal_matrix_, mq_normal_matrix_, st_normal_matrix_, lsc_normal_matrix_, rsc_normal_matrix_, tag_normal_matrices_,
             normal_ref_array, normal_col_pos_map)
+
+    # logger.info(["rrr-9",time.time()-t1])
+    t1=time.time()
 
     tw = int(matrix_width)
     count_column = sum(tumor_matrix_[1:], 0)
@@ -561,6 +823,10 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
         center = min(max(0, min(col_pos_map.values()) +
                          rcenter[0] - 1 + rcenter[1]), ref_count_matrix.shape[1] - 1)
 
+    # logger.info("ttt-9")
+
+    # logger.info(["rrr-10",time.time()-t1])
+
     return [tumor_matrix_, tumor_matrix, normal_matrix_, normal_matrix, ref_count_matrix, tumor_count_matrix,
             bq_tumor_count_matrix, mq_tumor_count_matrix, st_tumor_count_matrix, lsc_tumor_count_matrix, rsc_tumor_count_matrix,
             tag_tumor_count_matrices, normal_count_matrix, bq_normal_count_matrix, mq_normal_count_matrix,
@@ -570,17 +836,21 @@ def prepare_info_matrices_tabix(ref_file, tumor_count_bed, normal_count_bed, rec
 
 def prep_data_single_tabix(input_record):
 
-    ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order, \
-        matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths, matrix_dtype = input_record
+    ref_seq, tumor_count_info, normal_count_info, record, vartype, rlen, rcenter, ch_order, \
+        matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths, matrix_dtype, is_none = input_record
 
     thread_logger = logging.getLogger(
         "{} ({})".format(prep_data_single_tabix.__name__, multiprocessing.current_process().name))
     try:
         chrom, pos, ref, alt = record[:4]
         pos = int(pos)
-        matrices_info = prepare_info_matrices_tabix(ref_file=ref_file,
-                                                    tumor_count_bed=tumor_count_bed,
-                                                    normal_count_bed=normal_count_bed, record=record, rlen=rlen, rcenter=rcenter,
+        # thread_logger.info("prep-1")
+
+        t1=time.time()
+
+        matrices_info = prepare_info_matrices_tabix(ref_seq=ref_seq,
+                                                    tumor_count_info=tumor_count_info,
+                                                    normal_count_info=normal_count_info, record=record, rlen=rlen, rcenter=rcenter,
                                                     matrix_base_pad=matrix_base_pad, matrix_width=matrix_width,
                                                     min_ev_frac_per_col=min_ev_frac_per_col,
                                                     min_cov=min_cov,
@@ -593,6 +863,11 @@ def prep_data_single_tabix(input_record):
         else:
             return []
 
+
+        # thread_logger.info(["rrr-6",time.time()-t1])
+        t1=time.time()
+
+        # thread_logger.info("prep-2")
         candidate_mat = np.zeros((tumor_count_matrix.shape[0], tumor_count_matrix.shape[
                                  1], 13 + (len(tag_tumor_count_matrices) * 2)))
         candidate_mat[:, :, 0] = ref_count_matrix
@@ -655,6 +930,7 @@ def prep_data_single_tabix(input_record):
             candidate_mat[:, :, 13 + (iii * 2) + 1] = candidate_mat[:, :, 13 + (
                 iii * 2) + 1] / (max(np.max(tag_normal_count_matrices[iii]), 100.0)) * max_norm
 
+        # thread_logger.info("prep-3")
         if matrix_dtype == "uint8":
             candidate_mat = np.maximum(0, np.minimum(
                 candidate_mat, max_norm)).astype(np.uint8)
@@ -667,9 +943,15 @@ def prep_data_single_tabix(input_record):
             raise Exception
         tag = "{}.{}.{}.{}.{}.{}.{}.{}.{}".format(ch_order, pos, ref[0:55], alt[
                                                   0:55], vartype, center, rlen, tumor_cov, normal_cov)
+        # thread_logger.info("prep-4")
         candidate_mat = base64.b64encode(
             zlib.compress(candidate_mat)).decode('ascii')
-        return tag, candidate_mat, record[0:4], ann
+        # thread_logger.info("prep-5")
+
+        # thread_logger.info(["rrr-7",time.time()-t1])
+
+
+        return tag, candidate_mat, record[0:4], ann, is_none
     except Exception as ex:
         thread_logger.error(traceback.format_exc())
         thread_logger.error(ex)
@@ -943,7 +1225,7 @@ def find_records(input_record):
             keep_in_region(input_file=tmp_, region_bed=split_region_file,
                            output_fn=split_ensemble_bed_file)
             tmp_ = bedtools_window(
-                split_ensemble_bed_file, split_pred_vcf_file, args=" -w 5 -v", run_logger=thread_logger)
+                split_ensemble_bed_file, split_pred_vcf_file, args=" -w 1 -v", run_logger=thread_logger)
 
             vcf_2_bed(tmp_, split_missed_ensemble_bed_file, add_fields=[".",
                                                                         ".", ".", ".", "."])
@@ -1642,6 +1924,92 @@ def extract_ensemble(ensemble_tsvs, ensemble_bed, no_seq_complexity, enforce_hea
             f_.write("\t".join(map(str, ensemble_pos[i] + s)) + "\n")
     return ensemble_bed
 
+def chunks(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
+
+
+def parallel_generation(inputs):                    
+    map_args, matrix_base_pad, chrom_lengths, tumor_count_bed, normal_count_bed = inputs
+
+    thread_logger = logging.getLogger(
+        "{} ({})".format(parallel_generation.__name__, multiprocessing.current_process().name))
+    try:
+        chrom_pos={}
+        for w in map_args:
+            record = w[3]
+            chrom = record[0]
+            pos = int(record[1])
+            s_pos = max(1, pos - matrix_base_pad)
+            e_pos = min(pos + matrix_base_pad, chrom_lengths[chrom] - 2)
+            if chrom not in chrom_pos:
+                chrom_pos[chrom] = [s_pos, e_pos]
+            else:
+                chrom_pos[chrom] = [min(s_pos,chrom_pos[chrom][0]), max(e_pos,chrom_pos[chrom][1])]
+        thread_logger.info(chrom_pos)
+
+        # thread_logger.info("Gener-7")
+        tb_tumor = pysam.TabixFile(tumor_count_bed, parser=pysam.asTuple())
+        tb_normal = pysam.TabixFile(normal_count_bed, parser=pysam.asTuple())
+
+        tumor_tabix_records_dict={}
+        normal_tabix_records_dict={}
+        for chrom in chrom_pos:
+            t2=time.time()
+            tumor_tabix_records_dict[chrom]={}
+            normal_tabix_records_dict[chrom]={}
+            try:
+                tumor_tabix_records = list(tb_tumor.fetch(chrom,chrom_pos[chrom][0]-1,chrom_pos[chrom][1]))
+            except:
+                thread_logger.warning("No count information at {} for {}:{}-{}".format(tumor_count_bed,chrom,chrom_pos[chrom][0]-1,chrom_pos[chrom][1]))
+                tumor_tabix_records = []
+            try:
+                normal_tabix_records = list(tb_normal.fetch(chrom,chrom_pos[chrom][0]-1,chrom_pos[chrom][1]))
+            except:
+                thread_logger.warning("No count information at {} for {}:{}-{}".format(normal_count_bed,chrom,chrom_pos[chrom][0]-1,chrom_pos[chrom][1]))
+                normal_tabix_records = []
+            # thread_logger.info(["ffff-1",time.time()-t2])
+            t2=time.time()
+
+            for x in tumor_tabix_records:
+                pos = int(x[1])
+                if pos not in tumor_tabix_records_dict[chrom]:            
+                    tumor_tabix_records_dict[chrom][pos]=[]
+                tumor_tabix_records_dict[chrom][pos].append(list(x))
+            for x in normal_tabix_records:
+                pos = int(x[1])
+                if pos not in normal_tabix_records_dict[chrom]:            
+                    normal_tabix_records_dict[chrom][pos]=[]
+                normal_tabix_records_dict[chrom][pos].append(list(x))
+            # thread_logger.info(["ffff-2",time.time()-t2])
+            t2=time.time()
+            del tumor_tabix_records, normal_tabix_records
+            # thread_logger.info(["ffff-3",time.time()-t2])
+
+        # thread_logger.info(["Gener-8",len(map_args)])
+
+        records_done=[]
+        for w in map_args:
+            record = w[3]
+            chrom = record[0]
+            pos = int(record[1])
+            s_pos = max(1, pos - matrix_base_pad)
+            e_pos = min(pos + matrix_base_pad, chrom_lengths[chrom] - 2)
+            tumor_counts ={x_pos:tumor_tabix_records_dict[chrom][x_pos]  for x_pos in range(s_pos,e_pos+1) if x_pos in tumor_tabix_records_dict[chrom]}
+            normal_counts ={x_pos:normal_tabix_records_dict[chrom][x_pos]  for x_pos in range(s_pos,e_pos+1) if x_pos in normal_tabix_records_dict[chrom]}
+            w[1] = tumor_counts
+            w[2] = normal_counts
+            o=prep_data_single_tabix(w)
+            if o is None:
+                aaaa
+            records_done.append(o)
+        return records_done
+    except Exception as ex:
+        thread_logger.error(traceback.format_exc())
+        thread_logger.error(ex)
+        return None
 
 def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_bed_file, tumor_count_bed, normal_count_bed, ref_file,
                      matrix_width, matrix_base_pad, min_ev_frac_per_col, min_cov, num_threads, ensemble_tsv,
@@ -1655,6 +2023,10 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     logger = logging.getLogger(generate_dataset.__name__)
 
     logger.info("---------------------Generate Dataset----------------------")
+    logger.info(tumor_count_bed)
+
+    t1=time.time()
+    # logger.info("Gener-0")
 
     if not os.path.exists(work):
         os.mkdir(work)
@@ -1700,7 +2072,9 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     logger.info("len_candids: {}".format(len_candids))
     num_splits = max(len_candids // split_batch_size, num_threads)
     split_region_files = split_region(
-        work, region_bed_file, num_splits, shuffle_intervals=True)
+        work, region_bed_file, num_splits, 
+        shuffle_intervals=False
+        )
 
     fasta_file = pysam.Fastafile(ref_file)
     chrom_lengths = dict(zip(fasta_file.references, fasta_file.lengths))
@@ -1715,24 +2089,33 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
             x = i_f.readline().strip().split()
             if x:
                 num_ens_features = len(x) - 5
+    
+    # logger.info(["rrr-1",time.time()-t1])
+    t1 = time.time()
 
-    pool = multiprocessing.Pool(num_threads)
+    # logger.info("Gener-1")
     map_args = []
     for i, split_region_file in enumerate(split_region_files):
         map_args.append((work, split_region_file, truth_vcf_file,
                          tumor_pred_vcf_file, ref_file, ensemble_bed, num_ens_features, strict_labeling, i))
-    try:
-        records_data = pool.map_async(find_records, map_args).get()
-        pool.close()
-    except Exception as inst:
-        logger.error(inst)
-        pool.close()
-        traceback.print_exc()
-        raise Exception
-
+    if num_threads == 1:
+        records_data = []
+        for w in map_args:
+            records_data.append(find_records(w))
+    else:
+        pool = multiprocessing.Pool(num_threads)
+        try:
+            records_data = pool.map_async(find_records, map_args).get()
+            pool.close()
+        except Exception as inst:
+            logger.error(inst)
+            pool.close()
+            traceback.print_exc()
+            raise Exception
     for o in records_data:
         if o is None:
             raise Exception("find_records failed!")
+
 
     none_vcf = "{}/none.vcf".format(work)
     var_vcf = "{}/var.vcf".format(work)
@@ -1743,12 +2126,14 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     for records_r, none_records, vtype, record_len, record_center, chroms_order, anns in records_data:
         total_ims += len(records_r) + len(none_records)
 
+    # logger.info("Gener-2")
     candidates_split = int(total_ims // tsv_batch_size) + 1
     is_split = total_ims // candidates_split
     with open(var_vcf, "w") as vv, open(none_vcf, "w") as nv:
         is_current = 0
         is_ = -1
         while is_ < candidates_split:
+            # logger.info("Gener-3")
             is_ += 1
             cnt = -1
             if is_ < candidates_split - 1:
@@ -1759,96 +2144,78 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
             logger.info("Write {}/{} split to {} for cnts ({}..{})/{}".format(
                 is_ + 1, candidates_split, candidates_tsv_file, is_current,
                 is_end, total_ims))
-            pool = multiprocessing.Pool(num_threads)
             map_args_records = []
-            map_args_nones = []
             for records_r, none_records, vtype, record_len, record_center, chroms_order, anns in records_data:
-                if len(records_r) + cnt < is_current:
-                    cnt += len(records_r)
+                if len(records_r) + len(none_records) + cnt < is_current:
+                    cnt += len(records_r)+len(none_records)
                 else:
-                    for record in records_r:
-                        cnt += 1
-                        if is_current <= cnt < is_end:
-                            vartype = vtype[int(record[-1])]
-                            rlen = record_len[int(record[-1])]
-                            rcenter = record_center[int(record[-1])]
-                            ch_order = chroms_order[record[0]]
-                            ann = list(anns[int(record[-1])]
-                                       ) if ensemble_bed else []
-                            map_args_records.append((ref_file, tumor_count_bed, normal_count_bed, record, vartype, rlen, rcenter, ch_order,
-                                                     matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths, matrix_dtype))
-                        if cnt >= is_end:
-                            break
+                    for is_none, records in [[False, records_r],[True,none_records]]:
+                        for record in records:
+                            cnt += 1
+                            if is_current <= cnt < is_end:
+                                vartype = vtype[int(record[-1])] if not is_none else "NONE"
+                                rlen = record_len[int(record[-1])] if not is_none else 0
+                                rcenter = record_center[int(record[-1])]
+                                ch_order = chroms_order[record[0]]
+                                ann = list(anns[int(record[-1])]
+                                           ) if ensemble_bed else []
+                                
+                                chrom, pos = record[0:2]
+                                pos = int(pos)
+                                s_pos = max(1, pos - matrix_base_pad)
+                                e_pos = min(pos + matrix_base_pad, chrom_lengths[chrom] - 2)
+                                ref_seq = fasta_file.fetch(chrom, s_pos-1, e_pos).upper().replace("N", "-")
+
+                                map_args_records.append([ref_seq, None, None, record, vartype, rlen, rcenter, ch_order,
+                                                         matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths, matrix_dtype, is_none])
+                            if cnt >= is_end:
+                                break
                     if cnt >= is_end:
                         break
                 if cnt >= is_end:
                     break
 
-                if len(none_records) + cnt < is_current:
-                    cnt += len(none_records)
-                else:
-                    for record in none_records:
-                        cnt += 1
-                        if is_current <= cnt < is_end:
-                            rcenter = record_center[int(record[-1])]
-                            ch_order = chroms_order[record[0]]
-                            ann = list(anns[int(record[-1])]
-                                       ) if ensemble_bed else []
-                            map_args_nones.append((ref_file, tumor_count_bed, normal_count_bed, record, "NONE",
-                                                   0, rcenter, ch_order,
-                                                   matrix_base_pad, matrix_width, min_ev_frac_per_col, min_cov, ann, chrom_lengths, matrix_dtype))
-                        if cnt >= is_end:
-                            break
-                    if cnt >= is_end:
-                        break
-                if cnt >= is_end:
-                    break
-            try:
-                records_done = pool.map_async(
-                    prep_data_single_tabix, map_args_records).get()
-                pool.close()
-            except Exception as inst:
-                logger.error(inst)
-                pool.close()
-                traceback.print_exc()
-                raise Exception
+            # logger.info("Gener-4")
 
-            for o in records_done:
-                if o is None:
-                    raise Exception("prep_data_single_tabix failed!")
+            len_records = len(map_args_records)
+            records_done = []
+            if len_records>0:
+                # logger.info("Gener-9")
+                if num_threads == 1:
+                    records_done_ = [parallel_generation([map_args_records, matrix_base_pad, chrom_lengths, tumor_count_bed, normal_count_bed])]
+                else: 
+                    pool = multiprocessing.Pool(num_threads)
+                    try:
+                        split_len=max(1,len_records//num_threads)
+                        records_done_ = pool.map_async(
+                            parallel_generation, [[map_args_records[i_split:i_split+(split_len)],matrix_base_pad, chrom_lengths, tumor_count_bed, normal_count_bed] 
+                            for   i_split in range(0, len_records, split_len)]).get()
+                        pool.close()
+                    except Exception as inst:
+                        logger.error(inst)
+                        pool.close()
+                        traceback.print_exc()
+                        raise Exception
 
-            pool = multiprocessing.Pool(num_threads)
-            try:
-                none_records_done = pool.map_async(
-                    prep_data_single_tabix, map_args_nones).get()
-                pool.close()
-            except Exception as inst:
-                logger.error(inst)
-                pool.close()
-                traceback.print_exc()
-                raise Exception
+                for o in records_done_:
+                    if o is None:
+                        raise Exception("parallel_generation failed!")
+                    records_done.extend(o)
 
-            for o in none_records_done:
-                if o is None:
-                    raise Exception("prep_data_single_tabix failed!")
-
+            shuffle(records_done)
+            # logger.info("Gener-10")
             cnt_ims = 0
             tsv_idx = []
             with open(candidates_tsv_file, "w") as b_o:
                 for x in records_done:
                     if x:
-                        tag, compressed_candidate_mat, record, ann = x
-                        vv.write("\t".join([record[0], str(record[1]), ".", record[2], record[
-                                 3], ".", ".", "TAG={};".format(tag), ".", "."]) + "\n")
-                        tsv_idx.append(b_o.tell())
-                        b_o.write("\t".join([str(cnt_ims), "1", tag, compressed_candidate_mat] + list(map(
-                            lambda x: str(np.round(x, 4)), ann))) + "\n")
-                        cnt_ims += 1
-                for x in none_records_done:
-                    if x:
-                        tag, compressed_candidate_mat, record, ann = x
-                        nv.write("\t".join([record[0], str(record[1]), ".", record[2], record[
-                                 3], ".", ".", "TAG={};".format(tag), ".", "."]) + "\n")
+                        tag, compressed_candidate_mat, record, ann, is_none = x
+                        if not is_none:
+                            vv.write("\t".join([record[0], str(record[1]), ".", record[2], record[
+                                     3], ".", ".", "TAG={};".format(tag), ".", "."]) + "\n")
+                        else:
+                            nv.write("\t".join([record[0], str(record[1]), ".", record[2], record[
+                                     3], ".", ".", "TAG={};".format(tag), ".", "."]) + "\n")
                         tsv_idx.append(b_o.tell())
                         b_o.write("\t".join([str(cnt_ims), "1", tag, compressed_candidate_mat] + list(map(
                             lambda x: str(np.round(x, 4)), ann))) + "\n")
@@ -1862,8 +2229,13 @@ def generate_dataset(work, truth_vcf_file, mode,  tumor_pred_vcf_file, region_be
     with open(done_flag, "w") as d_f:
         d_f.write("Done")
 
+    # logger.info(["rrr-4",time.time()-t1])
+    t1 = time.time()
+
     shutil.rmtree(bed_tempdir)
     tempfile.tempdir = original_tempdir
+
+    # logger.info(["rrr-5",time.time()-t1])
 
     logger.info("Generating dataset is Done.")
 

@@ -23,9 +23,71 @@ from utils import concatenate_files, run_shell_command, bedtools_sort, bedtools_
 from split_bed import split_region
 
 
+def split_my_region(work, region_bed, num_threads, num_splits, reference, window_size, restart):
+    logger = logging.getLogger(split_my_region.__name__)
+    split_region_files = []
+    work_regions = os.path.join(work, "regions")
+    if not os.path.exists(work_regions):
+        os.mkdir(work_regions)
+
+    split_len_ratio = 0.98
+    if region_bed:
+        tmp_regions_bed = get_tmp_file()
+        with open(region_bed) as i_f, open(tmp_regions_bed, "w") as o_f:
+            for line in skip_empty(i_f):
+                chrom, st, en = line.strip().split()[0:3]
+                o_f.write("\t".join([chrom, st, en]) + "\n")
+        tmp_regions_bed = bedtools_sort(tmp_regions_bed, run_logger=logger)
+        tmp_regions_bed = bedtools_merge(
+            tmp_regions_bed, args=" -d 0", run_logger=logger)
+    else:
+        tmp_regions_bed = get_tmp_file()
+        with pysam.FastaFile(reference) as ref_file:
+            with open(tmp_regions_bed, "w") as tmpfile:
+                for chrom, length in zip(ref_file.references, ref_file.lengths):
+                    tmpfile.write("{}\t{}\t{}\t.\t.\t.\n".format(
+                        chrom, 1, length - 1))
+
+    total_len = 0
+    with open(tmp_regions_bed) as r_f:
+        for line in skip_empty(r_f):
+            chrom, st, en = line.strip().split("\t")[0:3]
+            total_len += int(en) - int(st) + 1
+    if not restart:
+        split_region_files = glob.glob(
+            os.path.join(work_regions, "region_*.bed"))
+        spilt_total_len = 0
+        for split_file in split_region_files:
+            with open(split_file) as s_f:
+                for line in skip_empty(s_f):
+                    chrom, st, en = line.strip().split("\t")[0:3]
+                    spilt_total_len += int(en) - int(st)
+        if spilt_total_len >= split_len_ratio * total_len:
+            split_region_files = sorted(split_region_files,
+                                        key=lambda x: int(
+                                            os.path.basename(x).split(".bed")[0].split(
+                                                "_")[1]))
+    if not split_region_files:
+        all_region_bed = os.path.join(work_regions, "all_regions.bed")
+        shutil.move(tmp_regions_bed, all_region_bed)
+
+        if num_splits is not None:
+            num_split = num_splits
+        else:
+            num_split = max(int(np.ceil((total_len // 10000000) //
+                                        num_threads) * num_threads), num_threads)
+        split_region_files = split_region(work_regions, all_region_bed, num_split,
+                                          min_region=window_size, max_region=1e20)
+    return split_region_files
+
+
 def run_scan_alignments(record):
     work, reference, merge_d_for_scan, scan_alignments_binary, split_region_file, \
-        input_bam, window_size, maf, min_mapq, max_dp, report_all_alleles, filter_duplicate, calc_qual = record
+        input_bam, window_size, \
+        snp_min_ao, \
+        snp_min_af, ins_min_af, del_min_af, \
+        min_mapq, snp_min_bq, max_dp, min_dp, \
+        report_all_alleles, report_count_for_all_positions, filter_duplicate, calc_qual = record
 
     if filter_duplicate:
         filter_duplicate_str = "--filter_duplicate"
@@ -35,6 +97,10 @@ def run_scan_alignments(record):
         report_all_alleles_str = "--report_all_alleles"
     else:
         report_all_alleles_str = ""
+    if report_count_for_all_positions:
+        report_count_for_all_positions_str = "--report_count_for_all_positions"
+    else:
+        report_count_for_all_positions_str = ""
     thread_logger = logging.getLogger(
         "{} ({})".format(run_scan_alignments.__name__, multiprocessing.current_process().name))
     try:
@@ -54,9 +120,17 @@ def run_scan_alignments(record):
 
         if os.path.getsize(split_region_file_) > 0:
             cmd = "{} --ref {} -b {} -L {} --out_vcf_file {}/candidates.vcf --out_count_file {}/count.bed \
-                        --window_size {} --min_af {} --min_mapq {} --max_depth {} {} {}".format(
+                        --window_size {} \
+                        --snp_min_ao {} \
+                        --snp_min_af {} --ins_min_af {} --del_min_af {} \
+                        --min_mapq {} --snp_min_bq {} --max_depth {} --min_depth {} \
+                        {} {} {}".format(
                 scan_alignments_binary, reference, input_bam, split_region_file_,
-                work, work, window_size, maf, min_mapq, max_dp * window_size / 100.0, report_all_alleles_str, filter_duplicate_str)
+                work, work, window_size,
+                snp_min_ao,
+                snp_min_af, ins_min_af, del_min_af,
+                min_mapq, snp_min_bq, max_dp * window_size / 100.0, min_dp,
+                report_all_alleles_str, report_count_for_all_positions_str, filter_duplicate_str)
             if calc_qual:
                 cmd += " --calculate_qual_stat"
             run_shell_command(cmd, stdout=os.path.join(work, "scan.out"),
@@ -81,65 +155,33 @@ def run_scan_alignments(record):
                 "Please check error log at {}".format(stderr_file))
         return None
 
+        outputs = scan_alignments(args.work, args.merge_d_for_scan, args.scan_alignments_binary, args.input_bam,
+                                  args.regions_bed_file, args.reference, args.num_splits,
+                                  args.num_threads, args.window_size,
+                                  args.snp_min_ao,
+                                  args.snp_min_af, args.ins_min_af, args.del_min_af,
+                                  args.min_mapq, args.snp_min_bq, args.max_dp, args.min_dp,
+                                  args.report_all_alleles, args.report_count_for_all_positions,
+                                  args.filter_duplicate)
+
 
 def scan_alignments(work, merge_d_for_scan, scan_alignments_binary, input_bam,
                     regions_bed_file, reference, num_splits,
-                    num_threads, window_size, maf, min_mapq, max_dp, report_all_alleles, filter_duplicate, restart=True,
+                    num_threads, window_size,
+                    snp_min_ao,
+                    snp_min_af, ins_min_af, del_min_af,
+                    min_mapq, snp_min_bq, max_dp, min_dp,
+                    report_all_alleles,
+                    report_count_for_all_positions, filter_duplicate, restart=True,
                     split_region_files=[], calc_qual=True):
 
     logger = logging.getLogger(scan_alignments.__name__)
 
     logger.info("-------------------Scan Alignment BAM----------------------")
 
-    split_len_ratio = 0.98
     if not split_region_files:
-        if regions_bed_file:
-            regions_bed = get_tmp_file()
-            with open(regions_bed_file) as i_f, open(regions_bed, "w") as o_f:
-                for line in skip_empty(i_f):
-                    chrom, st, en = line.strip().split()[0:3]
-                    o_f.write("\t".join([chrom, st, en]) + "\n")
-            regions_bed = bedtools_sort(regions_bed, run_logger=logger)
-            regions_bed = bedtools_merge(
-                regions_bed, args=" -d 0", run_logger=logger)
-        else:
-            regions_bed = get_tmp_file()
-            with pysam.AlignmentFile(input_bam, "rb") as samfile:
-                with open(regions_bed, "w") as tmpfile:
-                    for chrom, length in zip(samfile.references, samfile.lengths):
-                        tmpfile.write("{}\t{}\t{}\t.\t.\t.\n".format(
-                            chrom, 1, length - 1))
-        if not os.path.exists(work):
-            os.mkdir(work)
-        total_len = 0
-        with open(regions_bed) as r_f:
-            for line in skip_empty(r_f):
-                chrom, st, en = line.strip().split("\t")[0:3]
-                total_len += int(en) - int(st) + 1
-        if not restart:
-            split_region_files = glob.glob(os.path.join(work, "region_*.bed"))
-            spilt_total_len = 0
-            for split_file in split_region_files:
-                with open(split_file) as s_f:
-                    for line in skip_empty(s_f):
-                        chrom, st, en = line.strip().split("\t")[0:3]
-                        spilt_total_len += int(en) - int(st)
-            if spilt_total_len >= split_len_ratio * total_len:
-                split_region_files = sorted(split_region_files,
-                                            key=lambda x: int(
-                                                os.path.basename(x).split(".bed")[0].split(
-                                                    "_")[1]))
-        if not split_region_files:
-            regions_bed_file = os.path.join(work, "all_regions.bed")
-            shutil.move(regions_bed, regions_bed_file)
-
-            if num_splits is not None:
-                num_split = num_splits
-            else:
-                num_split = max(int(np.ceil((total_len // 10000000) //
-                                            num_threads) * num_threads), num_threads)
-            split_region_files = split_region(work, regions_bed_file, num_split,
-                                              min_region=window_size, max_region=1e20)
+        split_region_files = split_my_region(
+            work, region_bed, num_threads, num_splits, reference, window_size, restart)
     else:
         logger.info("split_regions to be used (will ignore region_bed): {}".format(
             " ".join(split_region_files)))
@@ -156,7 +198,11 @@ def scan_alignments(work, merge_d_for_scan, scan_alignments_binary, input_bam,
                 shutil.rmtree(work_)
             map_args.append((os.path.join(work, "work.{}".format(i)),
                              reference, merge_d_for_scan, scan_alignments_binary, split_region_file,
-                             input_bam, window_size, maf, min_mapq, max_dp, report_all_alleles, filter_duplicate, calc_qual))
+                             input_bam, window_size,
+                             snp_min_ao,
+                             snp_min_af, ins_min_af, del_min_af,
+                             min_mapq, snp_min_bq, max_dp, min_dp,
+                             report_all_alleles, report_count_for_all_positions, filter_duplicate, calc_qual))
             not_done.append(i)
         else:
             all_outputs[i] = [os.path.join(work, "work.{}".format(i), "candidates.vcf"),
@@ -201,12 +247,21 @@ if __name__ == '__main__':
                         help='binary for scanning alignment bam', default="../bin/scan_alignments")
     parser.add_argument('--window_size', type=int, help='window size to scan the variants',
                         default=2000)
-    parser.add_argument('--maf', type=float,
-                        help='minimum allele freq', default=0.01)
+    parser.add_argument('--snp_min_ao', type=float,
+                        help='SNP min alternate count for low AF candidates', default=3)
+    parser.add_argument('--snp_min_af', type=float,
+                        help='SNP min allele freq', default=0.05)
+    parser.add_argument('--ins_min_af', type=float,
+                        help='INS min allele freq', default=0.01)
+    parser.add_argument('--del_min_af', type=float,
+                        help='DEL min allele freq', default=0.01)
     parser.add_argument('--min_mapq', type=int,
                         help='minimum mapping quality', default=1)
+    parser.add_argument('--snp_min_bq', type=float,
+                        help='SNP min base quality', default=10)
     parser.add_argument('--max_dp', type=float,
                         help='max depth', default=100000)
+    parser.add_argument('--min_dp', type=float, help='min depth', default=1)
     parser.add_argument('--filter_duplicate',
                         help='filter duplicate reads when preparing pileup information',
                         action="store_true")
@@ -215,6 +270,9 @@ if __name__ == '__main__':
                         default=None)
     parser.add_argument('--report_all_alleles',
                         help='report all alleles per position',
+                        action="store_true")
+    parser.add_argument('--report_count_for_all_positions',
+                        help='report_count_for_all_positions',
                         action="store_true")
     parser.add_argument('--num_splits', type=int,
                         help='number of region splits', default=None)
@@ -226,8 +284,12 @@ if __name__ == '__main__':
     try:
         outputs = scan_alignments(args.work, args.merge_d_for_scan, args.scan_alignments_binary, args.input_bam,
                                   args.regions_bed_file, args.reference, args.num_splits,
-                                  args.num_threads, args.window_size, args.maf,
-                                  args.min_mapq, args.max_dp, args.report_all_alleles, args.filter_duplicate)
+                                  args.num_threads, args.window_size,
+                                  args.snp_min_ao,
+                                  args.snp_min_af, args.ins_min_af, args.del_min_af,
+                                  args.min_mapq, args.snp_min_bq, args.max_dp, args.min_dp,
+                                  args.report_all_alleles, args.report_count_for_all_positions,
+                                  args.filter_duplicate)
     except Exception as e:
         logger.error(traceback.format_exc())
         logger.error("Aborting!")

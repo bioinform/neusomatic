@@ -99,22 +99,33 @@ public:
     return (cspace_);
   }
 
-  decltype(auto) GetColSpaceMQual() const {
-    return (cspace_);
-  }
-  decltype(auto) GetColSpaceStrand() const {
-    return (cspace_);
-  }
-  decltype(auto) GetColSpaceLSC() const {
-    return (cspace_);
-  }
-  decltype(auto) GetColSpaceRSC() const {
-    return (cspace_);
-  }
-  decltype(auto) GetColSpaceTag() const {
-    return (cspace_);
+  decltype(auto) GetBaseFreq(int i) const {
+    return (cspace_[i].base_freq_);
   }
 
+  decltype(auto) GetBQMean(int i) const {
+    return (cspace_[i].bqual_mean);
+  }
+
+  decltype(auto) GetMQMean(int i) const {
+    return (cspace_[i].mqual_mean);
+  }
+
+  decltype(auto) GetStrandMean(int i) const {
+    return (cspace_[i].strand_mean);
+  }
+
+  decltype(auto) GetLSCMean(int i) const {
+    return (cspace_[i].lsc_mean);
+  }
+
+  decltype(auto) GetRSCMean(int i) const {
+    return (cspace_[i].rsc_mean);
+  }
+
+  decltype(auto) GetTagMean(int i) const {
+    return (cspace_[i].tag_mean);
+  }
 
   size_t ncol() const {
     return cspace_.size();
@@ -150,32 +161,82 @@ public:
     cspace_(msa.ncol()),
     gapped_ref_str_(msa.gapped_ref_str())
   { 
+
+    // auto start_3p0 = std::chrono::system_clock::now();
+
+
+    for (int pp = 0; pp < msa.ncol(); ++pp) {
+      cspace_[pp].base_freq_[MISSING_CODE] = nrow_;
+    }
+
     for (size_t i = 0; i < nrow_; ++i) {
+      // auto start_3p0p0 = std::chrono::system_clock::now();
+
       auto const& r = msa.bam_records()[i];
       auto const& cigar = r.GetCigar();        
       const auto seq_qual = msa.GetGappedSeqAndQual(r);
       const auto& seq = seq_qual.first;
+
       // -1,+1 for INS at the begin or end of a read
       auto s = msa.GapPosition(std::max(r.Position() - 1 , msa.ref_gaps().left()) - msa.ref_gaps().left());
       auto e = msa.GapPosition(std::min(r.PositionEnd() + 1, msa.ref_gaps().right()) - msa.ref_gaps().left() - 1);
 
-      for (int pp = 0; pp < s; ++pp) {
-        ++cspace_[pp].base_freq_[MISSING_CODE];
-      }
-      for (int pp = e + 1; pp < msa.ncol(); ++pp){
-        ++cspace_[pp].base_freq_[MISSING_CODE];
-      }
+      // for (int pp = 0; pp < s; ++pp) {
+      //   ++cspace_[pp].base_freq_[MISSING_CODE];
+      // }
+
+
+      // for (int pp = e + 1; pp < msa.ncol(); ++pp){
+      //   ++cspace_[pp].base_freq_[MISSING_CODE];
+      // }
+
+      // auto end_3p0p0 = std::chrono::system_clock::now();
+      // std::chrono::duration<double> elapsed_seconds_3p0p0 = end_3p0p0-start_3p0p0;
+      // std::time_t end_time_3p0p0 = std::chrono::system_clock::to_time_t(end_3p0p0);
+      // std::cout << "elapsed_3p0p0 time: " << elapsed_seconds_3p0p0.count() << "s\n";      
+      // auto start_3p0p1 = std::chrono::system_clock::now();
+
       for (int pp = s; pp <= e; ++pp) {
+        --cspace_[pp].base_freq_[MISSING_CODE];
         ++cspace_[pp].base_freq_[DnaCharToDnaCode(seq[pp])];
       }
 
+      // auto end_3p0p1 = std::chrono::system_clock::now();
+      // std::chrono::duration<double> elapsed_seconds_3p0p1 = end_3p0p1-start_3p0p1;
+      // std::time_t end_time_3p0p1 = std::chrono::system_clock::to_time_t(end_3p0p1);
+      // std::cout << "elapsed_3p0p1 time: " << elapsed_seconds_3p0p1.count() << "s\n";      
+      // auto start_3p0p2 = std::chrono::system_clock::now();
+
       if (calculate_qual) {
+        // auto start_3p0p2p0 = std::chrono::system_clock::now();
+
         const auto& qual = seq_qual.second;
         int strand = (int) !r.ReverseFlag();
+
+        // auto end_3p0p2p0 = std::chrono::system_clock::now();
+        // std::chrono::duration<double> elapsed_seconds_3p0p2p0 = end_3p0p2p0-start_3p0p2p0;
+        // std::time_t end_time_3p0p2p0 = std::chrono::system_clock::to_time_t(end_3p0p2p0);
+        // std::cout << "elapsed_3p0p2p0 time: " << elapsed_seconds_3p0p2p0.count() << "s\n";      
+        // auto start_3p0p2p1 = std::chrono::system_clock::now();
+
         const auto clips = msa.GetClipping(r);
         const auto tags = msa.GetTags(r, 5);
+
+        // auto end_3p0p2p1 = std::chrono::system_clock::now();
+        // std::chrono::duration<double> elapsed_seconds_3p0p2p1 = end_3p0p2p1-start_3p0p2p1;
+        // std::time_t end_time_3p0p2p1 = std::chrono::system_clock::to_time_t(end_3p0p2p1);
+        // std::cout << "elapsed_3p0p2p1 time: " << elapsed_seconds_3p0p2p1.count() << "s\n";      
+        // auto start_3p0p2p2 = std::chrono::system_clock::now();
+
         if (clips.first != -1) cspace_[clips.first].lsc_mean[DnaCharToDnaCode(seq[clips.first])] ++;
         if (clips.second != -1) cspace_[clips.second].rsc_mean[DnaCharToDnaCode(seq[clips.second])] ++;
+
+        // auto end_3p0p2p2 = std::chrono::system_clock::now();
+        // std::chrono::duration<double> elapsed_seconds_3p0p2p2 = end_3p0p2p2-start_3p0p2p2;
+        // std::time_t end_time_3p0p2p2 = std::chrono::system_clock::to_time_t(end_3p0p2p2);
+        // std::cout << "elapsed_3p0p2p2 time: " << elapsed_seconds_3p0p2p2.count() << "s\n";      
+        // auto start_3p0p2p3 = std::chrono::system_clock::now();
+
         for (int pp = s; pp <= e; ++pp) {
           cspace_[pp].bqual_mean[DnaCharToDnaCode(seq[pp])] += float(qual[pp] - 33) ;
           cspace_[pp].strand_mean[DnaCharToDnaCode(seq[pp])] += strand;
@@ -184,8 +245,27 @@ public:
             cspace_[pp].tag_mean[ DnaCharToDnaCode(seq[pp]) ][ii] += tags[ii];
           }
         }
+
+        // auto end_3p0p2p3 = std::chrono::system_clock::now();
+        // std::chrono::duration<double> elapsed_seconds_3p0p2p3 = end_3p0p2p3-start_3p0p2p3;
+        // std::time_t end_time_3p0p2p3 = std::chrono::system_clock::to_time_t(end_3p0p2p3);
+        // std::cout << "elapsed_3p0p2p3 time: " << elapsed_seconds_3p0p2p3.count() << "s\n";      
+
       }
+
+      // auto end_3p0p2 = std::chrono::system_clock::now();
+      // std::chrono::duration<double> elapsed_seconds_3p0p2 = end_3p0p2-start_3p0p2;
+      // std::time_t end_time_3p0p2 = std::chrono::system_clock::to_time_t(end_3p0p2);
+      // std::cout << "elapsed_3p0p2 time: " << elapsed_seconds_3p0p2.count() << "s\n";      
+
+
     }//end for
+
+    // auto end_3p0 = std::chrono::system_clock::now();
+    // std::chrono::duration<double> elapsed_seconds_3p0 = end_3p0-start_3p0;
+    // std::time_t end_time_3p0 = std::chrono::system_clock::to_time_t(end_3p0);
+    // std::cout << "elapsed_3p0 time: " << elapsed_seconds_3p0.count() << "s\n";      
+    // auto start_3p1 = std::chrono::system_clock::now();
 
     if (calculate_qual) {
       for (size_t ii = 0; ii < msa.ncol(); ++ii) {
@@ -202,6 +282,12 @@ public:
         }
       }
     }
+
+    // auto end_3p1 = std::chrono::system_clock::now();
+    // std::chrono::duration<double> elapsed_seconds_3p1 = end_3p1-start_3p1;
+    // std::time_t end_time_3p1 = std::chrono::system_clock::to_time_t(end_3p1);
+    // std::cout << "elapsed_3p1 time: " << elapsed_seconds_3p1.count() << "s\n";      
+
   }
 
 
@@ -475,6 +561,18 @@ std::string add_qual_col(auto  & data_array, bool is_int=false){
   return ret;
 }
 
+
+void add_qual_col(auto & count_writer, auto  & data_array, bool is_int, const std::string& end_str ){
+  auto sep = ":";
+  int order [5] = { 4, 0, 1, 2, 3 };
+  if (is_int){
+    count_writer << (data_array[order[0]])<<":"<<(data_array[order[1]])<<":"<<(data_array[order[2]])<<":"<<(data_array[order[3]])<<":"<<(data_array[order[4]])<<end_str;
+  }else{
+    count_writer << int(round(data_array[order[0]]))<<":"<<int(round(data_array[order[1]]))<<":"<<int(round(data_array[order[2]]))<<":"<<int(round(data_array[order[3]]))<<":"<<int(round(data_array[order[4]]))<<end_str;
+  }
+}
+
+
 std::string add_tag_col(auto  & data_array, bool is_int=false, int idx=0){
   auto sep = ":";
   int order [5] = { 4, 0, 1, 2, 3 }; 
@@ -489,6 +587,45 @@ std::string add_tag_col(auto  & data_array, bool is_int=false, int idx=0){
     if (n < 4){
       ret+=":";
     }
+  }
+  return ret;
+}
+
+
+void add_tag_col(auto & count_writer, auto  & data_array, bool is_int, int idx, const std::string& end_str){
+    int order [5] = { 4, 0, 1, 2, 3 };
+  if (is_int){
+    count_writer << (data_array[order[0]][idx])<<":"<<(data_array[order[1]][idx])<<":"<<(data_array[order[2]][idx])<<":"<<(data_array[order[3]][idx])<<":"<<(data_array[order[4]][idx])<<end_str;
+  }else{
+    count_writer << int(round(data_array[order[0]][idx]))<<":"<<int(round(data_array[order[1]][idx]))<<":"<<int(round(data_array[order[2]][idx]))<<":"<<int(round(data_array[order[3]][idx]))<<":"<<int(round(data_array[order[4]][idx]))<<end_str;
+  }
+}
+
+
+std::string add_qual_col(auto  & data_array, bool is_int, const std::string& end_str ){
+  auto sep = ":";
+  int order [5] = { 4, 0, 1, 2, 3 };
+  std::string ret = "";
+  if (is_int){
+    // std::stringstream result;
+    // std::copy(data_array.begin(), data_array.end(), std::ostream_iterator<int>(result, ":"));
+    // cout << result<<std::endl;
+
+    ret = std::to_string((data_array[order[0]]))+sep+std::to_string((data_array[order[1]]))+sep+std::to_string((data_array[order[2]]))+sep+std::to_string((data_array[order[3]]))+sep+std::to_string((data_array[order[4]]))+end_str;
+  }else{
+    ret = std::to_string(int(round(data_array[order[0]])))+sep+std::to_string(int(round(data_array[order[1]])))+sep+std::to_string(int(round(data_array[order[2]])))+sep+std::to_string(int(round(data_array[order[3]])))+sep+std::to_string(int(round(data_array[order[4]])))+end_str;
+  }
+  return ret;
+}
+
+std::string add_tag_col(auto  & data_array, bool is_int, int idx, const std::string& end_str){
+  auto sep = ":";
+  int order [5] = { 4, 0, 1, 2, 3 };
+  std::string ret = "";
+  if (is_int){
+    ret = std::to_string((data_array[order[0]][idx]))+sep+std::to_string((data_array[order[1]][idx]))+sep+std::to_string((data_array[order[2]][idx]))+sep+std::to_string((data_array[order[3]][idx]))+sep+std::to_string((data_array[order[4]][idx]))+end_str;
+  }else{
+    ret = std::to_string(int(round(data_array[order[0]][idx])))+sep+std::to_string(int(round(data_array[order[1]][idx])))+sep+std::to_string(int(round(data_array[order[2]][idx])))+sep+std::to_string(int(round(data_array[order[3]][idx])))+sep+std::to_string(int(round(data_array[order[4]][idx])))+end_str;
   }
   return ret;
 }
