@@ -13,14 +13,14 @@ Here you can find the information about the following SEQC-II paper:
 
 ### Training Dataset (synthetic spiked samples) for the deep learning paper
 * The spiked sample used to train the deep learning models in the paper as well as the trained models are listed at:
-ftp://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/Somatic_Mutation_WG/data/DeepLearning_bams/
+[ftp://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/Somatic_Mutation_WG/data/DeepLearning_bams/](ftp://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/Somatic_Mutation_WG/data/DeepLearning_bams/)
 * The NeuSomatic network models can be found at `models`.
 
 ## Description of training data preparation
 ### WGS-Spike models
 
 Sample | Tumor | Normal | Purities used
---------------------|----------------------------|------------------------|--------------------------
+--------------------|----------------------------|------------------|---------------------
 FD2N_FD1N | synthetic_tumor_FD2N | WGS_FD_N_1 | 100%T/100%N, 100%T/95%N
 FD3N_FD2N | synthetic_tumor_FD3N | WGS_FD_N_2 | 100%T/100%N, 100%T/95%N
 IL2N_IL1N | synthetic_tumor_IL2N | WGS_IL_N_1 | 100%T/100%N, 100%T/95%N
