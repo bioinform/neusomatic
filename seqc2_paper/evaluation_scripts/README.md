@@ -1,4 +1,4 @@
-# Evaluation Scripts for the SEQC-II deepLearning for somatic mutation detection project
+# Evaluation Scripts for the SEQC-II deep Learning for somatic mutation detection project
 Here you can find evaluation scripts for the following SEQC-II paper:
 Sahraeian SME, et al., Achieving Robust Somatic Mutation Detection with Deep Learning Models Derived from Reference Data Sets of a Cancer Sample, Genome Biology, 2022.
 
