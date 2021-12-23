@@ -11,8 +11,8 @@ You need to install [VarSim](https://github.com/bioinform/varsim)
 ```
 ./evaluate.sh \
 -r GRCh38.d1.vd1.fa \
--t data/HighMed.v1.0.vcf.gz \
--l data/Low.v1.0.vcf.gz \
+-t ../data/HighMed.v1.0.vcf.gz \
+-l ../data/Low.v1.0.vcf.gz \
 -q somatic.vcf \ # predicted somatic VCF
 -u tumor.bam \
 -b data/test_region_WGS.bed \
