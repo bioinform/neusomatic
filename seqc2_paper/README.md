@@ -13,7 +13,7 @@ Here you can find the information about the following SEQC-II paper:
 
 ### Training Dataset (synthetic spiked samples) for the deep learning paper
 * The spiked sample used to train the deep learning models in the paper as well as the trained models are listed 
- on [FTP].
+ on NCBI FTP site.
     * FTP adress: [ftp://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/Somatic_Mutation_WG/data/DeepLearning_bams/](ftp://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/seqc/Somatic_Mutation_WG/data/DeepLearning_bams/)
 * The NeuSomatic network models can be found at `models`.
 
